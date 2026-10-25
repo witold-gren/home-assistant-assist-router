@@ -1413,3 +1413,26 @@ def test_topic_days_accept_codes_and_language_pack_names() -> None:
     assert [t.days for t in config.topics.values()] == ["tomorrow", "tomorrow", "14"]
     with pytest.raises(ValueError, match="unknown days 'kiedyś'"):
         parse_config({"topics": {"x": {"description": "x", "days": "kiedyś"}}})
+
+
+async def test_entity_lines_skip_alias_markers(hass: HomeAssistant, setup) -> None:
+    """Newer HA keeps markers (ComputedNameType - "use the entity name") among entity
+    aliases; only text aliases are listed, and nothing breaks on the marker."""
+    import enum
+
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.assist_router.control import collect_home
+    from custom_components.assist_router.router import entity_lines
+
+    class ComputedNameType(enum.Enum):  # stand-in for the HA marker
+        NAME = "name"
+
+    ent_reg = er.async_get(hass)
+    lustro = ent_reg.async_get_or_create("switch", "zha", "lustro")
+    ent_reg.async_update_entity(lustro.entity_id, aliases={ComputedNameType.NAME, "Lustro"})
+    hass.states.async_set(lustro.entity_id, "on", {"friendly_name": "Łazienka Oświetlenie"})
+
+    assert entity_lines(hass, ("switch.*",)) == ["Łazienka Oświetlenie (inaczej: Lustro): włączone"]
+    target = next(t for t in collect_home(hass).targets if t.entity_id == lustro.entity_id)
+    assert target.names == ["Łazienka Oświetlenie", "Lustro"]

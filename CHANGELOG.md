@@ -2,6 +2,14 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions: [SemVer](https://semver.org/).
 
+## [0.1.1] - 2026-10-25
+
+### Fixed
+- Questions answered from entity states (e.g. „Które urządzenia są wyłączone?”) failed with
+  `TypeError` when an entity had a non-text alias: newer Home Assistant keeps markers
+  (`ComputedNameType`, "use the entity name") among entity aliases. Only text aliases are
+  used now - for entity lines, device matching in control, and area and floor aliases.
+
 ## [0.1.0] - 2026-10-25
 
 First public release. A conversation agent for Assist (domain `assist_router`, entity

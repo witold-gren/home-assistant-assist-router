@@ -55,6 +55,12 @@ CERTAIN = 0.8
 AMBIGUOUS = 0.1
 
 
+def text_aliases(aliases: Any) -> list[str]:
+    """Aliases that are text. Newer HA also stores markers (ComputedNameType - "use the
+    entity name") among entity aliases; they mean the name, which is listed anyway."""
+    return [alias for alias in aliases or () if isinstance(alias, str)]
+
+
 def prepare_text(text: str) -> tuple[str, list[str]]:
     """The command after speech recognition fixes, and the reasons to ask first."""
     return LANG.prepare_text(text)
@@ -106,12 +112,12 @@ def collect_home(hass: HomeAssistant) -> Home:
     floors = {
         alias: floor.name
         for floor in fr.async_get(hass).async_list_floors()
-        for alias in (floor.name, *floor.aliases)
+        for alias in (floor.name, *text_aliases(floor.aliases))
     }
     areas = {
         alias: area.name
         for area in area_reg.async_list_areas()
-        for alias in (area.name, *area.aliases)
+        for alias in (area.name, *text_aliases(area.aliases))
     }
     targets = []
     for state in hass.states.async_all():
@@ -125,7 +131,7 @@ def collect_home(hass: HomeAssistant) -> Home:
             device = dr.async_get(hass).async_get(entry.device_id)
             area_id = device.area_id if device else None
         area = area_reg.async_get_area(area_id) if area_id else None
-        aliases = [a for a in (entry.aliases if entry else ()) if isinstance(a, str)]
+        aliases = text_aliases(entry.aliases if entry else ())
         targets.append(
             Target(
                 entity_id=state.entity_id,

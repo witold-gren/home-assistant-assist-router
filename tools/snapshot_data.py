@@ -139,9 +139,15 @@ def home(url: str, token: str) -> dict:
     return {
         "actions": actions,
         "targets": targets,
-        "areas": {alias: a["name"] for a in areas for alias in [a["name"], *a.get("aliases", [])]},
+        "areas": {
+            alias: a["name"]
+            for a in areas
+            for alias in [a["name"], *(x for x in a.get("aliases", []) if isinstance(x, str))]
+        },
         "floors": {
-            alias: f["name"] for f in floors for alias in [f["name"], *f.get("aliases", [])]
+            alias: f["name"]
+            for f in floors
+            for alias in [f["name"], *(x for x in f.get("aliases", []) if isinstance(x, str))]
         },
         "domains": sorted({t["domain"] for t in targets} & set(LANG.DOMAINS)),
     }

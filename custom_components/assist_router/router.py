@@ -43,6 +43,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 import yaml
 
+from .control import text_aliases
 from .languages import LANG, available_languages, set_language
 from .sources import (
     DAY_CODES,
@@ -798,7 +799,7 @@ def entity_lines(
             area_id = device.area_id if device else None
         area = area_reg.async_get_area(area_id) if area_id else None
         where = f" [{area.name}]" if area and area.name.lower() not in state.name.lower() else ""
-        aliases = sorted(entry.aliases) if entry and entry.aliases else []
+        aliases = sorted(text_aliases(entry.aliases)) if entry else []
         name = f"{state.name}{f' ({LANG.ALIASES}: ' + ', '.join(aliases) + ')' if aliases else ''}"
         extras = "" if missing else _extras(state)
         lines.append(f"{name}{where}: {value}{' ' + unit if unit else ''}{extras}")
