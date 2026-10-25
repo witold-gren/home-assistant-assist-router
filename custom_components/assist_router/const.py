@@ -51,3 +51,14 @@ DEFAULT_ANSWER_TIMEOUT: Final = 15
 ROUTER_NUM_CTX: Final = 4096
 ANSWER_NUM_CTX: Final = 8192
 TITLE: Final = "Assist Router"
+
+# sensor ids independent of the HA language (key = unique id suffix)
+ENTITY_IDS = {
+    "examples": "sensor.assist_router_example_commands",
+    "unrecognized": "sensor.assist_router_unrecognized_commands",
+}
+# default ids of earlier versions, built by HA from the translated name - renamed on setup
+LEGACY_OBJECT_IDS = {
+    "examples": ("assist_router_przykladowe_komendy",),
+    "unrecognized": ("assist_router_nierozpoznane_komendy",),
+}

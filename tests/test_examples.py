@@ -27,7 +27,7 @@ from .test_actions import (
     dom as dom,  # home fixture with devices
 )
 
-SENSOR = "sensor.assist_router_przykladowe_komendy"
+SENSOR = "sensor.assist_router_example_commands"
 
 WRITTEN = {
     "szkoła": ["Jakie lekcje ma Kasia jutro?", "O której Jan kończy szkołę?", "Jaka jest pogoda?"],
@@ -244,7 +244,7 @@ async def test_examples_step_without_generating_closes(
 
 # --- unrecognized log: preview, sensor, clearing ---
 
-LOG_SENSOR = "sensor.assist_router_nierozpoznane_komendy"
+LOG_SENSOR = "sensor.assist_router_unrecognized_commands"
 
 
 async def _log_rows(entry: MockConfigEntry, count: int) -> None:

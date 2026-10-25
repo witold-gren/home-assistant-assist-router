@@ -31,6 +31,8 @@ and sentence-triggered automations keep working unchanged. When HA does not reco
 | **Who is asking** | With the [Assist Speaker ID](https://github.com/witold-gren/home-assistant-assist-speaker-id) integration, a first-person question (“What do I have tomorrow?”) is about the speaker. Family terms (“my brother”), the speaker's room (“in my room”) and the question “Who is speaking?” work too. |
 | **Announcements (intercom)** | “Announcement, kids, please come to dinner” plays **your recording** on the other speakers instead of synthesized speech (Assist Speaker ID). |
 | **Gibberish** | A misrecognized sentence ends with the question “Did you mean …?”. After two misunderstandings in a row Assist apologizes and ends the conversation. |
+| **Several commands** | „Zamknij rolety w salonie i włącz ekspres do kawy” (close the blinds and start the coffee machine) – the model splits the sentence into complete commands, each takes the usual path; one needing a question waits, the rest follow after the answer. |
+| **Corrections** | To any question from the assistant you can answer “no” and the command again („nie, wyłącz światło w łazience”) – it is handled from the start, as many times as needed. |
 | **Fallback agent** | When the router has no data, the chosen LLM agent takes over the question. |
 | **Log** | Unrecognized sentences go to `/config/assist/unrecognized_commands.csv`, with a preview in the options, a sensor and a clear action. |
 | **Example commands** | The `assist_router.generate_examples` action writes sentences from your entities and checks them with the real router. The result lands in `assist/router_examples.yaml`. |
@@ -203,7 +205,7 @@ chapter 12).
 
 The integration ships the Polish language pack. Everything language-dependent lives in
 `custom_components/assist_router/languages/<code>.py`: spoken replies, words and patterns
-(days, yes/no answers, verbs, colors…), LLM prompts and the JSON keys they ask for, log
+(days, yes/no answers and correction lead-ins, verbs, colors, conjunctions and the prompt that splits several commands…), LLM prompts and the JSON keys they ask for, log
 labels and the functions that build sentences. To add e.g. Czech:
 
 1. Copy `languages/pl.py` to `languages/cs.py`.

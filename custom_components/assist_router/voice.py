@@ -7,12 +7,16 @@ The phrases and replies come from the active language pack.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .languages import LANG
 
 # replies of the language pack available as voice.ANNOUNCED etc.
 _PACK_NAMES = frozenset({"ANNOUNCED", "NO_VOICE", "TOO_SHORT", "NO_PRINTS"})
+
+# threshold the best voice missed, from the Assist Speaker ID reason "<id> below threshold 0.78"
+_THRESHOLD = re.compile(r"below threshold (\d+(?:\.\d+)?)")
 
 
 def __getattr__(name: str) -> Any:
@@ -52,4 +56,6 @@ def answer(result: Any, names: dict[str, str]) -> str:
         return LANG.speaker_recognized(name(result.speaker), result.score, second)
     if "too close" in reason:
         return LANG.speaker_uncertain(name(best_id), best, name(ranked[1][0]), ranked[1][1])
-    return LANG.speaker_unknown(name(best_id), best)
+    found = _THRESHOLD.search(reason)
+    threshold = float(found.group(1)) if found else None
+    return LANG.speaker_unknown(name(best_id), best, threshold, second)

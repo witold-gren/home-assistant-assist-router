@@ -34,12 +34,15 @@ household: >-
 #   speaker - identyfikator jej głosu w Assist Speaker ID (domyślnie klucz osoby, np. „ola”),
 #   owns    - jej encje (np. kalendarz pracy, telefon): w pytaniu o inną osobę są pomijane,
 #             encje niczyje (kalendarz rodziny) - zawsze,
+#   labels  - to samo etykietami Home Assistanta (Ustawienia -> Encje): encje z jedną z tych
+#             etykiet należą do osoby (np. kalendarz z CalDAV albo Google),
 #   room    - jej pokój: „zgaś światło w moim pokoju” od tej osoby = ten obszar.
 people:
   tomek:
     name: Tomek
     match: "tom|tat(a|y|o|ą|ę)\\b"
     owns: [calendar.praca_tomka, sensor.telefon_tomka_*]
+    labels: [tomek]
   ania:
     name: Ania
     match: "ani|anna|anny|mam(a|y|ie|ą|ę)\\b"

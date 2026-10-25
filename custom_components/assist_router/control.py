@@ -882,6 +882,48 @@ def is_repeat(text: str) -> bool:
     )
 
 
+def may_be_several_commands(text: str) -> bool:
+    """A command (a known verb) with a conjunction - it may hold several commands
+    („zamknij rolety w salonie i włącz ekspres”). Questions are not split."""
+    return bool(LANG.CONJUNCTIONS.search(text)) and LANG.NO_KNOWN_VERB not in prepare_text(text)[1]
+
+
+def _lead_pattern(words: tuple[str, ...]) -> re.Pattern[str]:
+    """Phrases at the start of an utterance, with any spaces, commas and punctuation after
+    them (Whisper often drops the comma: „Nie wyłącz światło”)."""
+    alternatives = "|".join(
+        sorted((r"[\s,]+".join(map(re.escape, w.split())) for w in words), key=len, reverse=True)
+    )
+    return re.compile(rf"^\W*(?:{alternatives})(?!\w)[\s,.!?:;…-]*", re.IGNORECASE)
+
+
+def rephrased_command(text: str) -> str | None:
+    """The corrected command in a reply to the assistant's question, or None.
+
+    „nie, wyłącz światło w łazience” -> „wyłącz światło w łazience”: a leading "no" phrase
+    (``LANG.REPEAT_WORDS``) followed by a command of at least two words. Lead-ins such as
+    „pytałem czy”, „chodziło mi o” (``LANG.REPHRASE_LEADS``) and fillers are dropped too. A
+    longer cancel phrase at the start („nie chcę”, „nie rób”) wins - that is a cancel.
+    """
+    no, cancel = _lead_pattern(LANG.REPEAT_WORDS), _lead_pattern(LANG.CANCEL_WORDS)
+    rest, stripped = text, False
+    while match := no.match(rest):
+        cancelled = cancel.match(rest)
+        if cancelled and cancelled.end() >= match.end():
+            return None
+        rest, stripped = rest[match.end() :], True
+    if not stripped:
+        return None
+    rest = LANG.REPHRASE_LEADS.sub("", rest.strip(), count=1)
+    words = rest.split()
+    while words and words[0].strip(",.!?").lower() in LANG.FILLER:
+        words.pop(0)
+    rest = " ".join(words).strip(" ,")
+    if len(rest.split()) < 2 or is_bare_answer(rest):
+        return None
+    return rest
+
+
 def answer_kind(text: str, intent_type: str | None = None, domain: str | None = None) -> str | None:
     """„yes” / „no” to a confirmation question; None = another utterance (a new command).
 

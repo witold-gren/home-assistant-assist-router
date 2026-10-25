@@ -41,12 +41,15 @@ household: >-
 #   speaker - their voice identifier in Assist Speaker ID (defaults to the person key, e.g. "olivia"),
 #   owns    - their entities (e.g. work calendar, phone): skipped when asking about another person;
 #             entities owned by no one (family calendar) - always included,
+#   labels  - the same with Home Assistant labels (Settings -> Entities): entities with one of
+#             these labels belong to the person (e.g. a CalDAV / Google calendar),
 #   room    - their room: "turn off the light in my room" from this person = this area.
 people:
   tom:
     name: Tom
     match: "tom|dad"
     owns: [calendar.tom_work, sensor.tom_phone_*]
+    labels: [tom]
   anna:
     name: Anna
     match: "ann|mom|mum"

@@ -1115,6 +1115,154 @@ async def test_calendar_only_of_the_person_asked_about(
     assert set(targets if isinstance(targets, list) else [targets]) == calendars
 
 
+LABELS_YAML = """
+household: "Domownicy: Tomek, Kasia, Jan, Ola."
+people:
+  tomek: {name: Tomek, match: "tomek|tat", labels: Tomek}
+  kasia: {name: Kasia, match: "kasi|katarz", labels: [kasia]}
+  jan: {name: Jan, labels: [JAN]}
+  ola: {name: Ola, match: "ol(a|i)", labels: [ola]}
+family:
+  parents: [tomek]
+  children: [kasia, jan, ola]
+topics:
+  plany:
+    description: kalendarz
+    personal: true
+    days: "14"
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.*]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events
+        title: Wydarzenia w kalendarzach
+  inne:
+    description: wszystko inne
+"""
+
+
+def test_owners_from_labels() -> None:
+    """`labels` of a person (text or list, any case) match the HA labels of an entity."""
+    from custom_components.assist_router.router import entity_owners, owned_by_others, parse_config
+
+    config = parse_config(yaml.safe_load(LABELS_YAML))
+    assert config.people["tomek"].labels == ("tomek",)
+    assert config.people["jan"].labels == ("jan",)
+    assert entity_owners(config, "calendar.x", frozenset({"kasia"})) == {"kasia"}
+    assert entity_owners(config, "calendar.x", frozenset()) == set()
+    assert owned_by_others(config, ("kasia",), "calendar.x", frozenset({"jan"}))
+    assert not owned_by_others(config, ("kasia",), "calendar.x", frozenset({"kasia"}))
+    assert not owned_by_others(config, ("kasia",), "calendar.family")  # shared
+
+
+async def _labelled_calendars(hass: HomeAssistant) -> None:
+    """calendar.family (shared) + one calendar per person, marked with HA labels."""
+    from homeassistant.helpers import entity_registry as er, label_registry as lr
+
+    labels, entities = lr.async_get(hass), er.async_get(hass)
+    for name, owner in (("family", None), ("praca_tomek", "Tomek"), ("kalendarz_kasia", "Kasia"),
+                        ("kalendarz_jan", "Jan")):  # fmt: skip
+        entry = entities.async_get_or_create("calendar", "test", name, suggested_object_id=name)
+        if owner:
+            label = labels.async_get_label_by_name(owner) or labels.async_create(owner)
+            entities.async_update_entity(entry.entity_id, labels={label.label_id})
+        hass.states.async_set(entry.entity_id, "off", {"friendly_name": name})
+
+
+@pytest.mark.parametrize(
+    ("text", "speaker", "calendars"),
+    [
+        # personal topic: the speaker's calendar + the shared one, no 1st person needed
+        ("Co jest jutro w kalendarzu?", ("kasia", "Kasia"),
+         {"calendar.family", "calendar.kalendarz_kasia"}),
+        # a parent also gets the children's calendars
+        ("Co jest jutro w kalendarzu?", ("tomek", "Tomek"),
+         {"calendar.family", "calendar.praca_tomek", "calendar.kalendarz_kasia",
+          "calendar.kalendarz_jan"}),
+        # the name in the question beats the speaker
+        ("Co ma jutro Jan?", ("kasia", "Kasia"), {"calendar.family", "calendar.kalendarz_jan"}),
+        # unknown speaker - everything
+        ("Co jest jutro w kalendarzu?", (None, None),
+         {"calendar.family", "calendar.praca_tomek", "calendar.kalendarz_kasia",
+          "calendar.kalendarz_jan"}),
+    ],
+)  # fmt: skip
+async def test_calendar_owners_from_ha_labels(
+    hass: HomeAssistant,
+    router: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    monkeypatch: pytest.MonkeyPatch,
+    text: str,
+    speaker: tuple,
+    calendars: set[str],
+) -> None:
+    from homeassistant.core import SupportsResponse
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    from custom_components.assist_router import conversation as agent_module
+
+    Path(hass.config.path("assist", "router.yaml")).write_text(LABELS_YAML, "utf-8")
+    await _labelled_calendars(hass)
+    calls = async_mock_service(
+        hass, "calendar", "get_events", response={}, supports_response=SupportsResponse.ONLY
+    )
+    await _with_answer_model(hass, router, aioclient_mock)
+    aioclient_mock.post(
+        f"{OLLAMA}/api/chat",
+        side_effect=_chat_by_model(
+            {"bielik-1.5b": _answer("plany"), "gemma-mala": {"message": {"content": "Nic."}}}
+        ),
+    )
+    monkeypatch.setattr(agent_module, "current_speaker", lambda hass: speaker)
+
+    await _ask(hass, text)
+
+    targets = calls[0].data["entity_id"]
+    assert set(targets if isinstance(targets, list) else [targets]) == calendars
+
+
+async def test_person_without_own_calendar_is_told_so(
+    hass: HomeAssistant,
+    router: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ola has no calendar of her own: she gets the shared one, and the answer model is told
+    that she has no own calendar - instead of saying „there are no events”."""
+    from homeassistant.core import SupportsResponse
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    from custom_components.assist_router import conversation as agent_module
+
+    Path(hass.config.path("assist", "router.yaml")).write_text(LABELS_YAML, "utf-8")
+    await _labelled_calendars(hass)
+    calls = async_mock_service(
+        hass, "calendar", "get_events", response={}, supports_response=SupportsResponse.ONLY
+    )
+    await _with_answer_model(hass, router, aioclient_mock)
+    aioclient_mock.post(
+        f"{OLLAMA}/api/chat",
+        side_effect=_chat_by_model(
+            {"bielik-1.5b": _answer("plany"), "gemma-mala": {"message": {"content": "Nic."}}}
+        ),
+    )
+    monkeypatch.setattr(agent_module, "current_speaker", lambda hass: ("ola", "Ola"))
+
+    await _ask(hass, "Co mam jutro?")
+
+    assert calls[0].data["entity_id"] in ("calendar.family", ["calendar.family"])
+    answer_call = next(c for c in aioclient_mock.mock_calls if c[2].get("model") == "gemma-mala")
+    system = answer_call[2]["messages"][0]["content"]
+    assert "Ola nie ma przypisanego własnego źródła „Wydarzenia w kalendarzach”" in system
+
+    # someone with an own calendar is not told anything like that
+    aioclient_mock.mock_calls.clear()
+    monkeypatch.setattr(agent_module, "current_speaker", lambda hass: ("kasia", "Kasia"))
+    await _ask(hass, "Co mam jutro?")
+    answer_call = next(c for c in aioclient_mock.mock_calls if c[2].get("model") == "gemma-mala")
+    assert "nie ma przypisanego" not in answer_call[2]["messages"][0]["content"]
+
+
 async def test_fallback_agent_knows_the_speaker(
     hass: HomeAssistant, setup: MockConfigEntry, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1436,3 +1584,235 @@ async def test_entity_lines_skip_alias_markers(hass: HomeAssistant, setup) -> No
     assert entity_lines(hass, ("switch.*",)) == ["Łazienka Oświetlenie (inaczej: Lustro): włączone"]
     target = next(t for t in collect_home(hass).targets if t.entity_id == lustro.entity_id)
     assert target.names == ["Łazienka Oświetlenie", "Lustro"]
+
+
+# --- probable speaker (Assist Speaker ID: voice below the threshold, but close) ---
+
+PROBABLE_YAML = OWNERS_YAML.replace(
+    "    description: kalendarz\n", "    description: kalendarz\n    personal: true\n"
+).replace(
+    "  inne:\n",
+    "  pogoda:\n    description: pogoda\n    fetch:\n      - action: weather.get_forecasts\n"
+    "        entities: [weather.dom]\n        data: {type: daily}\n"
+    "  sterowanie:\n    description: sterowanie\n    control: true\n  inne:\n",
+)
+
+
+async def _probable_setup(
+    hass: HomeAssistant,
+    router: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    monkeypatch: pytest.MonkeyPatch,
+    topic: str,
+    probable: tuple[str | None, str | None] = ("kasia", "Kasia"),
+    speaker: tuple[str | None, str | None] = (None, None),
+):
+    from homeassistant.core import SupportsResponse
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    from custom_components.assist_router import conversation as agent_module
+
+    Path(hass.config.path("assist", "router.yaml")).write_text(PROBABLE_YAML, "utf-8")
+    for entity_id in ("family", "kalendarz_kasia", "kalendarz_jan", "praca_tomek"):
+        hass.states.async_set(f"calendar.{entity_id}", "off", {"friendly_name": entity_id})
+    hass.states.async_set("weather.dom", "sunny")
+    calls = async_mock_service(
+        hass, "calendar", "get_events", response={}, supports_response=SupportsResponse.ONLY
+    )
+    async_mock_service(
+        hass,
+        "weather",
+        "get_forecasts",
+        response={"weather.dom": {"forecast": [{"condition": "sunny", "temperature": 20}]}},
+        supports_response=SupportsResponse.ONLY,
+    )
+    await _with_answer_model(hass, router, aioclient_mock)
+    aioclient_mock.post(
+        f"{OLLAMA}/api/chat",
+        side_effect=_chat_by_model(
+            {"bielik-1.5b": _answer(topic), "gemma-mala": {"message": {"content": "Masz basen."}}}
+        ),
+    )
+    monkeypatch.setattr(agent_module, "current_speaker", lambda hass: speaker)
+    monkeypatch.setattr(agent_module, "probable_speaker", lambda hass: probable)
+    return calls
+
+
+def _answer_system(aioclient_mock: AiohttpClientMocker) -> str:
+    call = next(c for c in aioclient_mock.mock_calls if c[2].get("model") == "gemma-mala")
+    return call[2]["messages"][0]["content"]
+
+
+async def test_probable_speaker_gets_own_calendar_and_is_named(
+    hass: HomeAssistant,
+    router: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = await _probable_setup(hass, router, aioclient_mock, monkeypatch, "plany")
+
+    result = await _ask(hass, "Co mam jutro w planach?")
+
+    assert _speech(result) == "Wydaje mi się, że pyta Kasia. Masz basen."
+    targets = calls[0].data["entity_id"]
+    assert set(targets) == {"calendar.family", "calendar.kalendarz_kasia"}
+    system = _answer_system(aioclient_mock)
+    assert "Pyta: Kasia." in system
+    assert "Nie wiadomo, kto pyta" not in system
+    row = _rows(hass)[-1]
+    assert row["speaker"] == "Kasia?"
+    assert "(prawdopodobnie Kasia)" in row["route"]
+
+
+async def test_recognized_speaker_is_not_named(
+    hass: HomeAssistant,
+    router: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _probable_setup(
+        hass, router, aioclient_mock, monkeypatch, "plany", speaker=("kasia", "Kasia")
+    )
+
+    result = await _ask(hass, "Co mam jutro w planach?")
+
+    assert _speech(result) == "Masz basen."
+
+
+@pytest.mark.parametrize(
+    ("topic", "text"),
+    [
+        ("pogoda", "Jaka będzie jutro pogoda?"),  # the speaker does not matter
+        ("plany", "Co ma jutro Jan?"),  # the name in the question beats the speaker
+    ],
+)
+async def test_probable_speaker_not_used_is_not_said(
+    hass: HomeAssistant,
+    router: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    monkeypatch: pytest.MonkeyPatch,
+    topic: str,
+    text: str,
+) -> None:
+    await _probable_setup(hass, router, aioclient_mock, monkeypatch, topic)
+
+    result = await _ask(hass, text)
+
+    assert _speech(result) == "Masz basen."
+    assert "Pyta:" not in _answer_system(aioclient_mock)
+
+
+async def test_probable_speaker_room_in_control(
+    hass: HomeAssistant,
+    router: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from homeassistant.helpers import intent
+
+    from custom_components.assist_router import conversation as agent_module
+
+    await _probable_setup(hass, router, aioclient_mock, monkeypatch, "sterowanie")
+    got = []
+
+    async def control(self, user_input, text, conversation_id, config, ollama):
+        got.append(text)
+        response = intent.IntentResponse(language="pl")
+        response.async_set_speech("Wyłączono: lampa.")
+        return conversation.ConversationResult(response=response), "sterowanie"
+
+    monkeypatch.setattr(agent_module.AssistRouterAgent, "_control", control)
+
+    result = await _ask(hass, "Zgaś światło w moim pokoju")
+
+    assert got == ["Zgaś światło w Pokój Dziewczyn"]
+    assert _speech(result) == "Wydaje mi się, że pyta Kasia. Wyłączono: lampa."
+
+
+async def test_fallback_agent_does_not_get_probable_speaker(
+    hass: HomeAssistant, setup: MockConfigEntry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from custom_components.assist_router import conversation as agent_module
+    from custom_components.assist_router.const import CONF_FALLBACK_AGENT
+
+    got = []
+
+    class Recorder(conversation.AbstractConversationAgent):
+        @property
+        def supported_languages(self) -> list[str]:
+            return ["pl"]
+
+        async def async_process(self, user_input):
+            from homeassistant.helpers import intent
+
+            got.append(user_input)
+            response = intent.IntentResponse(language="pl")
+            response.async_set_speech("Odpowiedź.")
+            return conversation.ConversationResult(response=response)
+
+    other = MockConfigEntry(domain="test_fallback")
+    other.add_to_hass(hass)
+    conversation.async_set_agent(hass, other, Recorder())
+    hass.config_entries.async_update_entry(setup, options={CONF_FALLBACK_AGENT: other.entry_id})
+    await hass.async_block_till_done()
+    monkeypatch.setattr(agent_module, "current_speaker", lambda hass: (None, None))
+    monkeypatch.setattr(agent_module, "probable_speaker", lambda hass: ("kasia", "Kasia"))
+
+    await _ask(hass, "zrób mi kanapkę z serem")
+
+    assert not got[-1].extra_system_prompt
+
+
+def test_probable_speaker_from_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+
+    from custom_components.assist_router import conversation as agent_module
+
+    monkeypatch.setattr(
+        agent_module,
+        "speaker_result",
+        lambda hass: SimpleNamespace(probable="kasia", probable_name="Kasia"),
+    )
+    assert agent_module.probable_speaker(None) == ("kasia", "Kasia")
+    # Assist Speaker ID 0.1.x - no such field
+    monkeypatch.setattr(agent_module, "speaker_result", lambda hass: SimpleNamespace(speaker=None))
+    assert agent_module.probable_speaker(None) == (None, None)
+    monkeypatch.setattr(agent_module, "speaker_result", lambda hass: None)
+    assert agent_module.probable_speaker(None) == (None, None)
+
+
+async def test_legacy_sensor_ids_are_migrated(hass: HomeAssistant, tmp_path) -> None:
+    """Polish default sensor ids of earlier versions get the English ones; own ids stay."""
+    from homeassistant.helpers import entity_registry as er
+    from homeassistant.setup import async_setup_component
+
+    from custom_components.assist_router.const import DOMAIN
+
+    hass.config.config_dir = str(tmp_path)
+    hass.config.language = "pl"
+    assert await async_setup_component(hass, "homeassistant", {})
+    assert await async_setup_component(hass, "conversation", {})
+    entry = MockConfigEntry(domain=DOMAIN, title="Assist Router")
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    for key, object_id in (
+        ("unrecognized", "assist_router_nierozpoznane_komendy"),
+        ("examples", "moje_przyklady"),  # changed by the user
+    ):
+        registry.async_get_or_create(
+            "sensor", DOMAIN, f"{entry.entry_id}-{key}",
+            config_entry=entry, suggested_object_id=object_id,
+        )  # fmt: skip
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert hass.states.get("sensor.assist_router_unrecognized_commands") is not None
+    assert hass.states.get("sensor.assist_router_nierozpoznane_komendy") is None
+    assert hass.states.get("sensor.moje_przyklady") is not None
+
+
+async def test_sensor_ids_are_english(hass: HomeAssistant, setup: MockConfigEntry) -> None:
+    assert hass.config.language == "pl"
+    assert hass.states.get("sensor.assist_router_unrecognized_commands") is not None
+    assert hass.states.get("sensor.assist_router_example_commands") is not None

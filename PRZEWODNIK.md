@@ -151,7 +151,7 @@ U autora router i odpowiedzi to ten sam model na Jetsonie AGX Orin 64 GB.
    z angielskimi nazwami). Najważniejsze części:
    - `household`: kto mieszka w domu (model wie, że „mama” to Ania);
    - `people`: osoby i początki ich imion w odmianie (`match`); opcjonalnie `owns` (ich
-     encje, np. kalendarz pracy), `room` (ich pokój) i `speaker` (głos, krok 6);
+     encje, np. kalendarz pracy), `labels` (etykiety HA na ich encjach), `room` (ich pokój) i `speaker` (głos, krok 6);
    - `family`: rodzice, dzieci, kto jest mężczyzną (do „mój brat”, „moja córka”);
    - `topics`: tematy pytań. Każdy ma opis i przykłady (dla routera) oraz źródło danych:
      `entities` (stany encji), `details` (atrybuty encji), `fetch` (usługi, np.

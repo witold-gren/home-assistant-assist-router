@@ -1093,3 +1093,223 @@ async def test_bare_scene_name_is_not_a_command(hass: HomeAssistant, dom: dict) 
     home = collect_home(hass)
     assert named_routine(home, "Dobranoc") is None
     assert named_routine(home, "Dobranoc!") is None
+
+
+# --- „nie, …” after a question: the corrected command takes the usual path ---
+
+
+@pytest.mark.parametrize(("text", "parsed", "question", "service"), DOUBT)
+async def test_doubt_no_with_new_command_runs_it(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker,
+    text, parsed, question, service,
+) -> None:  # fmt: skip
+    """„Czy dobrze rozumiem…?” - „nie, włącz akwarium”: the question is dropped and the
+    corrected command runs (HA understands it), the misunderstood one does not."""
+    _control_ollama(aioclient_mock, parsed)
+    asked = await _say(hass, text)
+    assert _speech(asked) == question
+
+    done = await _say(hass, "nie, włącz akwarium", asked.conversation_id)
+    await hass.async_block_till_done()
+
+    assert set(_called(dom)) == {"switch.turn_on"}
+    assert _entities(dom["switch.turn_on"]) == {"switch.akwarium"}
+    assert "Przepraszam" not in _speech(done)
+
+
+async def test_corrections_can_repeat_without_giving_up(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """The corrected command can again end with a question - and be corrected again, many
+    times in a row (no „Przepraszam, nie rozumiem”); the log shows the correction."""
+    _control_ollama(
+        aioclient_mock, {"intencja": "HassTurnOff", "domena": "light", "obszar": "Kuchnia"}
+    )
+    question = "Czy dobrze rozumiem, że mam wyłączyć światła w pomieszczeniu Kuchnia?"
+    reply = await _say(hass, "Jaś światło w kuchni.")
+    for _ in range(4):
+        assert _speech(reply) == question
+        assert reply.continue_conversation is True
+        reply = await _say(hass, "Nie jaś światło w kuchni.", reply.conversation_id)
+    assert "(poprawione: Nie jaś światło w kuchni.)" in _rows(hass)[-1]["route"]
+
+    await _say(hass, "nie, włącz akwarium", reply.conversation_id)
+    await hass.async_block_till_done()
+    assert set(_called(dom)) == {"switch.turn_on"}
+
+
+async def test_gibberish_guess_no_with_new_command_runs_it(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """„Czy chodziło o: …?” - „nie, pytałem czy możesz włączyć akwarium” runs the correction."""
+    _unclear_ollama(aioclient_mock, "zgaś światło w kuchni")
+    asked = await _say(hass, "Głup nastrój w pisarowie")
+
+    await _say(hass, "nie, chodziło mi o włącz akwarium", asked.conversation_id)
+    await hass.async_block_till_done()
+
+    assert set(_called(dom)) == {"switch.turn_on"}
+
+
+async def test_sensitive_no_with_new_command_runs_it(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """„Czy zamknąć drzwi?” - a bare „nie” means „don't”, but „nie, włącz akwarium” is a new
+    command: the door stays as it is, the aquarium is switched on."""
+    _control_ollama(
+        aioclient_mock, {"intencja": "HassTurnOn", "domena": "lock", "nazwa": "drzwi wejściowe"}
+    )
+    asked = await _say(hass, "zarygluj drzwi")
+
+    await _say(hass, "Nie, włącz akwarium.", asked.conversation_id)
+    await hass.async_block_till_done()
+
+    assert set(_called(dom)) == {"switch.turn_on"}
+
+
+async def test_no_with_new_command_after_request_to_repeat(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """After „Powtórz, proszę” a reply „nie, włącz akwarium” carries the repeated command."""
+    _control_ollama(
+        aioclient_mock, {"intencja": "HassTurnOff", "domena": "light", "obszar": "Kuchnia"}
+    )
+    asked = await _say(hass, "Jaś światło w kuchni.")
+    again = await _say(hass, "nie", asked.conversation_id)
+    assert _speech(again) == "Przepraszam, źle zrozumiałem. Powtórz, proszę."
+
+    await _say(hass, "nie, włącz akwarium", again.conversation_id)
+    await hass.async_block_till_done()
+
+    assert set(_called(dom)) == {"switch.turn_on"}
+
+
+# --- several commands in one sentence ---
+
+_EMPTY_PARSE = {
+    "intencja": None, "domena": None, "obszar": None, "pietro": None, "nazwa": None,
+    "wszystkie": False, "wartosc": None, "zmiana": None, "element": None, "kolor": None,
+    "barwa": None, "szukaj": None, "rodzaj": None, "wykonawca": None, "radio": False,
+}  # fmt: skip
+
+
+def _multi_ollama(
+    aioclient_mock: AiohttpClientMocker, splits: dict[str, list[str]], parses: dict[str, dict]
+) -> None:
+    """Split model: ``splits`` by sentence; control parsing: ``parses`` by command; router:
+    every command is a control command."""
+    import json as _json
+
+    from pytest_homeassistant_custom_component.test_util.aiohttp import (
+        AiohttpClientMockResponse,
+    )
+
+    from .conftest import OLLAMA
+    from .test_router import _answer
+
+    async def handler(method, url, data):
+        schema = _json.dumps(data.get("format", {}))
+        text = data["messages"][-1]["content"]
+        if "polecenia" in schema:
+            content = {"polecenia": splits.get(text, [text])}
+        elif "intencja" in schema:
+            content = _EMPTY_PARSE | parses.get(text, {"intencja": "HassTurnOn"})
+        else:
+            return AiohttpClientMockResponse(method, url, json=_answer("sterowanie"))
+        return AiohttpClientMockResponse(
+            method, url, json={"message": {"content": _json.dumps(content)}}
+        )
+
+    aioclient_mock.post(f"{OLLAMA}/api/chat", side_effect=handler)
+
+
+KITCHEN_OFF = {"intencja": "HassTurnOff", "domena": "light", "obszar": "Kuchnia"}
+
+
+async def test_two_commands_in_one_sentence(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """„zgaś światło w kuchni oraz włącz akwarium” - both run (the second one by HA itself),
+    one joined reply, one log row for the whole sentence."""
+    sentence = "zgaś światło w kuchni oraz włącz akwarium"
+    _multi_ollama(
+        aioclient_mock,
+        {sentence: ["zgaś światło w kuchni", "włącz akwarium"]},
+        {"zgaś światło w kuchni": KITCHEN_OFF},
+    )
+
+    result = await _say(hass, sentence)
+    await hass.async_block_till_done()
+
+    assert _entities(dom["light.turn_off"]) == {"light.kuchnia_sufit"}
+    assert _entities(dom["switch.turn_on"]) == {"switch.akwarium"}
+    assert _speech(result).startswith("Wyłączono")
+    assert not result.continue_conversation
+    row = next(r for r in _rows(hass) if r["text"] == sentence)
+    assert row["route"] == "kilka poleceń → zgaś światło w kuchni | włącz akwarium"
+
+
+async def test_one_verb_for_two_rooms(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """„wyłącz światło w kuchni oraz salonie” - the model repeats the verb for each room."""
+    sentence = "wyłącz światło w kuchni oraz salonie"
+    _multi_ollama(
+        aioclient_mock,
+        {sentence: ["wyłącz światło w kuchni", "wyłącz światło w salonie"]},
+        {
+            "wyłącz światło w kuchni": KITCHEN_OFF,
+            "wyłącz światło w salonie": KITCHEN_OFF | {"obszar": "Salon"},
+        },
+    )
+
+    await _say(hass, sentence)
+    await hass.async_block_till_done()
+
+    assert _entities(dom["light.turn_off"]) == {"light.kuchnia_sufit", "light.salon_lampa"}
+
+
+@pytest.mark.parametrize(("reply", "done"), [("tak", True), ("anuluj", False)])
+async def test_command_with_question_waits_and_the_rest_follows(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker, reply: str, done: bool
+) -> None:
+    """The first command needs a question: nothing yet, the question is asked; „tak” runs it
+    and then the queued command; „anuluj” drops both."""
+    sentence = "Jaś światło w kuchni i włącz akwarium"
+    _multi_ollama(
+        aioclient_mock,
+        {sentence: ["Jaś światło w kuchni", "włącz akwarium"]},
+        # the parser gets the text after the Whisper fix („jaś” -> „zgaś”, uncertain)
+        {"zgaś światło w kuchni": KITCHEN_OFF},
+    )
+
+    asked = await _say(hass, sentence)
+    assert _speech(asked) == (
+        "Czy dobrze rozumiem, że mam wyłączyć światła w pomieszczeniu Kuchnia?"
+    )
+    assert asked.continue_conversation is True
+    assert not _called(dom)
+
+    answer = await _say(hass, reply, asked.conversation_id)
+    await hass.async_block_till_done()
+
+    if done:
+        assert set(_called(dom)) == {"light.turn_off", "switch.turn_on"}
+        assert _speech(answer).startswith("Wyłączono")
+    else:
+        assert not _called(dom)
+        assert _speech(answer) == "Dobrze, nic nie zmieniam."
+
+
+async def test_sentence_the_model_keeps_whole_goes_the_usual_way(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """„zgaś światło w kuchni, proszę” - the model returns one command: the usual control path,
+    executed once."""
+    sentence = "zgaś światło w kuchni, proszę"
+    _multi_ollama(aioclient_mock, {sentence: [sentence]}, {sentence: KITCHEN_OFF})
+
+    await _say(hass, sentence)
+    await hass.async_block_till_done()
+
+    assert _called(dom) == {"light.turn_off": 1}

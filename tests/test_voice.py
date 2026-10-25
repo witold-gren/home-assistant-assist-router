@@ -57,11 +57,17 @@ def test_answer_unknown_and_unsure() -> None:
     unknown = _result(None, 0.41, {"tomek": 0.41, "kasia": 0.2}, "tomek below threshold 0.50")
     unsure = _result(None, 0.62, {"kasia": 0.62, "tosia": 0.6}, "kasia too close to tosia")
     assert voice.answer(unknown, NAMES) == (
-        "Nie rozpoznaję tego głosu. Najbardziej podobny: Tomek, 41 procent."
+        "Nie rozpoznaję tego głosu. Najbliżej: Tomek, 41 procent, a do rozpoznania "
+        "potrzeba 50 procent. Następna osoba: Kasia, 20 procent."
     )
     assert voice.answer(unsure, NAMES) == (
         "Nie jestem pewien. Najbardziej podobne głosy: Kasia 62 procent i Tosia 60 procent."
     )
+
+
+def test_answer_unknown_without_threshold_in_reason() -> None:
+    result = _result(None, 0.53, {"tomek": 0.53}, "no match")
+    assert voice.answer(result, NAMES) == "Nie rozpoznaję tego głosu. Najbliżej: Tomek, 53 procent."
 
 
 def test_answer_short_no_prints_no_voice() -> None:
