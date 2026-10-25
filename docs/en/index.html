@@ -722,10 +722,17 @@ family terms and the phrases below are recognized by the language pack (Polish w
   <li><strong>Mapping a voice to a person:</strong> the <code>speaker</code> field on the person.
     It defaults to the person key, so it is enough to save voice samples under the same identifiers
     (<code>olivia</code>, <code>jack</code>…).</li>
+  <li><strong>Probable speaker</strong> (Assist Speaker ID 0.2.0+): the voice did not reach the
+    person's threshold, but the most similar person is close enough (option “Probable speaker
+    from”). Where the answer depends on who asks (first person, <code>personal</code> topics, family
+    terms, “my room”) the router uses that person and says so first: “I think it is Olivia asking.
+    Today you have…” (Polish pack: „Wydaje mi się, że pyta Ola.”, <code>probable_speaker</code>).
+    A recognized speaker is not named; a guess that changes nothing (“What's the weather?”, a
+    name in the question) is not said. The fallback agent never gets a probable name.</li>
   <li><strong>Unknown speaker</strong> (unfamiliar voice, utterance too short, text typed by hand)
     means everything works as without Assist Speaker ID.</li>
 </ul>
-<p><strong>A person's entities and room (<code>owns</code>, <code>room</code>):</strong></p>
+<p><strong>A person's entities and room (<code>owns</code>, <code>labels</code>, <code>room</code>):</strong></p>
 <ul>
   <li><strong><code>owns</code></strong> are patterns of entities that belong to the person, e.g.
     their calendar or their phone's location. When a question is about a specific person (by name,
@@ -734,6 +741,15 @@ family terms and the phrases below are recognized by the language pack (Polish w
     one, e.g. the family calendar, are always included. So “What do I have tomorrow?” from Olivia
     gives the family calendar and her own, without dad's work calendar. This is needed because
     calendar events have no person field to trim by.</li>
+  <li><strong><code>labels</code></strong> do the same with Home Assistant labels: give the
+    person <code>labels: [olivia]</code> and put the label “Olivia” on her entities in
+    <em>Settings → Entities</em> (select the entity → labels). Handy for calendars from CalDAV or
+    Google Calendar, which Home Assistant does not link to a person – a new calendar is assigned in
+    the UI, without editing <code>router.yaml</code>. <code>owns</code> and <code>labels</code> can
+    be combined. Set <code>personal: true</code> on the calendar topic, so a recognized speaker gets
+    their own and the shared calendars even without “my” (a parent also gets the children's).
+    When the person asked about has no calendar of their own while others do, the answer model is
+    told so and says it, instead of “there are no events”.</li>
   <li><strong><code>room</code></strong> is the person's room. “Turn off the light in my room” from
     that person means this area.</li>
   <li><strong>Family terms relative to the speaker</strong> (the <code>family</code> section:
@@ -768,8 +784,11 @@ sentence, so “What are the announcements in the school app?” is an ordinary 
 <p><strong>Checking recognition:</strong> “Who is speaking?”, “Who am I?”, “How do you recognize me?”,
 “Whose voice is this?” (Polish pack: „Kto to mówi?”, „Kim jestem?”…). The assistant answers
 immediately, without HA or models, from the result of that same utterance, e.g. “Olivia is speaking,
-82 percent similarity. Next person: Jack, 35 percent.” The answer may also be “I don't recognize this
-voice” or “I'm not sure”, with the two most similar voices. A short question (under 1 s of speech)
+82 percent similarity. Next person: Jack, 35 percent.” The answer may also be “I'm not sure”, with the two most
+similar voices, or “I don't recognize this voice” with the closest person, the similarity that
+person needs (their threshold) and the next person - e.g. “Closest: Jack, 53 percent, recognition
+needs 78 percent. Next person: Olivia, 50 percent.” A high threshold usually means somebody else in
+the household has a similar voice. A short question (under 1 s of speech)
 gets a request for a longer sentence, e.g. “Tell me who is talking to you now”.</p>
 
 <h2 id="example">8. Example router.yaml</h2>
@@ -841,12 +860,15 @@ household: &gt;-
 #   speaker - their voice identifier in Assist Speaker ID (defaults to the person key, e.g. "olivia"),
 #   owns    - their entities (e.g. work calendar, phone): skipped when asking about another person;
 #             entities owned by no one (family calendar) - always included,
+#   labels  - the same with Home Assistant labels (Settings -> Entities): entities with one of
+#             these labels belong to the person (e.g. a CalDAV / Google calendar),
 #   room    - their room: "turn off the light in my room" from this person = this area.
 people:
   tom:
     name: Tom
     match: "tom|dad"
     owns: [calendar.tom_work, sensor.tom_phone_*]
+    labels: [tom]
   anna:
     name: Anna
     match: "ann|mom|mum"
@@ -1279,7 +1301,29 @@ below belong to the language pack. The examples are in English; the Polish words
     means “don't do it” and ends the conversation.
     A reply with a verb is judged in the context of the question: to “Turn on…?” a plain “turn on”
     means yes, and “turn off” means no. For locks and blinds the code uses their own verbs (in HA,
-    <code>HassTurnOn</code> for a lock = lock it). Any other utterance cancels the question.</li>
+    <code>HassTurnOn</code> for a lock = lock it). Any other utterance cancels the question.
+    <strong>Correcting the question:</strong> “no” followed by a command is a corrected
+    question – „nie, wyłącz światło w łazience” (no, turn off the bathroom light) or „nie, pytałem
+    czy możesz…” (no, I asked whether you can…). The assistant drops the leading “no” (and lead-ins
+    such as „pytałem czy”, „chodziło mi o” – <code>REPHRASE_LEADS</code> in the language pack) and
+    handles the rest from the start: the HA agent, the router, the models. If that ends with a
+    question again, you can correct it again, as many times as needed – corrections do not count as
+    requests to repeat. A cancel phrase at the start („nie chcę”, „nie rób”) still cancels. The same
+    works after “Sorry, I misunderstood. Please repeat.” The log of unrecognized commands marks such a
+    command with „(poprawione: …)” and the original reply.</li>
+  <li><strong>Several commands in one sentence</strong> – „wyłącz światło w kuchni oraz
+    łazience” (turn off the light in the kitchen and the bathroom), „zamknij rolety w salonie i
+    włącz ekspres do kawy”, „zgaś wszystkie światła oraz włącz alarm”. The HA agent gets the whole
+    sentence first, as always. Only when it does not understand it, and the sentence is a command
+    (a known verb) with a conjunction („i”, „oraz”, „potem”, „następnie”, a comma –
+    <code>CONJUNCTIONS</code> in the language pack), the control model splits it into separate,
+    complete commands, repeating a shared verb or object (<code>split_prompt</code>). Questions are
+    not split („co mają jutro Zosia i Adam” stays one question about two people), nor titles
+    („Simon i Garfunkel”). Each command then takes the whole usual path – HA intents, your sentence
+    automations (e.g. „włącz alarm”), the router – and the replies are joined. A command that needs a
+    question stops there: the assistant says what it has done and asks; the remaining commands wait
+    for the answer and run after „tak” or a correction, „anuluj” drops them. The log of unrecognized
+    commands has one row for the sentence: „kilka poleceń → …”.</li>
   <li><strong>Execution</strong> via <code>intent.async_handle</code> (HA):
     <ul>
       <li><strong>Twin entities.</strong> A single device is sometimes visible through two integrations
@@ -1392,7 +1436,8 @@ work instantly.</p>
 <ul>
   <li><strong>Preview in HA:</strong> integration options → “Unrecognized commands” shows a table of
     the last 30 entries, newest first.</li>
-  <li><strong>Sensor</strong> <code>sensor.assist_router_unrecognized_commands</code> gives the number
+  <li><strong>Sensor</strong> <code>sensor.assist_router_unrecognized_commands</code> (the same id in every HA language;
+  ids built from a translated name by earlier versions are renamed automatically) gives the number
     of entries, and its <code>last</code> attribute holds the last 20. Handy for a Markdown card on a
     dashboard.</li>
   <li><strong>Clearing:</strong> the <code>assist_router.clear_log</code> action or “Clear log” in the
@@ -1499,7 +1544,7 @@ ships the Polish pack, <code>pl.py</code>. It holds:</p>
 <ul>
   <li>the spoken replies (confirmations, errors, “Did you mean…?”, announcement and speaker messages);</li>
   <li>the words and patterns used to understand commands and questions: day words (mapped to day
-    codes), yes / no / cancel replies, verbs, colors, first-person words, family terms, announcement and
+    codes), yes / no / cancel replies and correction lead-ins („pytałem czy” – REPHRASE_LEADS), verbs, colors, first-person words, family terms, announcement and
     alarm keywords, Whisper corrections, the beginnings of knowledge questions;</li>
   <li>the LLM prompts (router, answer, summary, control, guessing, example sentences) and the JSON key
     names they ask for (<code>TOPIC_KEY</code>, <code>CONTROL_KEYS</code>…);</li>

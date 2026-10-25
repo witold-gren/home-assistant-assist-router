@@ -83,16 +83,19 @@ from .control import (
     is_bare_answer,
     is_cancel,
     is_repeat,
+    may_be_several_commands,
     named_routine,
     parse_command,
     plan_command,
     prepare_text,
+    rephrased_command,
     routine_plan,
     twin_calls,
 )
 from .languages import LANG, available_languages
 from .router import (
     OllamaSettings,
+    Route,
     RouterConfig,
     answer_messages,
     apply_personal,
@@ -106,6 +109,7 @@ from .router import (
     async_todo_lines,
     async_topic_sources,
     clean_extract,
+    entity_labels,
     entity_lines,
     hint_for,
     owned_by_others,
@@ -159,6 +163,17 @@ def current_speaker(hass: HomeAssistant) -> tuple[str | None, str | None]:
     if speaker is None or not speaker.speaker:
         return None, None
     return speaker.speaker, speaker.name
+
+
+def probable_speaker(hass: HomeAssistant) -> tuple[str | None, str | None]:
+    """Probable speaker (identifier, name) of an unrecognized voice - Assist Speaker ID 0.2+
+    reports the most similar person when close enough; older versions or none = (None, None).
+    """
+    result = speaker_result(hass)
+    probable = getattr(result, "probable", None)
+    if not probable:
+        return None, None
+    return probable, getattr(result, "probable_name", None)
 
 
 def speaker_result(hass: HomeAssistant) -> Any | None:
@@ -234,6 +249,8 @@ class AssistRouterAgent(conversation.ConversationEntity):
         # where the current utterance ended with a repeat request (then the counter stays)
         self._misunderstood: dict[str, tuple[int, float]] = {}
         self._repeat_turn: set[str] = set()
+        # conversation -> (commands still to run after the current question, expiry)
+        self._queued: dict[str, tuple[list[str], float]] = {}
 
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
@@ -260,8 +277,15 @@ class AssistRouterAgent(conversation.ConversationEntity):
             speech = voice.answer(speaker_result(self.hass), names)
             return self._speak(user_input, user_input.conversation_id, speech)
         result = await self._process_turn(user_input)
-        # every utterance that did not end with a repeat request resets the counter
         key = result.conversation_id or user_input.conversation_id or ""
+        queued = None if result.continue_conversation else self._queued.pop(key, None)
+        if queued and queued[1] >= time.monotonic() and not is_cancel(user_input.text):
+            # the question of one of several commands is answered - run the rest
+            # („anuluj” drops them too)
+            result = await self._run_parts(
+                dataclasses.replace(user_input, conversation_id=key), queued[0], result
+            )
+        # every utterance that did not end with a repeat request resets the counter
         if key in self._repeat_turn:
             self._repeat_turn.discard(key)
         else:
@@ -269,10 +293,26 @@ class AssistRouterAgent(conversation.ConversationEntity):
         return result
 
     async def _process_turn(
-        self, user_input: conversation.ConversationInput
+        self,
+        user_input: conversation.ConversationInput,
+        rephrased_from: str | None = None,
+        part: bool = False,
     ) -> conversation.ConversationResult:
+        """One utterance: a reply to the assistant's question, or the HA agent and the router.
+
+        ``rephrased_from`` - the original reply when this text is a correction („nie, …”);
+        ``part`` - one of several commands of a sentence (it is not split again).
+        """
         if (confirmed := await self._answer_pending(user_input)) is not None:
             return confirmed
+        key = user_input.conversation_id or ""
+        if (
+            rephrased_from is None
+            and self._misunderstood.get(key, (0, 0.0))[1] >= time.monotonic()
+            and (corrected := rephrased_command(user_input.text)) is not None
+        ):
+            # after „Powtórz, proszę” a „nie, …” reply carries the repeated command
+            return await self._rephrase(user_input, corrected)
         agent = async_get_agent(self.hass, conversation.HOME_ASSISTANT_AGENT)
         if agent is None:
             raise RuntimeError("Built-in Home Assistant conversation agent is not available")
@@ -288,22 +328,41 @@ class AssistRouterAgent(conversation.ConversationEntity):
             return result
 
         text = " ".join(user_input.text.split())
+        if not part and text and may_be_several_commands(text):
+            parts = await self._split_commands(text)
+            if len(parts) > 1:
+                # several commands in one sentence - each one takes the whole usual path
+                user_input = dataclasses.replace(user_input, conversation_id=result.conversation_id)
+                multi = await self._run_parts(user_input, parts)
+                await self._write_log(
+                    user_input, kind, text, multi, LANG.LOG_MULTI.format(parts=" | ".join(parts))
+                )
+                return multi
         speaker = current_speaker(self.hass)
+        probable = False
+        if speaker[0] is None and (guess := probable_speaker(self.hass))[0]:
+            # voice not recognized for sure - the most similar person, said out loud if used
+            speaker, probable = guess, True
         answer, route = None, ""
         if kind == KIND_NO_MATCH and text:
             answer, route = await self._route(
-                user_input, text, result.conversation_id, speaker=speaker
+                user_input, text, result.conversation_id, speaker=speaker, probable=probable
             )
             if answer is None:
                 answer = await self._ask_fallback(
-                    user_input, result.conversation_id, speaker=speaker[1]
+                    user_input, result.conversation_id, speaker=None if probable else speaker[1]
                 )
         elif kind == KIND_NO_TARGET and text:
             # HA took the question for a command for a nonexistent area/device
             # („ile godzin Kuba jest w szkole” -> area „szkole”). The router helps only with
             # a topic with data; otherwise the HA message stays (without the fallback agent).
             answer, route = await self._route(
-                user_input, text, result.conversation_id, only_data=True, speaker=speaker
+                user_input,
+                text,
+                result.conversation_id,
+                only_data=True,
+                speaker=speaker,
+                probable=probable,
             )
         if answer is not None:
             result = answer
@@ -311,20 +370,38 @@ class AssistRouterAgent(conversation.ConversationEntity):
             response.async_set_speech(
                 LANG.MESSAGE_NO_MATCH.format(text=text) if text else LANG.MESSAGE_EMPTY
             )
-        if not self._entry.options.get(CONF_LOG_UNRECOGNIZED, DEFAULT_LOG_UNRECOGNIZED):
-            return result
-        heard = result.response.speech.get("plain", {}).get("speech", "")
+        if rephrased_from:
+            route += LANG.LOG_REPHRASED.format(text=rephrased_from)
+        name = speaker[1]
+        await self._write_log(
+            user_input, kind, text, result, route, f"{name}?" if probable and name else name
+        )
+        return result
 
+    async def _write_log(
+        self,
+        user_input: conversation.ConversationInput,
+        kind: str,
+        text: str,
+        result: conversation.ConversationResult,
+        route: str,
+        speaker: str | None = None,
+    ) -> None:
+        """A row in the log of unrecognized commands and the event (when enabled)."""
+        if not self._entry.options.get(CONF_LOG_UNRECOGNIZED, DEFAULT_LOG_UNRECOGNIZED):
+            return
         area, device = self._where(user_input)
+        if speaker is None:
+            speaker = current_speaker(self.hass)[1]
         row = {
             "timestamp": dt_util.now().strftime("%Y-%m-%d %H:%M:%S"),
             "area": area,
             "device": device,
             "kind": kind,
             "text": text,
-            "response": heard,
+            "response": result.response.speech.get("plain", {}).get("speech", ""),
             "route": route,
-            "speaker": speaker[1] or "",
+            "speaker": speaker or "",
         }
         try:
             await self._log.async_append(row)
@@ -334,6 +411,73 @@ class AssistRouterAgent(conversation.ConversationEntity):
                 "Could not write the unrecognized command to the log file", exc_info=True
             )
         self.hass.bus.async_fire(EVENT_UNRECOGNIZED, row)
+
+    async def _split_commands(self, text: str) -> list[str]:
+        """Separate, complete commands of a sentence (model of control); ``[text]`` when it is
+        one command, the model is not set up or its answer is unusable."""
+        config = await self._router.async_get()
+        ollama = self._ollama()
+        if config is None or ollama is None:
+            return [text]
+        model = self._answer_model() if config.control_model == "answer" else None
+        settings = model or ollama
+        body = {
+            "model": settings.model,
+            "stream": False,
+            "keep_alive": f"{settings.keep_alive}m" if settings.keep_alive >= 0 else -1,
+            "format": {
+                "type": "object",
+                "properties": {LANG.SPLIT_KEY: {"type": "array", "items": {"type": "string"}}},
+                "required": [LANG.SPLIT_KEY],
+            },
+            "options": {"temperature": 0, "num_predict": 200, "num_ctx": settings.num_ctx},
+            "messages": [
+                {"role": "system", "content": LANG.split_prompt(config.household)},
+                {"role": "user", "content": text},
+            ],
+        }
+        content = await async_chat(self.hass, settings, body)
+        try:
+            parts = json.loads(content or "").get(LANG.SPLIT_KEY)
+        except (ValueError, AttributeError):
+            return [text]
+        if not isinstance(parts, list):
+            return [text]
+        parts = [" ".join(str(p).split()) for p in parts if isinstance(p, str) and p.strip()]
+        return parts or [text]
+
+    async def _run_parts(
+        self,
+        user_input: conversation.ConversationInput,
+        parts: list[str],
+        before: conversation.ConversationResult | None = None,
+    ) -> conversation.ConversationResult:
+        """Several commands one after another, each the whole usual path; one joined reply.
+
+        A command that ends with a question stops here: the replies so far + the question are
+        said, and the remaining commands wait (``_queued``) until the question is answered.
+        ``before`` - the reply said before these commands (the answer to such a question).
+        """
+        speeches = []
+        if before is not None:
+            speeches.append(before.response.speech.get("plain", {}).get("speech", ""))
+        result = before
+        for index, text in enumerate(parts):
+            result = await self._process_turn(dataclasses.replace(user_input, text=text), part=True)
+            user_input = dataclasses.replace(user_input, conversation_id=result.conversation_id)
+            speeches.append(result.response.speech.get("plain", {}).get("speech", ""))
+            if result.continue_conversation:
+                rest = parts[index + 1 :]
+                if rest:
+                    key = result.conversation_id or ""
+                    self._queued[key] = (rest, time.monotonic() + CONFIRM_SECONDS)
+                break
+        if result is None:  # no commands - nothing to say
+            response = intent.IntentResponse(language=user_input.language)
+            result = conversation.ConversationResult(
+                response=response, conversation_id=user_input.conversation_id
+            )
+        result.response.async_set_speech(" ".join(s.strip() for s in speeches if s.strip()))
         return result
 
     def _ollama(self) -> OllamaSettings | None:
@@ -391,11 +535,14 @@ class AssistRouterAgent(conversation.ConversationEntity):
         conversation_id: str | None,
         only_data: bool = False,
         speaker: tuple[str | None, str | None] = (None, None),
+        probable: bool = False,
     ) -> tuple[conversation.ConversationResult | None, str]:
         """Router answer (template sentence or Wikipedia) and the route description for CSV.
 
         No result (None) = the question goes on to the fallback agent. ``speaker`` - the
         recognized speaker (Assist Speaker ID): a 1st-person question concerns their data.
+        ``probable`` - the speaker is only probable: when the answer depends on them, it
+        starts with „Wydaje mi się, że pyta Zosia.”; otherwise they are not used at all.
         """
         ollama = self._ollama()
         if ollama is None:
@@ -409,26 +556,55 @@ class AssistRouterAgent(conversation.ConversationEntity):
             # it in the background so the next question reaches the router.
             self._preload(ollama)
             return None, ""
+        classified = route
         # „mój brat”, „moja córka” - relative to the speaker; then „mam”, „moje” = the speaker
         route = apply_relatives(config, route, text, speaker[0])
         route = apply_speaker(config, route, text, speaker[0])
         topic = config.topics[route.topic]
         if topic.personal:
             route = apply_personal(config, route, speaker[0])
-        key = speaker_person(config, speaker[0])
-        speaker_name = config.people[key].name if key else speaker[1]
-        label = route.topic
-        if topic.unclear:
-            return await self._unclear(user_input, text, conversation_id, config)
+        asked = text
         if topic.control:
             # „w moim pokoju” - the speaker's room from router.yaml (room)
             text = with_speaker_room(config, text, speaker[0])
-            return await self._control(user_input, text, conversation_id, config, ollama)
-        if only_data and not (
+        used = route != classified or text != asked
+        if probable and not used:
+            speaker = (None, None)  # a guess that changes nothing is not worth saying
+        key = speaker_person(config, speaker[0])
+        speaker_name = config.people[key].name if key else speaker[1]
+        if topic.unclear:
+            return await self._unclear(user_input, text, conversation_id, config)
+        if topic.control:
+            answer, label = await self._control(user_input, text, conversation_id, config, ollama)
+        elif only_data and not (
             topic.command or topic.search or topic.entities or topic.details or topic.fetch
         ):
-            return None, label
+            return None, route.topic
+        else:
+            answer, label = await self._answer_topic(
+                user_input, text, conversation_id, config, ollama, route, speaker, speaker_name
+            )
+        if answer is not None and probable and used and speaker_name:
+            speech = answer.response.speech.get("plain", {}).get("speech", "")
+            answer.response.async_set_speech(f"{LANG.probable_speaker(speaker_name)} {speech}")
+            label += LANG.LOG_PROBABLE.format(name=speaker_name)
+        return answer, label
 
+    async def _answer_topic(
+        self,
+        user_input: conversation.ConversationInput,
+        text: str,
+        conversation_id: str | None,
+        config: RouterConfig,
+        ollama: OllamaSettings,
+        route: Route,
+        speaker: tuple[str | None, str | None],
+        speaker_name: str | None,
+    ) -> tuple[conversation.ConversationResult | None, str]:
+        """Answer of a data topic: automation sentence, entities and sources for the answer
+        model, or Wikipedia. None = nothing to say (the fallback agent may answer)."""
+        topic = config.topics[route.topic]
+        label = route.topic
         data_parts: list[str] = []
         command_data = ""
         routed: conversation.ConversationResult | None = None
@@ -461,7 +637,9 @@ class AssistRouterAgent(conversation.ConversationEntity):
                 topic.entities,
                 exposed,
                 topic.skip_states,
-                skip=lambda entity_id: owned_by_others(config, route.people, entity_id),
+                skip=lambda entity_id: owned_by_others(
+                    config, route.people, entity_id, entity_labels(self.hass, entity_id)
+                ),
                 unavailable=topic.unavailable,
             )
             lines = await async_todo_lines(self.hass, lines, topic.entities)
@@ -749,6 +927,8 @@ class AssistRouterAgent(conversation.ConversationEntity):
         pending = self._pending_text.pop(key, None)
         if pending is None or pending[1] < time.monotonic():
             return None
+        if (corrected := rephrased_command(user_input.text)) is not None:
+            return await self._rephrase(user_input, corrected)
         kind = answer_kind(user_input.text)
         if kind is None:
             return None  # another utterance - that one is the command
@@ -758,6 +938,17 @@ class AssistRouterAgent(conversation.ConversationEntity):
         if is_cancel(user_input.text):
             return self._speak(user_input, user_input.conversation_id, LANG.NOTHING_DONE)
         return self._ask_to_repeat(user_input)
+
+    async def _rephrase(
+        self, user_input: conversation.ConversationInput, text: str
+    ) -> conversation.ConversationResult:
+        """„nie, wyłącz światło w łazience” - the question is dropped and the corrected command
+        takes the whole usual path, as if it were said for the first time. Not a request to
+        repeat, so it can be corrected again and again."""
+        self._misunderstood.pop(user_input.conversation_id or "", None)
+        return await self._process_turn(
+            dataclasses.replace(user_input, text=text), rephrased_from=user_input.text
+        )
 
     def _ask_to_repeat(
         self, user_input: conversation.ConversationInput
@@ -798,6 +989,8 @@ class AssistRouterAgent(conversation.ConversationEntity):
         pending = self._pending.pop(key, None)
         if pending is None or pending[1] < time.monotonic():
             return None
+        if (corrected := rephrased_command(user_input.text)) is not None:
+            return await self._rephrase(user_input, corrected)
         plan = pending[0]
         kind = answer_kind(user_input.text, plan.intent, plan.domain)
         if kind is None:

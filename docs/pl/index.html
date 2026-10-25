@@ -702,10 +702,17 @@ Router, który sam odczytuje mówcę z tego samego przebiegu pipeline'u.</p>
   <li><strong>Przypisanie głosu do osoby:</strong> pole <code>speaker</code> przy osobie.
     Domyślnie jest to klucz osoby, więc wystarczy zapisać wzorce głosu pod tymi samymi
     identyfikatorami (<code>ola</code>, <code>kuba</code>…).</li>
+  <li><strong>Mówca prawdopodobny</strong> (Assist Speaker ID 0.2.0+): głos nie osiągnął progu
+    osoby, ale najbardziej podobna osoba jest dość blisko (opcja „Prawdopodobny mówca od”). Tam,
+    gdzie odpowiedź zależy od tego, kto pyta (1. osoba, tematy <code>personal</code>, określenia
+    rodzinne, „w moim pokoju”), router używa tej osoby i mówi o tym na początku: „Wydaje mi się,
+    że pyta Zosia. Dzisiaj masz…” (<code>probable_speaker</code> w pakiecie). Rozpoznanego mówcy
+    nie wymienia; zgadywania, które niczego nie zmienia („Jaka jest pogoda?”, imię w pytaniu),
+    nie mówi. Agent zapasowy nigdy nie dostaje imienia prawdopodobnego mówcy.</li>
   <li><strong>Mówca nieznany</strong> (obcy głos, za krótka wypowiedź, tekst wpisany ręcznie)
     oznacza, że wszystko działa jak bez Assist Speaker ID.</li>
 </ul>
-<p><strong>Encje i pokój osoby (<code>owns</code>, <code>room</code>):</strong></p>
+<p><strong>Encje i pokój osoby (<code>owns</code>, <code>labels</code>, <code>room</code>):</strong></p>
 <ul>
   <li><strong><code>owns</code></strong> to wzorce encji należących do osoby, np. jej
     kalendarz albo lokalizacja jej telefonu. Gdy pytanie dotyczy konkretnej osoby (z imienia
@@ -714,6 +721,15 @@ Router, który sam odczytuje mówcę z tego samego przebiegu pipeline'u.</p>
     kalendarz rodzinny, są zawsze brane. „Co mam jutro?” od Oli to więc kalendarz rodzinny
     i jej własny, bez kalendarza pracy taty. To jest potrzebne, bo wydarzenia kalendarza
     nie mają pola osoby, po którym dałoby się je przyciąć.</li>
+  <li><strong><code>labels</code></strong> robią to samo etykietami Home Assistanta: daj osobie
+    <code>labels: [ola]</code> i oznacz jej encje etykietą „Ola” w <em>Ustawienia → Encje</em>
+    (zaznacz encję → etykiety). Przydaje się przy kalendarzach z CalDAV albo Google Calendar,
+    których Home Assistant nie łączy z osobą – nowy kalendarz przypisujesz w interfejsie, bez
+    edycji <code>router.yaml</code>. <code>owns</code> i <code>labels</code> można łączyć. W
+    temacie kalendarza ustaw <code>personal: true</code>, żeby rozpoznany mówca dostawał swoje i
+    wspólne kalendarze także bez „mój” (rodzic – również kalendarze dzieci). Gdy osoba, o którą
+    pytamy, nie ma własnego kalendarza, a inni mają, model odpowiedzi dostaje o tym informację i
+    mówi to wprost, zamiast „nie ma żadnych wydarzeń”.</li>
   <li><strong><code>room</code></strong> to pokój osoby. „Zgaś światło w moim pokoju” albo
     „u mnie w pokoju” od tej osoby oznacza ten obszar.</li>
   <li><strong>Określenia rodzinne względem mówcy</strong> (sekcja <code>family</code>:
@@ -750,8 +766,11 @@ to zwykłe pytanie.</p>
 <p><strong>Sprawdzenie rozpoznawania:</strong> „Kto to mówi?”, „Kim jestem?”, „Jak mnie
 rozpoznajesz?”, „Co to za głos?”. Asystent odpowiada od razu, bez HA i modeli, z wyniku tej
 samej wypowiedzi, np. „Mówi Ola, podobieństwo 82 procent. Następna osoba: Kuba, 35 procent.”
-Odpowiedź może też brzmieć „nie rozpoznaję tego głosu” albo „nie jestem pewien”, z dwoma
-najbardziej podobnymi głosami. Krótkie pytanie (poniżej 1 s mowy) daje prośbę o dłuższe
+Odpowiedź może też brzmieć „nie jestem pewien”, z dwoma
+najbardziej podobnymi głosami, albo „nie rozpoznaję tego głosu” z najbliższą osobą, podobieństwem,
+którego ta osoba potrzebuje (jej progiem), i następną osobą - np. „Najbliżej: Adam, 53 procent, a do
+rozpoznania potrzeba 78 procent. Następna osoba: Zosia, 50 procent.” Wysoki próg zwykle oznacza, że
+ktoś inny w domu ma podobny głos. Krótkie pytanie (poniżej 1 s mowy) daje prośbę o dłuższe
 zdanie, np. „Powiedz mi, kto teraz do ciebie mówi”.</p>
 
 <h2 id="przyklad">8. Przykładowy router.yaml</h2>
@@ -813,12 +832,15 @@ household: &gt;-
 #   speaker - identyfikator jej głosu w Assist Speaker ID (domyślnie klucz osoby, np. „ola”),
 #   owns    - jej encje (np. kalendarz pracy, telefon): w pytaniu o inną osobę są pomijane,
 #             encje niczyje (kalendarz rodziny) - zawsze,
+#   labels  - to samo etykietami Home Assistanta (Ustawienia -> Encje): encje z jedną z tych
+#             etykiet należą do osoby (np. kalendarz z CalDAV albo Google),
 #   room    - jej pokój: „zgaś światło w moim pokoju” od tej osoby = ten obszar.
 people:
   tomek:
     name: Tomek
     match: "tom|tat(a|y|o|ą|ę)\\b"
     owns: [calendar.praca_tomka, sensor.telefon_tomka_*]
+    labels: [tomek]
   ania:
     name: Ania
     match: "ani|anna|anny|mam(a|y|ie|ą|ę)\\b"
@@ -1229,7 +1251,27 @@ i automatyzacje zawsze mają pierwszeństwo.</p>
     Odpowiedzi działają tak samo przy każdym pytaniu asystenta: <strong>zgoda</strong> – „tak”, „dokładnie (tak)”, „o to (mi) chodzi”, „działaj”, „zrób”, „wykonaj”, „dawaj”; <strong>powtórzenie</strong> – „nie”, „o coś innego”, „nie o to chodzi”, „jeszcze raz”, „(może) powtórzę” – asystent przeprasza i słucha dalej; <strong>koniec</strong> – „anuluj”, „koniec”, „nieważne”, „zostaw (to)”, „nic nie rób”, „daj (sobie z tym) spokój”, „olej to”. Przy pytaniach o rzeczy wrażliwe („Czy otworzyć drzwi?”) samo „nie” znaczy „nie rób tego” i kończy rozmowę.
     Odpowiedź czasownikiem jest oceniana w kontekście pytania: na „Czy włączyć…?” samo
     „włącz” to tak, a „wyłącz” to nie. Dla zamków i rolet kod używa ich własnych czasowników
-    (w HA <code>HassTurnOn</code> dla zamka = zarygluj). Inna wypowiedź unieważnia pytanie.</li>
+    (w HA <code>HassTurnOn</code> dla zamka = zarygluj). Inna wypowiedź unieważnia pytanie.
+    <strong>Poprawienie pytania:</strong> „nie” i od razu polecenie to poprawione pytanie –
+    „nie, wyłącz światło w łazience” albo „nie, pytałem czy możesz…”. Asystent zdejmuje
+    początkowe „nie” (i zwroty w rodzaju „pytałem czy”, „chodziło mi o” – <code>REPHRASE_LEADS</code>
+    w pakiecie językowym) i obsługuje resztę od początku: agent HA, router, modele. Gdy znów
+    skończy się pytaniem, można poprawiać dalej, do skutku – poprawki nie liczą się jako prośby o
+    powtórzenie. Fraza anulowania na początku („nie chcę”, „nie rób”) nadal kończy rozmowę. Tak samo
+    działa to po „Przepraszam, źle zrozumiałem. Powtórz, proszę.” W dzienniku nierozpoznanych
+    komend takie polecenie ma dopisek „(poprawione: …)” z oryginalną odpowiedzią.</li>
+  <li><strong>Kilka poleceń w jednym zdaniu</strong> – „wyłącz światło w kuchni oraz łazience”,
+    „zamknij rolety w salonie i włącz ekspres do kawy”, „zgaś wszystkie światła oraz włącz alarm”.
+    Agent HA dostaje najpierw całe zdanie, jak zawsze. Dopiero gdy go nie zrozumie, a zdanie jest
+    poleceniem (znany czasownik) ze spójnikiem („i”, „oraz”, „potem”, „następnie”, przecinek –
+    <code>CONJUNCTIONS</code> w pakiecie językowym), model sterowania rozpisuje je na osobne, pełne
+    polecenia, powtarzając wspólny czasownik albo rzecz (<code>split_prompt</code>). Pytania nie są
+    dzielone („co mają jutro Zosia i Adam” to jedno pytanie o dwie osoby), tytuły też nie („Simon i
+    Garfunkel”). Każde polecenie idzie potem całą zwykłą drogą – intencje HA, Twoje automatyzacje ze
+    zdaniami (np. „włącz alarm”), router – a odpowiedzi są łączone. Polecenie, które wymaga pytania,
+    zatrzymuje kolejkę: asystent mówi, co już zrobił, i pyta; pozostałe polecenia czekają na
+    odpowiedź i wykonują się po „tak” albo poprawce, „anuluj” je porzuca. W dzienniku nierozpoznanych
+    komend zdanie ma jeden wiersz: „kilka poleceń → …”.</li>
   <li><strong>Wykonanie</strong> przez <code>intent.async_handle</code> (HA):
     <ul>
       <li><strong>Encje-bliźniaki.</strong> Jedno urządzenie bywa widoczne w dwóch integracjach
@@ -1340,8 +1382,8 @@ działają natychmiast.</p>
 <ul>
   <li><strong>Podgląd w HA:</strong> opcje integracji → „Nierozpoznane komendy” pokazują
     tabelę 30 ostatnich wpisów, od najnowszych.</li>
-  <li><strong>Sensor</strong> <code>sensor.assist_router_nierozpoznane_komendy</code> (w HA po angielsku:
-  <code>sensor.assist_router_unrecognized_commands</code>) podaje
+  <li><strong>Sensor</strong> <code>sensor.assist_router_unrecognized_commands</code> (takie samo id w każdym
+  języku HA; dawne <code>sensor.assist_router_nierozpoznane_komendy</code> zmienia się samo) podaje
     liczbę wpisów, a w atrybucie <code>last</code> ostatnie 20. Przydaje się do karty
     Markdown na dashboardzie.</li>
   <li><strong>Czyszczenie:</strong> akcja <code>assist_router.clear_log</code> albo
@@ -1445,7 +1487,7 @@ wbudowany pakiet polski, <code>pl.py</code>. Są w nim:</p>
 <ul>
   <li>odpowiedzi mówione (potwierdzenia, błędy, „Czy chodziło o…?”, komunikaty ogłoszeń i mówcy);</li>
   <li>słowa i wzorce do rozumienia poleceń i pytań: słowa dni (zamieniane na kody dni), odpowiedzi
-    tak / nie / anuluj, czasowniki, kolory, słowa 1. osoby, określenia rodzinne, słowa ogłoszeń
+    tak / nie / anuluj i zwroty poprawek („pytałem czy” – REPHRASE_LEADS), czasowniki, kolory, słowa 1. osoby, określenia rodzinne, słowa ogłoszeń
     i alarmu, poprawki Whispera, początki pytań o wiedzę;</li>
   <li>prompty dla modeli (router, odpowiedź, streszczenie, sterowanie, zgadywanie, przykładowe
     zdania) i nazwy kluczy JSON, o które proszą (<code>TOPIC_KEY</code>, <code>CONTROL_KEYS</code>…);</li>

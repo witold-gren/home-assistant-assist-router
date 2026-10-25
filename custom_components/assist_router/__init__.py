@@ -11,11 +11,19 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
-from .const import DOMAIN, LOG_DIR, LOG_FILE, ROUTER_FILE, TITLE
+from .const import (
+    DOMAIN,
+    ENTITY_IDS,
+    LEGACY_OBJECT_IDS,
+    LOG_DIR,
+    LOG_FILE,
+    ROUTER_FILE,
+    TITLE,
+)
 from .languages import LANG, set_language
 from .log_file import CsvLog
 from .router import RouterConfigFile
@@ -88,10 +96,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[RuntimeData]
         log=CsvLog(hass, Path(hass.config.path(LOG_DIR, LOG_FILE))),
         router=RouterConfigFile(hass, Path(hass.config.path(LOG_DIR, ROUTER_FILE))),
     )
+    _migrate_entity_ids(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     # new options (e.g. another model) = reload, so the models are loaded right away
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
+
+
+def _migrate_entity_ids(hass: HomeAssistant, entry: ConfigEntry[RuntimeData]) -> None:
+    """Rename sensors of earlier versions (ids built by HA from the translated name, e.g.
+    sensor.assist_router_nierozpoznane_komendy) to the language-independent ``ENTITY_IDS``.
+
+    Only the default ids are renamed; ids changed by the user are left alone.
+    """
+    registry = er.async_get(hass)
+    for key, new_entity_id in ENTITY_IDS.items():
+        entity_id = registry.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}-{key}")
+        if entity_id is None or entity_id.split(".")[1] not in LEGACY_OBJECT_IDS[key]:
+            continue
+        if registry.async_get(new_entity_id) is None:
+            registry.async_update_entity(entity_id, new_entity_id=new_entity_id)
 
 
 async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry[RuntimeData]) -> None:

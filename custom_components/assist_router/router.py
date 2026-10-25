@@ -38,6 +38,7 @@ from homeassistant.helpers import (
     area_registry as ar,
     device_registry as dr,
     entity_registry as er,
+    label_registry as lr,
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
@@ -131,6 +132,8 @@ class Person:
     # the question is about another person
     owns: tuple[str, ...] = ()
     room: str | None = None  # their room: „w moim pokoju” from this person = this area
+    # Home Assistant labels (id or name) marking this person's entities - set in the HA UI
+    labels: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -276,7 +279,7 @@ def parse_config(data: Any) -> RouterConfig:
     people: dict[str, Person] = {}
     for key, raw in raw_people.items():
         # „ola: Ola” or „ola: {name: Ola, match: "ol(a|i)|aleksandr", speaker: ola,
-        #                       owns: [calendar.kalendarz_ola], room: Pokój Oli}”
+        #                       owns: [calendar.kalendarz_ola], labels: [ola], room: Pokój Oli}”
         raw = raw if isinstance(raw, dict) else {"name": raw}
         name = str(raw.get("name") or key)
         match = str(raw.get("match") or re.escape(name.lower()[:4]))
@@ -288,7 +291,16 @@ def parse_config(data: Any) -> RouterConfig:
         owns = raw.get("owns") or ()
         owns = (owns,) if isinstance(owns, str) else tuple(str(p) for p in owns)
         room = str(raw["room"]) if raw.get("room") else None
-        people[str(key)] = Person(name=name, pattern=pattern, speaker=speaker, owns=owns, room=room)
+        labels = raw.get("labels") or ()
+        labels = (labels,) if isinstance(labels, str) else tuple(str(x) for x in labels)
+        people[str(key)] = Person(
+            name=name,
+            pattern=pattern,
+            speaker=speaker,
+            owns=owns,
+            room=room,
+            labels=tuple(label.casefold() for label in labels),
+        )
     language = data.get("language")
     if language and not set_language(str(language)):
         raise ValueError(
@@ -454,20 +466,46 @@ def apply_speaker(config: RouterConfig, route: Route, text: str, speaker: str | 
     return replace(route, person=key, people=(key,))
 
 
-def owned_by_others(config: RouterConfig, people: tuple[str, ...], entity_id: str) -> bool:
-    """The entity belongs (``owns``) only to people other than those asked about.
+def entity_owners(
+    config: RouterConfig, entity_id: str, labels: frozenset[str] = frozenset()
+) -> set[str]:
+    """People an entity belongs to: their ``owns`` patterns match it or it has one of their
+    ``labels`` (HA labels, see ``entity_labels``)."""
+    return {
+        key
+        for key, person in config.people.items()
+        if any(fnmatch.fnmatchcase(entity_id, pattern) for pattern in person.owns)
+        or labels & set(person.labels)
+    }
+
+
+def owned_by_others(
+    config: RouterConfig,
+    people: tuple[str, ...],
+    entity_id: str,
+    labels: frozenset[str] = frozenset(),
+) -> bool:
+    """The entity belongs (``owns`` or ``labels``) only to people other than those asked about.
 
     Without a person in the question (and without a recognized speaker) nothing is skipped;
     entities owned by nobody (e.g. the family calendar) are always taken.
     """
     if not people:
         return False
-    owners = {
-        key
-        for key, person in config.people.items()
-        if any(fnmatch.fnmatchcase(entity_id, pattern) for pattern in person.owns)
-    }
+    owners = entity_owners(config, entity_id, labels)
     return bool(owners) and not owners & set(people)
+
+
+def entity_labels(hass: HomeAssistant, entity_id: str) -> frozenset[str]:
+    """Ids and names (case-folded) of the HA labels of an entity."""
+    entry = er.async_get(hass).async_get(entity_id)
+    if entry is None or not entry.labels:
+        return frozenset()
+    registry = lr.async_get(hass)
+    names = {
+        label.name for label_id in entry.labels if (label := registry.async_get_label(label_id))
+    }
+    return frozenset(x.casefold() for x in (*entry.labels, *names))
 
 
 def with_speaker_room(config: RouterConfig, text: str, speaker: str | None) -> str:
@@ -847,7 +885,9 @@ async def async_topic_sources(
     days = day_range(route.when or topic.days, now.date())
     out = []
     for state in sorted(hass.states.async_all(), key=lambda s: s.entity_id):
-        if owned_by_others(config, route.people, state.entity_id):
+        if owned_by_others(
+            config, route.people, state.entity_id, entity_labels(hass, state.entity_id)
+        ):
             continue
         if topic.details and _match(state, topic.details):
             value = compact(dict(state.attributes), people, days, topic.drop, now.tzinfo)
@@ -858,11 +898,18 @@ async def async_topic_sources(
             # only services that solely return data - fetch never switches anything
             _LOGGER.warning("Router fetch %s skipped: not a read-only service", item.action)
             continue
-        targets = [
-            s.entity_id
+        matched = {
+            s.entity_id: entity_labels(hass, s.entity_id)
             for s in hass.states.async_all()
-            if _match(s, item.entities) and not owned_by_others(config, route.people, s.entity_id)
+            if _match(s, item.entities)
+        }
+        targets = [
+            entity_id
+            for entity_id, labels in matched.items()
+            if not owned_by_others(config, route.people, entity_id, labels)
         ]
+        if note := _no_own_source(config, route, item, matched):
+            out.append(note)
         if not targets:
             continue
         start, end = range_bounds(days or day_range(WEEK, now.date()))
@@ -878,6 +925,21 @@ async def async_topic_sources(
         names = {e: (s.name if (s := hass.states.get(e)) else e) for e in response or {}}
         out.extend(fetch_sources(item, response or {}, names, people, days, topic.drop, now))
     return out
+
+
+def _no_own_source(
+    config: RouterConfig, route: Route, item: Fetch, matched: dict[str, frozenset[str]]
+) -> str | None:
+    """„Asia nie ma przypisanego własnego źródła…” - for the person asked about, when the
+    source's entities are assigned to people (``owns``/``labels``) but none to this person, so
+    the answer model says so instead of „there are no events”."""
+    if route.person is None:
+        return None
+    owners = [entity_owners(config, entity_id, labels) for entity_id, labels in matched.items()]
+    if not any(owners) or any(route.person in found for found in owners):
+        return None
+    title = item.title or item.action
+    return LANG.NO_OWN_SOURCE.format(name=config.people[route.person].name, title=title)
 
 
 def fetch_sources(

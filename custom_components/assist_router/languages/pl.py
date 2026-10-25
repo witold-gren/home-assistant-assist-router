@@ -352,6 +352,18 @@ CANCEL = words_pattern(CANCEL_WORDS)
 # an explicit request to repeat (without the bare "nie") - also for "are you sure" questions
 REPEAT_EXPLICIT = words_pattern(tuple(w for w in REPEAT_WORDS if w != BARE_NO))
 ANSWER = words_pattern(YES_WORDS + NO_WORDS)
+# Lead-ins after "nie, ..." that only introduce the corrected command; they are dropped
+# („nie, pytałem czy możesz zgasić światło” -> „możesz zgasić światło”). Optional - most often
+# the correction follows right after „nie” („nie, wyłącz światło w łazience”).
+REPHRASE_LEADS = re.compile(
+    r"^(?:(?:ja\s+)?pyta(?:łem|łam|łeś|łaś)(?:\s+się)?\s+(?:czy|o)\s+"
+    r"|chodzi(?:ło)?\s+(?:mi\s+)?o\s+"
+    r"|miał(?:em|am)\s+na\s+myśli,?\s+"
+    r"|chciał(?:em|am)(?:,?\s+(?:żebyś|abyś|byś))?\s+"
+    r"|prosił(?:em|am)(?:\s+o)?\s+"
+    r"|(?:mówił|powiedział)(?:em|am),?(?:\s+(?:że|żebyś|abyś))?\s+)",
+    re.IGNORECASE,
+)
 # fillers between answer phrases ("tak, to proszę")
 FILLER = frozenset({
     "to", "proszę", "już", "teraz", "no", "go", "ją", "je", "mi", "tak", "nie", "dzięki",
@@ -495,6 +507,8 @@ LOG_CONTROL_ALARM = "sterowanie (alarm)"
 LOG_CONTROL_NOT_PARSED = "sterowanie (nie rozebrano)"
 LOG_NOT_PARSED = "nie rozebrano"
 LOG_QUESTION = " (pytanie: {reason})"
+LOG_REPHRASED = " (poprawione: {text})"
+LOG_PROBABLE = " (prawdopodobnie {name})"
 LOG_UNCLEAR = "niezrozumiałe"
 LOG_UNCLEAR_GIVE_UP = "niezrozumiałe - koniec rozmowy ({limit}× bez zrozumienia)"
 LOG_UNCLEAR_NO_GUESS = "niezrozumiałe (bez propozycji)"
@@ -751,6 +765,12 @@ def attribute_parts(domain: str, state: str, a: dict[str, Any]) -> list[str]:
     return parts
 
 
+# A person asked about has no own entity in a source whose entities are assigned to people
+NO_OWN_SOURCE = (
+    "{name} nie ma przypisanego własnego źródła „{title}” – powiedz to wprost i nie mów, że "
+    "nie ma żadnych wydarzeń. Pozostałe dane nie są osobiste dla tej osoby."
+)
+
 # A to-do list without items
 EMPTY_LIST = "pusta"
 
@@ -815,8 +835,15 @@ def speaker_uncertain(first: str, first_score: float, second: str, second_score:
     )
 
 
-def speaker_unknown(name: str, score: float) -> str:
-    return f"Nie rozpoznaję tego głosu. Najbardziej podobny: {name}, {percent(score)}."
+def probable_speaker(name: str) -> str:
+    """Start of an answer for a probable (not certain) speaker."""
+    return f"Wydaje mi się, że pyta {name}."
+
+
+def speaker_unknown(name: str, score: float, threshold: float | None, second: str) -> str:
+    """Best voice below its threshold - say the threshold, so it is clear why."""
+    needed = f", a do rozpoznania potrzeba {percent(threshold)}" if threshold else ""
+    return f"Nie rozpoznaję tego głosu. Najbliżej: {name}, {percent(score)}{needed}.{second}"
 
 
 # Columns of the preview of unrecognized commands in the options (CSV key -> header)
@@ -871,3 +898,37 @@ EXAMPLES_HEADER = (
     "# bez wykonania). „rejected”: dokąd trafiły - wskazówka, co poprawić w router.yaml.\n"
     "# Nadpisywany przy każdym generowaniu (akcja assist_router.generate_examples).\n\n"
 )
+
+
+# =====================================================================================
+# Several commands in one sentence (conversation.py): split by the model
+# =====================================================================================
+
+# conjunctions that may join several commands („… oraz …”, „…, a potem …”)
+CONJUNCTIONS = re.compile(r"\b(?:i|oraz|potem|następnie|a\s+także|a\s+też)\b|,", re.IGNORECASE)
+SPLIT_KEY = "polecenia"
+# a sentence with several commands in the log of unrecognized commands
+LOG_MULTI = "kilka poleceń → {parts}"
+
+
+def split_prompt(household: str) -> str:
+    """System prompt for splitting a sentence into separate, complete commands."""
+    return " ".join(
+        part
+        for part in (
+            "Rozbijasz polecenie dla asystenta domu na osobne, pełne polecenia. Każde polecenie "
+            "ma czasownik i to, czego dotyczy - gdy w zdaniu czasownik albo rzecz padła raz dla "
+            "kilku miejsc lub urządzeń, powtórz je w każdym poleceniu. Nie zmieniaj słów ani nazw "
+            "urządzeń, pomieszczeń i osób, nie dodawaj niczego od siebie. Gdy to jedno polecenie "
+            "(także o kilku osobach albo z tytułem jak „Simon i Garfunkel”), zwróć je bez zmian "
+            "jako jedyne.",
+            "Przykłady: „wyłącz światło w kuchni oraz łazience” -> [„wyłącz światło w kuchni”, "
+            "„wyłącz światło w łazience”]; „zamknij rolety w salonie i włącz ekspres do kawy” -> "
+            "[„zamknij rolety w salonie”, „włącz ekspres do kawy”]; „zgaś wszystkie światła oraz "
+            "włącz alarm” -> [„zgaś wszystkie światła”, „włącz alarm”]; „włącz światło i "
+            "telewizor w salonie” -> [„włącz światło w salonie”, „włącz telewizor w salonie”].",
+            household,
+            'Odpowiedz tylko JSON-em: {"polecenia": [...]}.',
+        )
+        if part
+    )

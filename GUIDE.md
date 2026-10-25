@@ -153,7 +153,8 @@ The author uses the same model for the router and the answers, on a Jetson AGX O
    The most important parts:
    - `household`: who lives in the home (the model knows that “mom” is Anna);
    - `people`: people and the beginnings of their names as they inflect (`match`); optionally
-     `owns` (their entities, e.g. a work calendar), `room` (their room) and `speaker` (voice,
+     `owns` (their entities, e.g. a work calendar), `labels` (HA labels marking their entities),
+     `room` (their room) and `speaker` (voice,
      step 6);
    - `family`: parents, children, who is male (for “my brother”, “my daughter”);
    - `topics`: question topics. Each has a description and examples (for the router, in the

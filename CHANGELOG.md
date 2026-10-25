@@ -2,6 +2,42 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions: [SemVer](https://semver.org/).
 
+## [0.1.3] - 2026-10-25
+
+### Added
+- Correcting a question: to any question from the assistant („Czy dobrze rozumiem…?”, „Czy
+  chodziło o…?”, also after „Powtórz, proszę”) a reply that starts with "no" and goes on with a
+  command - „nie, wyłącz światło w łazience”, „nie, pytałem czy możesz…” - is handled from the
+  start as a new command (HA agent, router, models). It can be corrected again and again; a plain
+  „nie” and the cancel phrases work as before. Language pack: `REPHRASE_LEADS` (lead-ins such as
+  „pytałem czy”, „chodziło mi o”), log label `(poprawione: …)`.
+- People's entities by Home Assistant labels: `labels: [olivia]` at a person in `router.yaml`
+  - entities with one of these labels belong to that person, like `owns` (e.g. CalDAV or Google
+  calendars, assigned in Settings -> Entities). When the person asked about has no calendar (or
+  other source) of their own while others have, the answer model is told so and says it, instead
+  of "there are no events".
+- Several commands in one sentence: „wyłącz światło w kuchni oraz łazience”, „zamknij rolety w
+  salonie i włącz ekspres do kawy”. When the HA agent does not understand a command with a
+  conjunction, the control model splits it into complete commands (`split_prompt`,
+  `CONJUNCTIONS` in the language pack); each takes the whole usual path and the replies are
+  joined. A command that needs a question waits; the rest run after the answer, „anuluj” drops
+  them. Questions („co mają jutro Zosia i Adam”) are not split.
+- Probable speaker (Assist Speaker ID 0.2.0+): when a voice is not recognized for sure but the
+  most similar person is close enough, the router uses that person where the answer depends on
+  who asks (1st person, personal topics, family terms, „w moim pokoju”) and starts the answer
+  with „Wydaje mi się, że pyta Zosia.”; a recognized speaker is not named, an unused guess is not
+  said. The fallback agent never gets a probable name. Log: speaker `Zosia?`, route
+  `(prawdopodobnie Zosia)`. Language pack: `probable_speaker(name)`, `LOG_PROBABLE`.
+
+### Changed
+- „Kto to mówi?” for an unrecognized voice says why: the closest person, the similarity that
+  person's threshold needs and the next person - „Nie rozpoznaję tego głosu. Najbliżej: Adam,
+  53 procent, a do rozpoznania potrzeba 78 procent. Następna osoba: Zosia, 50 procent.”
+  Language pack: `speaker_unknown(name, score, threshold, second)`.
+- Sensor ids no longer depend on the HA language: `sensor.assist_router_unrecognized_commands`,
+  `sensor.assist_router_example_commands`; Polish default ids of earlier versions are renamed on
+  setup, ids changed by hand stay.
+
 ## [0.1.2] - 2026-10-25
 
 ### Added

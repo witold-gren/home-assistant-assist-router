@@ -18,7 +18,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import RuntimeData, examples
-from .const import DOMAIN, SIGNAL_EXAMPLES, SIGNAL_LOG
+from .const import DOMAIN, ENTITY_IDS, SIGNAL_EXAMPLES, SIGNAL_LOG
 
 LAST_ROWS = 20  # latest log entries in the sensor attribute
 
@@ -41,6 +41,7 @@ class ExamplesSensor(SensorEntity):
     def __init__(self, entry: ConfigEntry[RuntimeData]) -> None:
         self._path = entry.runtime_data.router.path.with_name(examples.EXAMPLES_FILE)
         self._attr_unique_id = f"{entry.entry_id}-examples"
+        self.entity_id = ENTITY_IDS["examples"]  # the same in every HA language
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
         self._data: dict[str, Any] = {}
         self._generated: datetime | None = None
@@ -97,6 +98,7 @@ class UnrecognizedSensor(SensorEntity):
     def __init__(self, entry: ConfigEntry[RuntimeData]) -> None:
         self._log = entry.runtime_data.log
         self._attr_unique_id = f"{entry.entry_id}-unrecognized"
+        self.entity_id = ENTITY_IDS["unrecognized"]  # the same in every HA language
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
         self._rows: list[dict[str, str]] = []
 

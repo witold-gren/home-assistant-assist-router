@@ -28,6 +28,8 @@ i automatyzacje ze zdaniami działają bez zmian. Gdy HA nie rozpozna zdania:
 | **Kto pyta** | Z integracją [Assist Speaker ID](https://github.com/witold-gren/home-assistant-assist-speaker-id) pytanie w 1. osobie („Co mam jutro?”) dotyczy mówcy. Działają też określenia rodzinne („mój brat”), pokój mówcy („w moim pokoju”) i pytanie „Kto to mówi?”. |
 | **Ogłoszenia (intercom)** | „Ogłoszenie, dzieci proszę przyjść na obiad” odtwarza **Twoje nagranie** na pozostałych głośnikach zamiast syntezy (Assist Speaker ID). |
 | **Bełkot** | Źle rozpoznane zdanie kończy się pytaniem „Czy chodziło o …?”. Po dwóch nieporozumieniach z rzędu Assist przeprasza i kończy rozmowę. |
+| **Kilka poleceń** | „Zamknij rolety w salonie i włącz ekspres do kawy” – model rozpisuje zdanie na pełne polecenia, każde idzie zwykłą drogą; polecenie z pytaniem czeka, reszta wykonuje się po odpowiedzi. |
+| **Poprawki** | Na każde pytanie asystenta możesz odpowiedzieć „nie” i od razu poleceniem („nie, wyłącz światło w łazience”) – jest obsługiwane od początku, do skutku. |
 | **Agent zapasowy** | Gdy router nie ma danych, pytanie przejmuje wybrany agent LLM. |
 | **Dziennik** | Nierozpoznane zdania trafiają do `/config/assist/unrecognized_commands.csv`, z podglądem w opcjach, sensorem i akcją czyszczenia. |
 | **Przykładowe komendy** | Akcja `assist_router.generate_examples` układa zdania z Twoich encji i sprawdza je prawdziwym routerem. Wynik ląduje w `assist/router_examples.yaml`. |
@@ -197,7 +199,7 @@ Narzędzia do testu modeli i zdań są w `tools/` (`model_benchmark.py`, `check_
 
 Integracja ma wbudowany pakiet polski. Wszystko, co zależy od języka, jest w
 `custom_components/assist_router/languages/<kod>.py`: odpowiedzi mówione, słowa i wzorce
-(dni, odpowiedzi tak/nie, czasowniki, kolory…), prompty dla modeli i klucze JSON, o które
+(dni, odpowiedzi tak/nie i zwroty poprawek, czasowniki, kolory, spójniki i prompt rozpisujący kilka poleceń…), prompty dla modeli i klucze JSON, o które
 proszą, etykiety dziennika i funkcje składające zdania. Żeby dodać np. czeski:
 
 1. Skopiuj `languages/pl.py` do `languages/cs.py`.

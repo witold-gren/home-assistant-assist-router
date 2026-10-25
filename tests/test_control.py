@@ -9,6 +9,7 @@ from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import area_registry as ar, entity_registry as er
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
 from pytest_homeassistant_custom_component.test_util.aiohttp import (
     AiohttpClientMocker,
@@ -20,8 +21,10 @@ from custom_components.assist_router.control import (
     answer_kind,
     build_control_schema,
     collect_home,
+    may_be_several_commands,
     parse_command,
     plan_command,
+    rephrased_command,
     resolve_name,
     stems,
 )
@@ -717,3 +720,42 @@ async def test_ambiguous_strong_match_not_replaced_by_other_device(
     match = find_target(home, command, "Zasłoń roletą wewnętrzną okno w salonie")
 
     assert match.target.entity_id.startswith("cover.dn_okno_") and match.ambiguous
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("nie, wyłącz światło w łazience", "wyłącz światło w łazience"),
+        ("Nie wyłącz światło w łazience", "wyłącz światło w łazience"),  # Whisper, no comma
+        ("nie, pytałem czy możesz zgasić światło w kuchni", "możesz zgasić światło w kuchni"),
+        ("Nie o to chodzi, włącz lampę w salonie", "włącz lampę w salonie"),
+        ("nie, nie, włącz lampę", "włącz lampę"),
+        ("źle, włącz radio w kuchni", "włącz radio w kuchni"),
+        ("Nie. Zgaś światło w kuchni!", "Zgaś światło w kuchni!"),
+        ("nie, to zgaś lampę", "zgaś lampę"),
+        ("nie", None),
+        ("nie, dzięki", None),
+        ("jeszcze raz", None),
+        ("nie chcę, włącz lampę", None),  # a cancel phrase wins
+        ("nie rób tego", None),
+        ("tak, włącz lampę", None),
+        ("włącz lampę w salonie", None),
+    ],
+)
+def test_rephrased_command(text: str, expected: str | None) -> None:
+    assert rephrased_command(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("wyłącz światło w kuchni oraz łazience", True),
+        ("zamknij rolety w salonie i włącz ekspres do kawy", True),
+        ("zgaś wszystkie światła oraz włącz alarm", True),
+        ("Zgaś światło w sypialni, a potem włącz muzykę", True),
+        ("co mają jutro Zosia i Adam", False),  # a question, not a command
+        ("włącz akwarium", False),  # no conjunction
+    ],
+)
+def test_may_be_several_commands(text: str, expected: bool) -> None:
+    assert may_be_several_commands(text) is expected
