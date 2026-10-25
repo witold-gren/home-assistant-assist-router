@@ -126,6 +126,7 @@ async def dom(hass: HomeAssistant, router: MockConfigEntry) -> dict:
       supported_features=VacuumEntityFeature.START | VacuumEntityFeature.RETURN_HOME)  # fmt: skip
     e(hass, ent_reg, kuchnia.id, "switch.lodowka", "Lodówka", "on")
     e(hass, ent_reg, salon.id, "switch.akwarium", "Akwarium", "on")
+    e(hass, ent_reg, kuchnia.id, "switch.ekspres", "Kuchnia Czajnik i Ekspres do kawy", "on")
     e(hass, ent_reg, None, "scene.wieczor", "Wieczór", "unknown")
     e(hass, ent_reg, None, "scene.dobranoc", "Dobranoc", "unknown")
     # scene attribute „entity_id” (what it sets) - separately, it clashes with the _entity param
@@ -312,6 +313,30 @@ async def test_script_with_known_verb_runs_with_satellite(
     assert [(e.data["kto"], e.data["satelita"]) for e in dom["skrypt"]] == [
         ("kawa", "assist_satellite.kuchnia")
     ]
+
+
+async def test_script_sharing_only_a_device_word_asks_first(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """„Uruchom ekspres do kabli” (Whisper; meant: start the coffee machine) - the model picks
+    the script „Ekspres - zrób kawę”, but its only shared word „ekspres” also names a device:
+    ask instead of making coffee. „Zrób mi kawę” still runs at once."""
+    _control_ollama(
+        aioclient_mock,
+        {"intencja": "HassTurnOn", "domena": "script", "nazwa": "Ekspres - zrób kawę"},
+    )
+
+    result = await _say(hass, "Uruchom ekspres do kabli.", satellite="assist_satellite.kuchnia")
+    await hass.async_block_till_done()
+
+    assert _speech(result) == "Czy dobrze rozumiem, że mam uruchomić Ekspres - zrób kawę?"
+    assert dom["skrypt"] == []
+    assert "akcja czy urządzenie „Kuchnia Czajnik i Ekspres do kawy”" in _rows(hass)[-1]["route"]
+
+    result = await _say(hass, "Zrób mi kawę", satellite="assist_satellite.kuchnia")
+    await hass.async_block_till_done()
+    assert _speech(result) == "Uruchomiono: ekspres - zrób kawę."
+    assert len(dom["skrypt"]) == 1
 
 
 async def test_script_said_by_name_runs_without_model(
@@ -614,7 +639,7 @@ async def test_action_model_mistakes_are_corrected(
 ) -> None:
     _control_ollama(aioclient_mock, parsed)
 
-    result = await _say(hass, "zaparz kawę i wyłącz ekspres potem")
+    result = await _say(hass, "zaparz kawę")
     await hass.async_block_till_done()
 
     assert [e.data["kto"] for e in dom["skrypt"]] == ["kawa"], why

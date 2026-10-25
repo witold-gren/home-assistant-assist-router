@@ -280,6 +280,43 @@ def normalize_action(command: Command, match: Match | None) -> None:
             command.intent = "HassTurnOn"
 
 
+# kinds of devices a script or scene can be confused with ("uruchom ekspres" - the machine)
+DEVICE_DOMAINS = frozenset({
+    "light", "switch", "cover", "media_player", "climate", "fan", "vacuum", "lock", "valve",
+    "button",
+})  # fmt: skip
+
+
+def devices_named_in(home: Home, text: str, words: set[str]) -> list[Target]:
+    """Devices (not scripts or scenes) whose name uses one of ``words`` said in the command.
+
+    Only word stems of 3+ letters count, so prepositions („do”, „w”) do not match.
+    """
+    said = {w for w in words if len(w) >= 3}
+    found = []
+    for target in home.targets:
+        if target.domain not in DEVICE_DOMAINS:
+            continue
+        area = set(stems(target.area)) if target.area else set()
+        if any(said & (set(stems(name)) - area) for name in target.names):
+            found.append(target)
+    return found
+
+
+def action_or_device(home: Home, text: str, target: Target) -> Target | None:
+    """A device the command may mean instead of the script or scene the model chose.
+
+    „Uruchom ekspres do kawy” shares only „ekspres” with the script „Ekspres - zrób kawę” -
+    and the same word names the coffee machine, so the command may be about the device.
+    """
+    said = set(stems(text))
+    shared = set()
+    for name in target.names:
+        shared |= said & set(stems(name))
+    rivals = devices_named_in(home, text, shared)
+    return rivals[0] if rivals else None
+
+
 def resolve_in_text(home: Home, text: str, command: Command) -> Match:
     """Device whose name words (without the room name) were all said in the command.
 
@@ -536,6 +573,15 @@ def plan_command(
             describe(command, match),
             error=LANG.ERROR_DEVICE_NOT_FOUND.format(name=command.name),
         )
+    if (
+        text
+        and match
+        and match.target
+        and match.target.domain in ACTION_DOMAINS
+        and (device := action_or_device(home, text, match.target))
+    ):
+        # the model chose a script, but the words that point to it also name a device
+        confirm = LANG.CONFIRM_ACTION_OR_DEVICE.format(device=device.name)
     no_place = (
         command.intent in PLACE_INTENTS
         and "name" not in slots

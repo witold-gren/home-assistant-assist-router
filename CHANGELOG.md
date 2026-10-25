@@ -2,6 +2,18 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions: [SemVer](https://semver.org/).
 
+## [0.1.2] - 2026-10-25
+
+### Added
+- Logo images (`logo`, `dark_logo`) next to the icons in `brand/`.
+
+### Fixed
+- Control no longer runs a script or scene on a weak match: when the model picks an action but
+  the words of the command that point to it also name a device, the assistant asks first.
+  „Uruchom ekspres do kawy” (start the coffee machine; heard as „… do kabli”) made coffee with
+  the script „Ekspres - zrób kawę”, because „ekspres” was the only shared word - it now asks
+  „Czy dobrze rozumiem, że mam uruchomić …?”. „Zrób mi kawę” still runs the script at once.
+
 ## [0.1.1] - 2026-10-25
 
 ### Fixed

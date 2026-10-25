@@ -1,6 +1,6 @@
 [project]
 name = "home-assistant-assist-router"
-version = "0.1.1"
+version = "0.1.2"
 description = "Assist Router for Home Assistant: answers questions and controls the home through a local LLM (Ollama) before falling back to the default agent."
 requires-python = ">=3.13"
 

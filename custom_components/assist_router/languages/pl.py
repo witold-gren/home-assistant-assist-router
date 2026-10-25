@@ -287,6 +287,7 @@ CONFIRM_KIND_GUESSED = "rodzaj urządzenia zgadnięty (brak słowa w poleceniu)"
 CONFIRM_LARGE_SCOPE = "duży zasięg ({count} urządzeń)"
 CONFIRM_SENSITIVE = "urządzenie wrażliwe (zamek, brama, drzwi)"
 CONFIRM_LISTED = "urządzenie z listy potwierdzeń"
+CONFIRM_ACTION_OR_DEVICE = "akcja czy urządzenie „{device}”"
 
 # Spoken errors when a command cannot be executed
 ERROR_DEVICE_NOT_FOUND = "Nie znalazłem urządzenia „{name}”."
