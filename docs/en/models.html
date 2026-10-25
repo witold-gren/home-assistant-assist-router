@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model comparison</title>
+<style>
+:root {
+  --bg: #fafaf9; --fg: #1c1917; --muted: #6b6560; --line: #e7e5e4; --card: #ffffff;
+  --accent: #0f766e; --accent-soft: #ccfbf1; --code: #f3f1ef; --ok: #166534; --ok-soft: #dcfce7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171514; --fg: #f3f1ef; --muted: #a8a29e; --line: #3a3532; --card: #221f1d;
+    --accent: #2dd4bf; --accent-soft: #12332f; --code: #2b2724; --ok: #86efac; --ok-soft: #14361f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171514; --fg: #f3f1ef; --muted: #a8a29e; --line: #3a3532; --card: #221f1d;
+  --accent: #2dd4bf; --accent-soft: #12332f; --code: #2b2724; --ok: #86efac; --ok-soft: #14361f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; }
+header { display: flex; gap: 20px; align-items: center; margin-bottom: 8px; }
+header img { width: 72px; height: 72px; flex: none; }
+h1 { font-size: 2.1rem; margin: 0; letter-spacing: -0.01em; }
+.lead { color: var(--muted); margin: 4px 0 0; }
+h2 { font-size: 1.45rem; margin: 48px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+p, li { max-width: 72ch; }
+a { color: var(--accent); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .92em; }
+pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+  font-size: .88em; line-height: 1.5; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: .95em; }
+th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: var(--card); }
+.table { overflow-x: auto; }
+nav { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 18px; margin: 24px 0; }
+nav ol { margin: 6px 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+nav li { break-inside: avoid; }
+@media (max-width: 640px) { nav ol { columns: 1; } h1 { font-size: 1.7rem; } }
+.lang { margin: 4px 0 0; font-size: 0.9em; color: var(--muted); }
+.note { background: var(--accent-soft); border-left: 4px solid var(--accent); padding: 10px 14px;
+  border-radius: 6px; margin: 16px 0; }
+.tip { background: var(--ok-soft); border-left: 4px solid var(--ok); padding: 10px 14px;
+  border-radius: 6px; margin: 16px 0; }
+.flow { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin: 16px 0; overflow-x: auto; }
+.flow svg { display: block; min-width: 640px; width: 100%; height: auto; }
+.flow .box { fill: var(--bg); stroke: var(--line); stroke-width: 1.5; }
+.flow .hot { fill: var(--accent-soft); stroke: var(--accent); }
+.flow text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+.flow .small { fill: var(--muted); font-size: 11px; }
+.flow .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.flow marker path { fill: var(--muted); }
+footer { margin-top: 56px; color: var(--muted); font-size: .9em; }
+
+:root { --good: #dcfce7; --okc: #fef9c3; --bad: #fee2e2; --na: #f5f5f4; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --good: #14532d; --okc: #713f12; --bad: #7f1d1d; --na: #221f1d; } }
+:root[data-theme="dark"] { --good: #14532d; --okc: #713f12; --bad: #7f1d1d; --na: #221f1d; }
+.results th.model { white-space: nowrap; }
+.results td { text-align: center; white-space: nowrap; }
+.results td.good { background: var(--good); } .results td.ok { background: var(--okc); }
+.results td.bad { background: var(--bad); } .results td.na { background: var(--na); color: var(--muted); }
+.small { color: var(--muted); font-size: 12px; font-weight: normal; }
+.legend span { display: inline-block; padding: 1px 8px; border-radius: 4px; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <img src="../assets/icon.png" alt="">
+  <div>
+    <h1>Language model comparison</h1>
+    <p class="lead">Which Ollama models work best in Assist Router with Polish: accuracy and time
+    in each role. Test of 21.10.2026 on an NVIDIA Jetson AGX Orin 64 GB.</p>
+    <p class="lang"><a href="index.html">← Assist Router documentation</a> ·
+    <a href="../pl/modele.html" hreflang="pl">Polski</a> · <strong>English</strong> ·
+    <a href="https://github.com/witold-gren/home-assistant-assist-router">GitHub</a></p>
+  </div>
+</header>
+
+<p class="note">The test was run only with Polish questions and Polish data (the bundled language
+pack is Polish), so these results apply to Polish. In another language the results may look
+different; you can repeat the test for your language (<a href="#repeat">see below</a>).</p>
+
+<h2 id="tested">What was tested</h2>
+<p>Every model went through the same parts of the test, in the roles it plays in Assist Router:</p>
+<div class="table"><table>
+  <tr><th>Test part</th><th>What it checks</th><th>Number of cases</th></tr>
+  <tr><td>Router (topic)</td><td>whether the model picks the right topic from <code>router.yaml</code> for a
+    free-form question, also with speech recognition errors</td><td>40 (round 1), 96, then 101</td></tr>
+  <tr><td>Answers: given data</td><td>an answer from ready-made data: counting hours and
+    amounts, “in how many minutes”, “the day after tomorrow”, no data in the calendar, a large context</td><td>19</td></tr>
+  <tr><td>Answers: HA data</td><td>an answer from a real snapshot of the home's data: school timetable,
+    calendars, chores, car, sensors</td><td>34</td></tr>
+  <tr><td>Wikipedia summaries</td><td>an article summary in 3–4 sentences, with the key
+    fact and without exceeding the length</td><td>8</td></tr>
+</table></div>
+<p>An answer counts as correct when it contains the expected facts (e.g. a time or an amount) and
+does not contain forbidden ones (e.g. an event from another day). Time is the average time of one
+answer; models were loaded and unloaded one after another, so they did not compete for memory.</p>
+<p class="legend">Colors: <span style="background:var(--good)">≥ 95%</span><span
+style="background:var(--okc)">≥ 85%</span><span style="background:var(--bad)">below 85%</span>
+The note “round 1/2” marks a result from a smaller set in an earlier round.</p>
+
+<h2 id="results">Results</h2>
+<div class="table"><table class="results"><thead><tr><th>Model<br><span class="small">file size</span></th>
+<th>Router (topic)</th><th>Answers: given data</th><th>Answers: HA data</th><th>Wikipedia summaries</th><th>Control (parsing)</th></tr></thead><tbody><tr><th class='model'>gemma4:26b<br><span class='small'>18.7 GB</span></th><td class="good"><b>38/40</b> <span class="small">(round 1)</span><br><span class="small">1.60 s</span></td><td class="good"><b>18/19</b><br><span class="small">1.08 s</span></td><td class="good"><b>33/34</b><br><span class="small">1.21 s</span></td><td class="good"><b>8/8</b><br><span class="small">5.48 s</span></td><td class="na">–</td></tr><tr><th class='model'>gemma4:e4b<br><span class='small'>6.6 GB</span></th><td class="good"><b>97/101</b><br><span class="small">0.55 s</span></td><td class="good"><b>19/19</b><br><span class="small">0.79 s</span></td><td class="ok"><b>29/34</b><br><span class="small">0.81 s</span></td><td class="good"><b>8/8</b><br><span class="small">3.77 s</span></td><td class="na">–</td></tr><tr><th class='model'>gemma4:12b<br><span class='small'>8.0 GB</span></th><td class="good"><b>93/96</b> <span class="small">(round 2)</span><br><span class="small">2.49 s</span></td><td class="good"><b>19/19</b><br><span class="small">1.33 s</span></td><td class="ok"><b>32/34</b><br><span class="small">1.42 s</span></td><td class="ok"><b>7/8</b><br><span class="small">7.95 s</span></td><td class="na">–</td></tr><tr><th class='model'>gemma4:e2b<br><span class='small'>4.6 GB</span></th><td class="ok"><b>90/96</b> <span class="small">(round 2)</span><br><span class="small">0.39 s</span></td><td class="bad"><b>15/19</b><br><span class="small">0.55 s</span></td><td class="ok"><b>32/34</b><br><span class="small">0.61 s</span></td><td class="ok"><b>7/8</b><br><span class="small">2.38 s</span></td><td class="na">–</td></tr><tr><th class='model'>ministral-3:8b<br><span class='small'>6.0 GB</span></th><td class="good"><b>94/96</b> <span class="small">(round 2)</span><br><span class="small">0.65 s</span></td><td class="good"><b>18/19</b><br><span class="small">1.10 s</span></td><td class="ok"><b>30/34</b><br><span class="small">1.75 s</span></td><td class="bad"><b>5/8</b><br><span class="small">13.01 s</span></td><td class="na">–</td></tr><tr><th class='model'>bielik-minitron-7B-v3.0-instruct:Q4_K_M<br><span class='small'>4.5 GB</span></th><td class="good"><b>92/96</b> <span class="small">(round 2)</span><br><span class="small">0.67 s</span></td><td class="ok"><b>17/19</b><br><span class="small">2.15 s</span></td><td class="good"><b>34/34</b><br><span class="small">2.67 s</span></td><td class="bad"><b>4/8</b><br><span class="small">18.30 s</span></td><td class="na">–</td></tr><tr><th class='model'>bielik-11b-v3.0-instruct:Q6_K<br><span class='small'>9.2 GB</span></th><td class="na">–</td><td class="good"><b>18/19</b><br><span class="small">4.75 s</span></td><td class="good"><b>33/34</b><br><span class="small">5.46 s</span></td><td class="bad"><b>3/8</b><br><span class="small">34.30 s</span></td><td class="na">–</td></tr><tr><th class='model'>bielik-11b-v3.0-instruct:Q4_K_M<br><span class='small'>6.7 GB</span></th><td class="na">–</td><td class="ok"><b>17/19</b><br><span class="small">3.60 s</span></td><td class="na">–</td><td class="na">–</td><td class="na">–</td></tr><tr><th class='model'>ministral-3:3b<br><span class='small'>3.0 GB</span></th><td class="ok"><b>89/96</b> <span class="small">(round 2)</span><br><span class="small">0.52 s</span></td><td class="bad"><b>16/19</b><br><span class="small">0.61 s</span></td><td class="na">–</td><td class="na">–</td><td class="na">–</td></tr><tr><th class='model'>qwen3.5:9b<br><span class='small'>6.6 GB</span></th><td class="good"><b>38/40</b> <span class="small">(round 1)</span><br><span class="small">1.36 s</span></td><td class="bad"><b>16/19</b><br><span class="small">2.03 s</span></td><td class="na">–</td><td class="na">–</td><td class="na">–</td></tr><tr><th class='model'>PLLuM-12B-chat-2512-GGUF:Q4_K_M<br><span class='small'>7.5 GB</span></th><td class="good"><b>38/40</b> <span class="small">(round 1)</span><br><span class="small">1.33 s</span></td><td class="bad"><b>15/19</b><br><span class="small">1.73 s</span></td><td class="na">–</td><td class="na">–</td><td class="na">–</td></tr><tr><th class='model'>Llama-PLLuM-8B-instruct-2512-GGUF:Q4_K_M<br><span class='small'>4.9 GB</span></th><td class="good"><b>40/40</b> <span class="small">(round 1)</span><br><span class="small">1.00 s</span></td><td class="bad"><b>14/19</b><br><span class="small">1.04 s</span></td><td class="na">–</td><td class="na">–</td><td class="na">–</td></tr><tr><th class='model'>qwen3.5:4b<br><span class='small'>3.3 GB</span></th><td class="ok"><b>37/40</b> <span class="small">(round 1)</span><br><span class="small">1.55 s</span></td><td class="bad"><b>14/19</b><br><span class="small">1.43 s</span></td><td class="na">–</td><td class="na">–</td><td class="na">–</td></tr><tr><th class='model'>qwen3.5:2b<br><span class='small'>2.7 GB</span></th><td class="ok"><b>89/96</b> <span class="small">(round 2)</span><br><span class="small">0.87 s</span></td><td class="bad"><b>12/19</b><br><span class="small">0.87 s</span></td><td class="na">–</td><td class="na">–</td><td class="na">–</td></tr><tr><th class='model'>PLLuM-4B-instruct-2512-GGUF:Q4_K_M<br><span class='small'>2.5 GB</span></th><td class="ok"><b>34/40</b> <span class="small">(round 1)</span><br><span class="small">1.14 s</span></td><td class="bad"><b>9/19</b><br><span class="small">0.86 s</span></td><td class="na">–</td><td class="na">–</td><td class="na">–</td></tr><tr><th class='model'>qwen3.5:0.8b<br><span class='small'>1.3 GB</span></th><td class="ok"><b>34/40</b> <span class="small">(round 1)</span><br><span class="small">0.69 s</span></td><td class="bad"><b>8/19</b><br><span class="small">0.54 s</span></td><td class="na">–</td><td class="na">–</td><td class="na">–</td></tr><tr><th class='model'>Gemma 4 E2B fine-tuned<br><span class='small'>router, LoRA</span><br><span class='small'>5.0 GB</span></th><td class="ok"><b>88/96</b> <span class="small">(fine-tuning)</span><br><span class="small">0.41 s</span></td><td class="na">–</td><td class="na">–</td><td class="na">–</td><td class="na">–</td></tr><tr><th class='model'>Gemma 4 E4B fine-tuned<br><span class='small'>router, QLoRA</span><br><span class='small'>8.0 GB</span></th><td class="good"><b>100/101</b><br><span class="small">0.62 s</span></td><td class="na">–</td><td class="na">–</td><td class="na">–</td><td class="na">–</td></tr></tbody></table></div>
+<p class="small">Size is the size of the model file; on the Jetson, memory is shared by the CPU and GPU.
+The “Control” column was added later and is described in the documentation
+(<a href="index.html#requirements">section 3</a>).</p>
+
+<h2 id="conclusions">Conclusions</h2>
+<ul>
+  <li><strong>Answer model: Gemma 4 26B</strong> (MoE, about 4B parameters active at a time):
+    33/34 on HA data in 1.2 s and 8/8 summaries in 5.5 s. The best ratio of quality to time.</li>
+  <li><strong>Router:</strong> Gemma 4 E4B recognizes 97/101 topics in 0.55 s. Ministral 3 8B was
+    just as accurate, but slower and weaker at answers; Gemma 4 E2B is the fastest
+    (0.39 s) at 90/96.</li>
+  <li><strong>One model in both roles:</strong> when memory allows, Gemma 4 26B as both router
+    and answer model keeps only one model in memory. This is how the author runs it today
+    (<a href="index.html#requirements">section 3 of the documentation</a>: 153/153 topics, about 0.7 s).</li>
+  <li><strong>Lightweight setup:</strong> Gemma 4 E4B in both roles – 8/8 summaries in 3.8 s, but
+    worse at calculating with HA data (29/34: sums, counting days).</li>
+  <li><strong>Polish models:</strong> Bielik Minitron 7B answered best from HA data
+    (34/34), but more slowly (2.7 s) and its summaries were too long (18 s). Bielik 11B Q6 has similar
+    accuracy on data (33/34), but is about 4.5× slower than Gemma 4 26B. PLLuM (4B/8B/12B)
+    recognizes topics well, but answers from data less well.</li>
+  <li><strong>Small models</strong> (Qwen 3.5 0.8B–4B, PLLuM 4B) are good enough at most as a
+    router; in answers they mix up numbers and days.</li>
+</ul>
+
+<h2 id="errors">Typical model errors</h2>
+<ul>
+  <li><strong>Arithmetic:</strong> sums of amounts, number of hours („5 i pół godziny”, “5 and a half
+    hours”), “in how many minutes” until the next meeting – the most common slips, even for large models.</li>
+  <li><strong>Days of the week:</strong> „pojutrze” (“the day after tomorrow”), „w przyszłym
+    tygodniu” (“next week”) – events from the wrong day, or left out.</li>
+  <li><strong>Confused topics:</strong> calendar instead of lessons or chores, “knowledge” instead of
+    the tram timetable; questions with speech recognition errors ended up in “knowledge”.</li>
+  <li><strong>Making things up:</strong> adding events that are not in the data, or “I don't know”
+    although the data contained the answer.</li>
+  <li><strong>Summaries:</strong> 6–8 sentences instead of 3–4 (Bielik, Ministral), or the key
+    fact missing.</li>
+  <li><strong>Form:</strong> markdown (<code>**</code>) and end-of-text markers in an answer
+    that is meant to be read aloud.</li>
+</ul>
+
+<h2 id="fine-tuning">Fine-tuning the router</h2>
+<ul>
+  <li><strong>First run:</strong> Gemma 4 E2B fine-tuned (LoRA) on 15 thousand sentences
+    generated from hassil templates, 80 minutes on an RTX 4090. 298/300 on template sentences, but
+    88/96 on free-form questions – the model learned the templates instead of generalizing.</li>
+  <li><strong>Second run:</strong> Gemma 4 E4B (QLoRA), 14 thousand examples, including 7.7 thousand
+    paraphrases written by Gemma 4 26B. On 101 questions outside the training data 100/101 in 0.62 s
+    (base Gemma 4 E4B: 97/101 in 0.55 s); validation 290/300 versus 272/300.</li>
+  <li><strong>Conclusion:</strong> paraphrases written by a larger model are key. How to fine-tune
+    the router on your own topics: <a href="index.html#fine-tuning">section 13 of the documentation</a>.</li>
+</ul>
+
+<h2 id="repeat">How to repeat the test yourself</h2>
+<p>The tools are in the repository's <code>tools/</code> directory: <code>snapshot_data.py</code>
+(data snapshot), <code>model_benchmark.py</code> (model test) and <code>model_report.py</code>
+(a table like this one as HTML and CSV). Description: <a href="index.html#testing">section 12 of the documentation</a>.</p>
+
+<footer>Assist Router. Results of 21.10.2026; new models can be added with another test run –
+the report combines results from many rounds.</footer>
+</div>
+</body>
+</html>

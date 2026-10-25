@@ -1,0 +1,18 @@
+{
+  "domain": "assist_router",
+  "name": "Assist Router",
+  "codeowners": [
+    "@witold-gren"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "conversation"
+  ],
+  "documentation": "https://witold-gren.github.io/home-assistant-assist-router/",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/witold-gren/home-assistant-assist-router/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

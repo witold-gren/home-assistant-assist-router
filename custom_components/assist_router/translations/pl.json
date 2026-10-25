@@ -1,0 +1,132 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Assist Router",
+        "description": "Dodaje agenta rozmowy „Assist Router”. Działa jak wbudowany agent Home Assistant, a gdy nie rozpozna komendy: może skierować pytanie przez mały model w Ollamie (router), zapytać agenta zapasowego i zapisać komendę w /config/assist/unrecognized_commands.csv. Wybierz go jako agenta rozmowy w potokach: Ustawienia → Asystenci głosowi."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Już skonfigurowano."
+    }
+  },
+  "options": {
+    "step": {
+      "router": {
+        "title": "Router pytań",
+        "description": "Model routera tylko rozpoznaje temat pytania. Opcjonalny model odpowiedzi pisze odpowiedź na pytanie na podstawie danych z Home Assistanta i streszcza artykuły z Wikipedii.",
+        "data": {
+          "router_model": "Model routera",
+          "router_timeout": "Czas na odpowiedź routera",
+          "router_keep_alive": "Trzymaj model w pamięci",
+          "answer_model": "Model odpowiedzi",
+          "answer_timeout": "Czas na odpowiedź modelu"
+        },
+        "data_description": {
+          "router_model": "Wybiera tylko temat; np. Bielik Minitron 7B (ok. 0,5 s).",
+          "router_timeout": "Ten sam limit dotyczy wyszukiwania w Wikipedii.",
+          "router_keep_alive": "Dla obu modeli: minuty od ostatniego pytania; -1 = zawsze w pamięci (najszybsza odpowiedź).",
+          "answer_model": "Opcjonalny. Bez niego czytany jest tekst z automatyzacji (albo pierwsze zdania artykułu).",
+          "answer_timeout": "Gdy model nie odpowie w tym czasie, czytany jest tekst z automatyzacji."
+        }
+      },
+      "settings": {
+        "title": "Assist Router",
+        "description": "Co się dzieje, gdy Home Assistant nie rozpozna komendy.",
+        "data": {
+          "log_unrecognized": "Zapisuj nierozpoznane komendy",
+          "fallback_agent": "Agent zapasowy",
+          "fallback_timeout": "Czas na odpowiedź agenta zapasowego",
+          "ollama_url": "Adres Ollamy (router pytań)"
+        },
+        "data_description": {
+          "log_unrecognized": "Dopisuje każdą nierozpoznaną komendę do /config/assist/unrecognized_commands.csv i wysyła zdarzenie assist_router_unrecognized.",
+          "fallback_agent": "Odpowiada na pytania, z którymi router sobie nie poradził (np. Bielik 11B). Puste = komunikat „Powiedziałeś: …”.",
+          "fallback_timeout": "Gdy agent nie odpowie w tym czasie, słychać „Powiedziałeś: …”.",
+          "ollama_url": "Np. http://localhost:11434. Puste = router wyłączony. Tematy są w pliku /config/assist/router.yaml."
+        }
+      },
+      "init": {
+        "title": "Assist Router",
+        "menu_options": {
+          "settings": "Ustawienia",
+          "router_file": "Plik routera (router.yaml)",
+          "examples": "Przykładowe komendy",
+          "log": "Nierozpoznane komendy"
+        }
+      },
+      "router_file": {
+        "title": "router.yaml",
+        "description": "Plik `{path}` - tematy, osoby i źródła danych routera. Przed zapisem jest sprawdzany; poprzednia wersja zostaje jako `router.yaml.bak`. Router czyta zmiany od razu, bez restartu.\n\n{error}",
+        "data": {
+          "content": "Treść pliku"
+        }
+      },
+      "examples": {
+        "title": "Przykładowe komendy",
+        "description": "Zdania dla Twojego domu, sprawdzone na routerze (polecenia sterowania - planem, bez wykonania). Plik: `{path}`; także sensor „Przykładowe komendy”.\n\n{examples}",
+        "data": {
+          "generate": "Wygeneruj na nowo (kilka minut)",
+          "per_topic": "Zdań na temat"
+        }
+      },
+      "examples_generate": {
+        "title": "Przykładowe komendy"
+      },
+      "log": {
+        "title": "Nierozpoznane komendy",
+        "description": "Plik `{path}`: {count} wpisów, poniżej ostatnie {shown} (najnowsze na górze). Pełna treść: plik CSV albo sensor „Nierozpoznane komendy”.\n\n{table}",
+        "data": {
+          "clear": "Wyczyść dziennik (kopia zostaje jako .bak)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nie można połączyć się z Ollamą pod tym adresem.",
+      "no_models": "W Ollamie nie ma żadnych modeli.",
+      "invalid_router": "Plik routera jest niepoprawny - nic nie zapisano."
+    },
+    "progress": {
+      "generating": "Model układa zdania z Twoich encji, router sprawdza każde z nich. To potrwa kilka minut - możesz zamknąć to okno, plik zapisze się sam."
+    },
+    "abort": {
+      "router_saved": "Zapisano `{path}`. Router użyje nowej wersji od następnego pytania.",
+      "examples_saved": "Gotowe: {working} działających zdań, {rejected} odrzuconych. Plik: `{path}`.",
+      "examples_closed": "Bez zmian.",
+      "examples_failed": "Nie udało się wygenerować przykładów: {error}",
+      "not_loaded": "Assist Router nie jest uruchomiony.",
+      "log_cleared": "Wyczyszczono {count} wpisów. Kopia: `{path}.bak`.",
+      "log_closed": "Bez zmian."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "examples": {
+        "name": "Przykładowe komendy"
+      },
+      "unrecognized": {
+        "name": "Nierozpoznane komendy"
+      }
+    }
+  },
+  "services": {
+    "generate_examples": {
+      "name": "Wygeneruj przykładowe komendy",
+      "description": "Model odpowiedzi układa zdania dla każdego tematu z router.yaml z nazwami Twoich encji i osób; router sprawdza każde (sterowanie: plan bez wykonania). Wynik: /config/assist/router_examples.yaml i sensor „Przykładowe komendy”.",
+      "fields": {
+        "per_topic": {
+          "name": "Zdań na temat",
+          "description": "Ile działających zdań zapisać dla tematu."
+        },
+        "topics": {
+          "name": "Tematy",
+          "description": "Tylko te tematy (puste = wszystkie)."
+        }
+      }
+    },
+    "clear_log": {
+      "name": "Wyczyść dziennik nierozpoznanych",
+      "description": "Czyści /config/assist/unrecognized_commands.csv (zostaje nagłówek); poprzednia treść zapisuje się jako unrecognized_commands.csv.bak."
+    }
+  }
+}

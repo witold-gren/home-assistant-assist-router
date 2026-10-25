@@ -1,0 +1,362 @@
+# Przykładowy router.yaml dla Assist Routera - skopiuj do /config/assist/router.yaml
+# i dopasuj encje do swojego domu (Narzędzia deweloperskie → Stany).
+# Ten sam plik z angielskimi nazwami (dokumentacja po angielsku): router.example.yaml.
+#
+# Dom z przykładu: Tomek (tata), Ania (mama), dzieci Ola i Kuba. Encje mają nazwy, jakie
+# zwykle tworzą popularne integracje: aplikacja mobilna HA (lokalizacja telefonów),
+# Frigate (kamery), Met.no (pogoda), kalendarze Google/CalDAV, integracja auta, odkurzacza
+# i pralki. Wszystkie nazwy encji są przykładowe.
+#
+# Jak router używa tego pliku:
+#   1. Model routera wybiera JEDEN temat z `topics` (na podstawie description i examples).
+#   2. Kod wyciąga z pytania osoby (`people`) i dzień („jutro”, „w piątek”).
+#   3. Temat zbiera dane: stany encji (entities), atrybuty encji (details) i odpowiedzi
+#      usług (fetch) - przycięte do osoby i dnia z pytania.
+#   4. Model odpowiedzi odpowiada na pytanie wyłącznie z tych danych.
+# Zmiany w pliku działają od razu, bez restartu HA.
+
+# --- Ustawienia ogólne ---------------------------------------------------------------
+
+# language: pl              # pakiet językowy; domyślnie język HA, jeśli jest dla niego pakiet,
+#                           # inaczej pl. Nieznany kod wyłącza router (błąd w logu).
+
+# Kto mieszka w domu - trafia do promptów (model wie, że „mama” to Ania, a „dzieci” to
+# Ola i Kuba).
+household: >-
+  Domownicy: Tomek (tata, najczęściej pyta), Ania (mama), dzieci: Ola (Aleksandra, 10 lat)
+  i Kuba (Jakub, 7 lat).
+
+# Osoby w pytaniach. `match` to początki słów (regex), żeby złapać odmianę: „Oli”, „Olą”,
+# „Kubie”, „taty”. Osoba z pytania przycina dane, które mają klucz `child` albo `person`
+# (np. plan lekcji tylko Oli). Pytanie bez imienia („dzieci”) - dane wszystkich.
+# Z rozpoznawaniem mówcy (integracja Assist Speaker ID) pytanie w 1. osobie („Co mam jutro?”)
+# dotyczy tego, kto mówi. Dodatkowe pola osoby:
+#   speaker - identyfikator jej głosu w Assist Speaker ID (domyślnie klucz osoby, np. „ola”),
+#   owns    - jej encje (np. kalendarz pracy, telefon): w pytaniu o inną osobę są pomijane,
+#             encje niczyje (kalendarz rodziny) - zawsze,
+#   room    - jej pokój: „zgaś światło w moim pokoju” od tej osoby = ten obszar.
+people:
+  tomek:
+    name: Tomek
+    match: "tom|tat(a|y|o|ą|ę)\\b"
+    owns: [calendar.praca_tomka, sensor.telefon_tomka_*]
+  ania:
+    name: Ania
+    match: "ani|anna|anny|mam(a|y|ie|ą|ę)\\b"
+    owns: [sensor.telefon_ani_*]
+  ola:
+    name: Ola
+    match: "ol(a|i|ą|ę|u)\\b|olk|aleksandr"
+    room: Pokój Oli
+  kuba:
+    name: Kuba
+    match: "kub|jakub"
+    room: Pokój Kuby
+
+# Określenia rodzinne względem mówcy: „mój brat” od Oli = Kuba, „moja córka” od Tomka =
+# Ola, „moje dzieci” od Ani = Ola i Kuba. „mama”/„tata” to stałe imiona (match wyżej).
+family:
+  parents: [tomek, ania]
+  children: [ola, kuba]
+  men: [tomek, kuba]
+
+sentences: 4                # ile zdań w streszczeniu z Wikipedii
+wikipedia_language: pl
+only_exposed: false         # true = encje tematów tylko spośród udostępnionych Assistowi
+control_model: answer       # rozbiór poleceń sterowania: router albo answer (większy model)
+
+# Sterowanie: przy tych urządzeniach asystent zawsze pyta „Czy wyłączyć…?” - także gdy
+# trafią do polecenia zbiorczego („wyłącz wszystkie przełączniki”).
+confirm_entities:
+  - switch.lodowka
+  - switch.serwer_*
+  - switch.*_kamera_enabled     # włączniki kamer (Frigate)
+  - Router Wi-Fi                # można też podać nazwę urządzenia
+
+# „Puść …”: pokój -> odtwarzacze w kolejności (pierwszy dostępny). Odtwarzacze Music
+# Assistanta często nie mają pokoju - stąd ta lista. Bez pokoju w poleceniu: pokój
+# głośnika, do którego mówisz. Pusta lista albo niedostępne odtwarzacze = odpowiedź, że w tym
+# pokoju nie ma na czym puścić muzyki (asystent nie wybiera wtedy innego głośnika).
+music_players:
+  Salon: [media_player.salon_glosnik, media_player.salon_telewizor]
+  Sypialnia: [media_player.sypialnia_glosnik]
+  Kuchnia: [media_player.kuchnia_glosnik]
+
+# --- Tematy ---------------------------------------------------------------------------
+#
+# Źródła danych tematu (można łączyć):
+#   entities  - wzorce entity_id; do modelu idzie stan po polsku („otwarte”, „w domu”).
+#               `*` = dowolny ciąg, `|klasa1,klasa2` = tylko te device_class,
+#               `!wzorzec` = wykluczenie. Kolejność ma znaczenie (limit 80 encji).
+#   details   - wzorce encji, których ATRYBUTY idą do modelu (listy, plany, salda).
+#   fetch     - usługi, które zwracają dane (calendar.get_events, weather.get_forecasts…).
+#               `{start}` i `{end}` = zakres dni z pytania.
+#   days      - dzień, gdy pytanie go nie podaje. Kody dni (angielskie, te same w każdym języku):
+#               today, tomorrow, day_after_tomorrow, weekend, week (ten tydzień), monday … sunday
+#               albo liczba dni ("14" = dziś i 13 kolejnych). Działają też polskie nazwy (aliasy):
+#               dzis, jutro, pojutrze, weekend, tydzien, poniedzialek … niedziela.
+#   drop      - klucze atrybutów do pominięcia (szum, którego model nie potrzebuje).
+#   skip_states - stany pomijane (np. wyłączone światła - zostają tylko świecące).
+#   unavailable - true = niedostępne encje trafiają do modelu jako „niedostępne” (zamiast
+#               pominięcia; model nie odpowie wtedy „nie mam informacji”).
+
+topics:
+  # Podsumowania dla osoby, która pyta (wymaga Assist Speaker ID; bez niego - dla całej rodziny).
+  # personal: bez imienia w pytaniu dane mówcy, a rodzica także dzieci.
+  podsumowanie_dnia:
+    description: dzień dobry, podsumowanie dnia, jak wygląda mój dzień, co mnie dziś czeka, plan na resztę dnia
+    examples: ["Dzień dobry", "Jak wygląda mój dzisiejszy dzień?", "Co mnie dzisiaj czeka?"]
+    personal: true
+    days: dzis
+    answer_tokens: 360
+    answer_hint: >-
+      To podsumowanie dnia na głos. Mów do osoby z „Pyta:”, po imieniu, zwykłymi zdaniami.
+      Najpierw pogoda, potem jej plan (lekcje, wydarzenia, obowiązki). Rodzicowi dodaj
+      jedno lub dwa zdania o najważniejszych sprawach dzieci. Do 6 zdań.
+    details: [sensor.plan_lekcji, sensor.obowiazki]
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.rodzina, calendar.praca_tomka]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events
+      - action: weather.get_forecasts
+        entities: [weather.dom]
+        data: {type: daily}
+
+  dobranoc:
+    description: dobranoc, idę spać, co mnie czeka jutro
+    examples: ["Dobranoc", "Idę spać", "Co mnie jutro czeka?"]
+    personal: true
+    days: jutro
+    # instrukcja zależna od mówcy: osoba, girl/boy, child/parent, unknown
+    answer_hints:
+      girl: >-
+        Jednym-dwoma zdaniami powiedz, co ją czeka jutro (bez domu i pogody), potem czule,
+        bajkowo życz dobrej nocy po imieniu, jak księżniczce.
+      boy: >-
+        Jednym-dwoma zdaniami powiedz, co go czeka jutro (bez domu i pogody), potem na wesoło
+        życz dobrej nocy po imieniu (np. ładowanie baterii superbohatera).
+      parent: >-
+        Co go czeka jutro i pogoda rano, co w domu zostało otwarte lub włączone, jedno
+        zdanie o jutrze dzieci. Zakończ „Dobranoc”. Do 5 zdań.
+      unknown: >-
+        Krótko dla całej rodziny, bez imion: co jutro i co otwarte lub włączone w domu.
+    details: [sensor.plan_lekcji]
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.rodzina, calendar.praca_tomka]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events
+    entities: [binary_sensor.*_okno, light.*]
+
+  # Kalendarze: wydarzenia ze wszystkich kalendarzy w jednej liście, po kolei.
+  # „Co mamy w piątek?” -> tylko piątek; „Kiedy są urodziny babci?” -> 30 dni od dziś.
+  kalendarz:
+    description: plany, wydarzenia, spotkania, urodziny, imieniny, święta, co mamy zaplanowane, terminy
+    examples:
+      - Co mamy w weekend?
+      - Ile mam jutro spotkań w pracy?
+      - Kiedy są urodziny babci?
+      - Czy w czwartek coś się dzieje?
+    days: "30"
+    drop: [description]           # opisy spotkań (linki do wideorozmów) tylko zajmują miejsce
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.rodzina, calendar.praca_tomka, calendar.urodziny, calendar.swieta_w_polsce]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events             # jedna lista ze wszystkich kalendarzy, posortowana po godzinie
+        title: Wydarzenia w kalendarzach (po kolei)
+        limit: 60
+
+  # Szkoła z dziennika elektronicznego. Dwa typowe warianty - wybierz pasujący:
+  #  a) integracja daje encję z atrybutami (dzieci -> dni -> lekcje): `details`;
+  #  b) integracja daje kalendarz lekcji dla każdego dziecka: `fetch` jak w kalendarzu.
+  szkola:
+    description: szkoła, plan lekcji, o której zaczyna lub kończy lekcje, kiedy wraca ze szkoły, zastępstwa, odwołane lekcje
+    examples:
+      - Na którą Ola idzie jutro do szkoły?
+      - Czy Kuba ma jutro WF?
+      - O której dzieci kończą dziś lekcje?
+    details: [sensor.dziennik_plan_lekcji]      # wariant a)
+    days: dzis                                  # bez dnia w pytaniu - dziś
+    drop: [teacher_id, classroom_id]
+    # fetch:                                    # wariant b)
+    #   - action: calendar.get_events
+    #     entities: [calendar.lekcje_ola, calendar.lekcje_kuba]
+    #     data: {start_date_time: "{start}", end_date_time: "{end}"}
+    #     merge: events
+
+  # Pogoda: teraz z czujników na balkonie, prognoza z usługi (dzienna i godzinowa).
+  pogoda:
+    description: pogoda na zewnątrz teraz i prognoza, deszcz, wiatr, czy wziąć parasol, jak się ubrać, temperatura na dworze
+    examples:
+      - Czy jutro będzie padać?
+      - Czy wziąć parasol?
+      - Jak się ubrać na weekend?
+      - Ile jest stopni na dworze?
+    entities:
+      - sensor.balkon_temperatura
+      - sensor.balkon_wilgotnosc
+      - sensor.deszczomierz_*
+    drop: [wind_bearing, uv_index, cloud_coverage, dew_point, pressure]
+    fetch:
+      - action: weather.get_forecasts
+        entities: [weather.dom]
+        data: {type: daily}
+        title: Prognoza na kolejne dni
+      - action: weather.get_forecasts
+        entities: [weather.dom]
+        data: {type: hourly}
+        title: Prognoza godzinowa
+        limit: 24                 # najwyżej doba - więcej tylko spowalnia odpowiedź
+
+  # Klimat w pokojach: czujniki według rodzaju (device_class) i termostaty.
+  czujniki:
+    description: temperatura, wilgotność, CO2, jakość powietrza w pokojach, ogrzewanie, termostaty, czy jest duszno
+    examples:
+      - Ile stopni jest w pokoju Oli?
+      - Gdzie jest najwyższe CO2?
+      - Na ile jest ustawione ogrzewanie w salonie?
+    only_exposed: true            # tylko czujniki udostępnione Assistowi (bez technicznych)
+    entities:
+      - sensor.*|temperature,humidity,carbon_dioxide,pm25,volatile_organic_compounds
+      - climate.*
+
+  # Okna, drzwi i rolety: czujniki otwarcia i pozycja rolet.
+  okna_drzwi:
+    description: które okna lub drzwi są otwarte, czy wszystko zamknięte, drzwi wejściowe, balkon, garaż, rolety
+    examples:
+      - Które okna są otwarte?
+      - Czy zamknąłem drzwi balkonowe?
+      - Od kiedy jest otwarte okno w sypialni?
+    entities:
+      - binary_sensor.*|door,window,opening,garage_door
+      - cover.*
+
+  # Kto jest w domu i gdzie: domownicy (person), adres z telefonu (aplikacja mobilna HA),
+  # kamery Frigate (liczba osób), czujniki ruchu. Kolejność: najważniejsze najpierw.
+  osoby:
+    description: kto jest w domu, gdzie ktoś jest, czy ktoś jest w pokoju, gdzie był ruch, ile osób widzą kamery
+    examples:
+      - Gdzie jest mama?
+      - Czy Kuba jest już w domu?
+      - Czy ktoś jest w salonie?
+      - Ile osób widzi kamera w ogrodzie?
+    entities:
+      - person.*
+      - sensor.*_person_count                    # Frigate: liczba osób w kadrze
+      - binary_sensor.*|motion,occupancy,presence
+    details: [sensor.telefon_*_geocoded_location] # adres telefonu (atrybuty: ulica, miasto)
+    drop: [Location, Country, ISO Country Code, Postal Code, Time Zone, Areas Of Interest,
+           Administrative Area, Sub Administrative Area, Ocean, Inland Water]
+
+  # Samochód: wszystkie czujniki auta - model wybierze, o co pytano.
+  samochod:
+    description: samochód - paliwo, zasięg, przebieg, spalanie, serwis, czy zamknięty, okna, opony, gdzie stoi
+    examples:
+      - Czy muszę zatankować?
+      - Czy zamknąłem auto?
+      - Gdzie zaparkowałem?
+      - Kiedy przegląd?
+    entities:
+      - sensor.moje_auto_*
+      - binary_sensor.moje_auto_*
+      - lock.moje_auto_*
+      - device_tracker.moje_auto_*
+
+  # Światła: tylko świecące (skip_states), bez ekranu tabletu i podświetleń głośników.
+  swiatla:
+    description: które światła są włączone, gdzie się świeci, czy zostało zapalone światło, jasność lamp
+    examples:
+      - Czy zostawiłem gdzieś zapalone światło?
+      - Które lampy świecą w kuchni?
+    only_exposed: true
+    entities:
+      - light.*
+      - "!light.*_ekran"
+      - "!light.*_led_ring"
+    skip_states: ["off"]
+
+  # Co gra: tylko odtwarzacze, które coś robią.
+  media:
+    description: co teraz gra, muzyka, telewizor, głośniki, jaka głośność, czy telewizor jest włączony
+    examples:
+      - Co teraz gra w salonie?
+      - Czy telewizor jest włączony?
+    only_exposed: true
+    entities:
+      - media_player.*
+    skip_states: ["off", "idle", "standby"]
+
+  # Odkurzacz, pralka - stan i czas do końca.
+  odkurzacz:
+    description: odkurzacz, robot sprzątający, czy skończył, bateria, filtr, szczotki
+    examples: ["Czy odkurzacz skończył?", "Ile baterii ma robot?"]
+    entities: [vacuum.*, sensor.odkurzacz_*]
+
+  pranie:
+    description: pralka, suszarka, czy pranie się skończyło, ile zostało do końca
+    examples: ["Czy pralka skończyła?", "Ile jeszcze będzie suszyć?"]
+    entities: [sensor.pralka_*, sensor.suszarka_*]
+
+  # Listy (todo): zawartość list, nie tylko liczba pozycji (todo.get_items).
+  listy:
+    description: lista zakupów, co trzeba kupić, przypomnienia, rzeczy do zrobienia
+    examples: ["Co jest na liście zakupów?", "Czy mamy na liście mleko?"]
+    entities: [todo.*]
+
+  # Alarm i bezpieczeństwo - tylko odczyt (włączanie alarmu zostaw automatyzacjom).
+  alarm:
+    description: alarm, czy alarm jest włączony, tryb ochrony, zalanie, dym, gaz, czy gdzieś cieknie woda
+    examples: ["Czy alarm jest włączony?", "Czy czujnik dymu coś wykrył?"]
+    entities:
+      - alarm_control_panel.*
+      - binary_sensor.*|moisture,smoke,gas,carbon_monoxide
+
+  # Komunikacja miejska: odjazdy z przystanków (integracje MPK/ZTM mają listę odjazdów
+  # w atrybutach). Bez dnia - wszystko, co jest w danych.
+  komunikacja:
+    description: tramwaj, autobus, odjazdy z przystanku, za ile jest tramwaj
+    examples: ["Za ile mam tramwaj 8?", "Kiedy jedzie autobus z Parkowej?"]
+    details: [sensor.przystanek_*]
+    drop: [html, original_departure]
+
+  # Stan pozostałych urządzeń (gniazdka, przełączniki).
+  urzadzenia:
+    description: czy urządzenie jest włączone - gniazdka, przełączniki, ładowarki, akwarium
+    examples: ["Czy akwarium jest włączone?", "Czy ładowarka w garażu działa?"]
+    only_exposed: true
+    unavailable: true             # niedostępne też - „Lustro jest niedostępne”
+    entities: [switch.*]
+
+  # Polecenia, których HA nie rozpoznał: rozbiór na intencję HA i wykonanie
+  # (z dopytaniem przy wątpliwościach). Szczegóły: dokumentacja, rozdział „Sterowanie domem”.
+  sterowanie:
+    description: polecenia - włącz, wyłącz, zgaś, zapal, ustaw, przyciemnij, kolor światła, rolety, cieplej, głośniej, puść muzykę, odkurz, dopisz do listy
+    examples:
+      - Zrób ciepłe światło w sypialni.
+      - Opuść rolety do połowy.
+      - Puść jazz w kuchni.
+      - Dopisz mleko do listy zakupów.
+    control: true
+
+  # Wiedza ogólna: streszczenie artykułu z Wikipedii (3–4 zdania).
+  wiedza:
+    description: pytanie o wiedzę ogólną - kim był, co to jest, historia, geografia, nauka
+    examples: ["Kim był Mikołaj Kopernik?", "Co to jest fotosynteza?"]
+    search: wikipedia
+
+  # Bełkot z rozpoznawania mowy: słowa do siebie nie pasują. Asystent zgaduje, co powiedziano
+  # („Czy chodziło o: włącz nastrój w salonie?”) albo prosi o powtórzenie. W opisie napisz
+  # wprost, co tu NIE należy - inaczej router wrzuci tu też dziwne, ale sensowne pytania.
+  niezrozumiale:
+    description: zdanie bez sensu - słowa do siebie nie pasują i nie da się z nich zrozumieć ani pytania, ani polecenia; wygląda na przekręcone przez rozpoznawanie mowy. Tu NIE należą pytania i polecenia z jednym przekręconym słowem, gdy sens jest jasny, ani pytania o wiedzę, rozmowa i żarty
+    examples:
+      - Głup nastrój w pisarowie.
+      - Szuflada wieczór gazeta kuchni.
+    unclear: true
+
+  # Wszystko inne - agent zapasowy (rozmowa, żarty).
+  inne:
+    description: wszystko inne - rozmowa, żart, prośby, pytania bez danych w domu
+    examples: ["Opowiedz coś ciekawego.", "Jak się masz?"]

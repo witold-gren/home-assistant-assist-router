@@ -1,0 +1,14 @@
+generate_examples:
+  fields:
+    per_topic:
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 20
+    topics:
+      example: "lekcje, sterowanie"
+      selector:
+        text:
+          multiple: true
+clear_log:

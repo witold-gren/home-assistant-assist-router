@@ -1,0 +1,1486 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assist Router</title>
+<style>
+:root {
+  --bg: #fafaf9; --fg: #1c1917; --muted: #6b6560; --line: #e7e5e4; --card: #ffffff;
+  --accent: #0f766e; --accent-soft: #ccfbf1; --code: #f3f1ef; --ok: #166534; --ok-soft: #dcfce7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171514; --fg: #f3f1ef; --muted: #a8a29e; --line: #3a3532; --card: #221f1d;
+    --accent: #2dd4bf; --accent-soft: #12332f; --code: #2b2724; --ok: #86efac; --ok-soft: #14361f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171514; --fg: #f3f1ef; --muted: #a8a29e; --line: #3a3532; --card: #221f1d;
+  --accent: #2dd4bf; --accent-soft: #12332f; --code: #2b2724; --ok: #86efac; --ok-soft: #14361f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; }
+header { display: flex; gap: 20px; align-items: center; margin-bottom: 8px; }
+header img { width: 72px; height: 72px; flex: none; }
+h1 { font-size: 2.1rem; margin: 0; letter-spacing: -0.01em; }
+.lead { color: var(--muted); margin: 4px 0 0; }
+h2 { font-size: 1.45rem; margin: 48px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+p, li { max-width: 72ch; }
+a { color: var(--accent); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .92em; }
+pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+  font-size: .88em; line-height: 1.5; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: .95em; }
+th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: var(--card); }
+.table { overflow-x: auto; }
+nav { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 18px; margin: 24px 0; }
+nav ol { margin: 6px 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+nav li { break-inside: avoid; }
+@media (max-width: 640px) { nav ol { columns: 1; } h1 { font-size: 1.7rem; } }
+.lang { margin: 4px 0 0; font-size: 0.9em; color: var(--muted); }
+.note { background: var(--accent-soft); border-left: 4px solid var(--accent); padding: 10px 14px;
+  border-radius: 6px; margin: 16px 0; }
+.tip { background: var(--ok-soft); border-left: 4px solid var(--ok); padding: 10px 14px;
+  border-radius: 6px; margin: 16px 0; }
+.flow { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin: 16px 0; overflow-x: auto; }
+.flow svg { display: block; min-width: 640px; width: 100%; height: auto; }
+.flow .box { fill: var(--bg); stroke: var(--line); stroke-width: 1.5; }
+.flow .hot { fill: var(--accent-soft); stroke: var(--accent); }
+.flow text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+.flow .small { fill: var(--muted); font-size: 11px; }
+.flow .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.flow marker path { fill: var(--muted); }
+footer { margin-top: 56px; color: var(--muted); font-size: .9em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <img src="../assets/icon.png" alt="">
+  <div>
+    <h1>Assist Router</h1>
+    <p class="lead">Asystent głosowy Home Assistant, który rozumie pytania po polsku także wtedy,
+    gdy nie pasują do żadnego zdania. Wszystko działa lokalnie.</p>
+    <p class="lang"><strong>Polski</strong> · <a href="../en/" hreflang="en">English</a> ·
+    <a href="https://github.com/witold-gren/home-assistant-assist-router">GitHub</a></p>
+  </div>
+</header>
+
+<p class="note"><strong>Język:</strong> wszystko, co Assist Router mówi, rozpoznaje albo wysyła do
+modeli, jest w <strong>pakiecie językowym</strong>. Integracja ma wbudowany pakiet
+<strong>polski</strong>. Pakiet jest wybierany przy starcie: język HA, jeśli jest dla niego pakiet,
+inaczej polski; <code>router.yaml</code> może wskazać go wprost (<code>language: pl</code>). Inne
+języki można dodać jednym plikiem: <a href="#jezyk">rozdział 15, „Dodanie języka”</a>.</p>
+
+<nav>
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#co">Co to jest</a></li>
+    <li><a href="#jak">Jak działa</a></li>
+    <li><a href="#wymagania">Wymagania i modele</a></li>
+    <li><a href="#instalacja">Instalacja</a></li>
+    <li><a href="#opcje">Opcje integracji</a></li>
+    <li><a href="#router">Plik router.yaml</a></li>
+    <li><a href="#dane">Skąd router bierze dane</a></li>
+    <li><a href="#przyklad">Przykładowy router.yaml</a></li>
+    <li><a href="#nowy">Jak dodać nowy temat</a></li>
+    <li><a href="#sterowanie">Sterowanie domem</a></li>
+    <li><a href="#dziennik">Dziennik nierozpoznanych</a></li>
+    <li><a href="#test">Test i wybór modeli</a></li>
+    <li><a href="#douczanie">Douczanie routera</a></li>
+    <li><a href="#prywatnosc">Prywatność i bezpieczeństwo</a></li>
+    <li><a href="#jezyk">Dodanie języka</a></li>
+  </ol>
+</nav>
+
+<p class="note">Konfigurujesz cały głosowy zestaw od zera (satelity, Whisper, Piper, Ollama,
+rozpoznawanie mówcy)? Zacznij od <a href="https://github.com/witold-gren/home-assistant-assist-router/blob/main/PRZEWODNIK.md">PRZEWODNIK.md</a>, który
+prowadzi krok po kroku i odsyła tutaj po szczegóły.</p>
+
+<h2 id="co">1. Co to jest</h2>
+<p>Wbudowany asystent Home Assistant rozpoznaje zdania według szablonów: intencje HA, własne
+zdania w <code>custom_sentences</code> i automatyzacje z wyzwalaczem zdaniowym. Jest szybki i
+pewny, ale wystarczy powiedzieć coś inaczej („Na którą Ola idzie jutro do szkoły?” zamiast
+„O której Ola zaczyna lekcje?”) i słyszymy „Nie rozumiem”. Dopisywanie kolejnych wariantów
+zdań nie ma końca.</p>
+<p><strong>Assist Router</strong> to agent rozmowy, który nakłada się na wbudowanego agenta
+HA. Wszystko, co HA rozumie, działa bez zmian. Gdy HA nie rozpozna zdania:</p>
+<ul>
+  <li>mały model językowy (np. Gemma 4 E4B w Ollamie) <strong>rozpoznaje tylko temat</strong>
+    pytania, np. „lekcje” albo „samochód”. To trwa ok. pół sekundy;</li>
+  <li>integracja pobiera <strong>prawdziwe dane z HA</strong> dla tego tematu: stany encji,
+    ich atrybuty (np. plan lekcji) i odpowiedzi usług (kalendarze, prognoza), przycięte do
+    osoby i dnia z pytania. Nie trzeba pisać do tego żadnych automatyzacji;</li>
+  <li>model odpowiedzi <strong>pisze odpowiedź na zadane pytanie</strong> wyłącznie na
+    podstawie tych danych: „Ola kończy dziś o 12:40, czyli jest w szkole 5 godzin i 10 minut”;</li>
+  <li>pytania o wiedzę ogólną („Kim był Kopernik?”) dostają streszczenie artykułu z
+    Wikipedii w 3–4 zdaniach;</li>
+  <li><strong>polecenia</strong>, których HA nie zna dosłownie („zrób jaśniej w salonie”,
+    „opuść roletę do połowy”), są rozbierane na intencję HA i wykonywane. Gdy asystent nie
+    jest pewien, najpierw pyta („Czy wyłączyć światło w kuchni?”);</li>
+  <li>resztą (rozmowa, żarty) zajmuje się wybrany agent zapasowy;</li>
+  <li>każde nierozpoznane zdanie trafia do pliku CSV. Widać w nim, co powiedziano, co
+    odpowiedział asystent i jaką drogę wybrał router.</li>
+</ul>
+
+<h2 id="jak">2. Jak działa</h2>
+<div class="flow">
+<svg viewBox="0 0 900 430" role="img" aria-label="Schemat: mowa, Whisper, agent HA, router, dane, sterowanie, Wikipedia, model odpowiedzi, Piper">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <rect class="box" x="10" y="20" width="140" height="56" rx="8"/>
+  <text x="80" y="44" text-anchor="middle">Mowa</text>
+  <text class="small" x="80" y="62" text-anchor="middle">Whisper (STT)</text>
+  <rect class="box" x="190" y="20" width="230" height="56" rx="8"/>
+  <text x="305" y="44" text-anchor="middle">Agent HA</text>
+  <text class="small" x="305" y="62" text-anchor="middle">intencje, custom_sentences, automatyzacje</text>
+  <rect class="box" x="470" y="20" width="170" height="56" rx="8"/>
+  <text x="555" y="44" text-anchor="middle">Rozpoznane</text>
+  <text class="small" x="555" y="62" text-anchor="middle">odpowiedź bez zmian</text>
+  <rect class="box" x="740" y="180" width="150" height="56" rx="8"/>
+  <text x="815" y="204" text-anchor="middle">Głośnik</text>
+  <text class="small" x="815" y="222" text-anchor="middle">Piper (TTS)</text>
+  <rect class="box hot" x="190" y="120" width="230" height="56" rx="8"/>
+  <text x="305" y="144" text-anchor="middle">Router (mały model)</text>
+  <text class="small" x="305" y="162" text-anchor="middle">tylko temat: {"temat": "lekcje"}</text>
+  <rect class="box" x="10" y="240" width="200" height="66" rx="8"/>
+  <text x="110" y="264" text-anchor="middle">Dane tematu</text>
+  <text class="small" x="110" y="282" text-anchor="middle">encje, atrybuty, usługi</text>
+  <text class="small" x="110" y="296" text-anchor="middle">przycięte do osoby i dnia</text>
+  <rect class="box hot" x="225" y="240" width="175" height="66" rx="8"/>
+  <text x="312" y="264" text-anchor="middle">Sterowanie</text>
+  <text class="small" x="312" y="282" text-anchor="middle">rozbiór -> intencja HA</text>
+  <text class="small" x="312" y="296" text-anchor="middle">dopytanie, intent.async_handle</text>
+  <rect class="box" x="415" y="240" width="140" height="66" rx="8"/>
+  <text x="485" y="264" text-anchor="middle">Wikipedia</text>
+  <text class="small" x="485" y="282" text-anchor="middle">pytania o wiedzę</text>
+  <rect class="box" x="570" y="240" width="140" height="66" rx="8"/>
+  <text x="640" y="264" text-anchor="middle">Agent</text>
+  <text class="small" x="640" y="282" text-anchor="middle">zapasowy (rozmowa)</text>
+  <rect class="box hot" x="10" y="350" width="545" height="56" rx="8"/>
+  <text x="282" y="374" text-anchor="middle">Model odpowiedzi</text>
+  <text class="small" x="282" y="392" text-anchor="middle">odpowiada na pytanie tylko z danych; streszcza artykuł</text>
+  <path class="arrow" d="M150,48 L188,48"/>
+  <path class="arrow" d="M420,48 L468,48"/>
+  <path class="arrow" d="M640,48 C720,48 800,110 815,178"/>
+  <path class="arrow" d="M305,76 L305,118"/>
+  <text class="small" x="313" y="102">nie rozpoznano</text>
+  <path class="arrow" d="M240,176 L130,238"/>
+  <path class="arrow" d="M305,176 L310,238"/>
+  <path class="arrow" d="M370,176 L470,238"/>
+  <path class="arrow" d="M420,150 C560,150 630,190 640,238"/>
+  <path class="arrow" d="M110,306 L150,348"/>
+  <path class="arrow" d="M485,306 L440,348"/>
+  <path class="arrow" d="M400,280 C700,300 790,280 805,238"/>
+  <path class="arrow" d="M555,378 C700,378 800,300 815,238"/>
+  <path class="arrow" d="M710,272 C740,262 770,250 790,238"/>
+</svg>
+</div>
+
+<h3>Dlaczego router zwraca tylko temat</h3>
+<p>Małe modele mylą się, gdy mają jednocześnie wybrać temat, osobę, dzień i wywołać narzędzie.
+Dlatego podział pracy wygląda tak:</p>
+<ul>
+  <li><strong>Model routera</strong> zwraca jedno pole w formacie JSON wymuszonym schematem:
+    temat z listy. Zmyślenie wartości spoza listy nie jest możliwe.</li>
+  <li><strong>Kod</strong> wyciąga z pytania osoby (imiona z odmianą: „Oli”, „Olą”), dzień
+    („jutro”, „pojutrze”, „w weekend”) i hasło do Wikipedii. Jest to pewne i natychmiastowe.</li>
+  <li><strong>Home Assistant</strong> dostarcza dane, a <strong>model odpowiedzi</strong>
+    tylko je czyta, liczy i porównuje.</li>
+</ul>
+<p>Dzięki temu odpowiedzi nie są zmyślone, a mały model wystarcza do większości zadań. Ten sam
+podział obowiązuje przy sterowaniu: model wskazuje intencję i parametry z list, kod dopasowuje
+urządzenie, a wykonuje HA.</p>
+
+<h3>Pytania o wiedzę (Wikipedia)</h3>
+<ol>
+  <li><strong>Hasło.</strong> Kod wycina początek pytania („kim był”, „co to jest”, „kto jest
+    obecnie”, „kto napisał / wynalazł / wygrał”, „gdzie leży”…), więc do wyszukiwarki trafia
+    samo hasło: „Kto napisał Pana Tadeusza?” → „Pana Tadeusza”.</li>
+  <li><strong>Literówki.</strong> Gdy wyszukiwanie nic nie da („…w piłce norznej”), integracja
+    bierze podpowiedź pisowni Wikipedii („…w piłce nożnej”) i szuka jeszcze raz.</li>
+  <li><strong>Pasujący artykuł.</strong> Artykuł musi mieć w tytule słowo z hasła - wyszukiwarka
+    zawsze coś znajdzie, także dla bełkotu, a takiego artykułu nie czytamy.</li>
+  <li><strong>Kilka artykułów.</strong> Model dostaje pierwszy artykuł (do 4000 znaków) i wstępy
+    dwóch kolejnych pasujących (po 1000). Przy „Kto jest obecnie mistrzem świata…” pierwszy
+    wynik to przyszły turniej, a odpowiedź jest w artykule o ostatnim.</li>
+  <li><strong>Odpowiedź.</strong> Model odpowiada na pytanie z tych tekstów w 3–4 zdaniach.</li>
+</ol>
+
+<h2 id="wymagania">3. Wymagania i modele</h2>
+<ul>
+  <li>Home Assistant 2026.x (testowane na 2026.10) z polskim Assistem (Whisper i Piper albo
+    inne STT/TTS).</li>
+  <li>Serwer <a href="https://ollama.com">Ollama</a> w sieci lokalnej. Może to być inny
+    komputer niż HA.</li>
+  <li>Opcjonalnie agent zapasowy, np. integracja Ollama z modelem do swobodnej rozmowy.</li>
+</ul>
+<p class="tip"><strong>Sprawdzone w praktyce:</strong> cały zestaw działa na co dzień w domu autora
+na <strong>NVIDIA Jetson AGX Orin 64 GB</strong>: Ollama (Gemma 4 26B jako router i model odpowiedzi),
+faster-whisper i Assist Speaker ID. Działa bardzo dobrze: router odpowiada w ok. 0,7 s, a odpowiedź
+z danych (router i model odpowiedzi) zajmuje ok. 2 s. 64 GB wspólnej pamięci mieści model razem z Whisperem.</p>
+<p>Przykładowe wyniki z NVIDIA Jetson AGX Orin 64 GB. Test obejmował 96 pytań do routera, 34
+pytania o prawdziwe dane z HA i 8 streszczeń z Wikipedii:</p>
+<div class="table"><table>
+<tr><th>Rola</th><th>Model</th><th>Trafność</th><th>Czas</th></tr>
+<tr><td>Router</td><td>Gemma 4 26B (ten sam model co odpowiedzi, w pamięci raz)</td><td>153/153 (z akcjami i bełkotem)</td><td>0,7 s</td></tr>
+<tr><td>Router (mniejszy)</td><td>Gemma 4 E4B</td><td>92/96</td><td>0,5 s</td></tr>
+<tr><td>Model odpowiedzi</td><td>Gemma 4 26B (MoE, 4B aktywnych)</td><td>34/34 dane, 8/8 streszczeń</td><td>1,2 s / 5,5 s</td></tr>
+<tr><td>Rozbiór poleceń sterowania</td><td>Gemma 4 26B (<code>control_model: answer</code>)</td><td>67/67 polecenia (z akcjami)</td><td>2,7 s</td></tr>
+<tr><td>Zgadywanie zdania po bełkocie</td><td>Gemma 4 26B</td><td>z 10 przykładów: 6 trafnych, 3× „nie wiem” (prośba o powtórzenie), 1 śmiała propozycja</td><td>1,6 s</td></tr>
+<tr><td>Wersja oszczędna</td><td>Gemma 4 E4B we wszystkich rolach</td><td>29/34 dane, 8/8 streszczeń, 26/32 polecenia</td><td>0,8 s / 3,8 s / 1,7 s</td></tr>
+</table></div>
+<p><strong><a href="modele.html">Pełne porównanie kilkunastu modeli</a></strong> (Gemma 4, Bielik, PLLuM,
+Qwen 3.5, Ministral): trafność i czas w każdej roli, wnioski, typowe błędy i wyniki douczania.
+Test można powtórzyć na własnym sprzęcie: <a href="#test">rozdział 12</a>.</p>
+<div class="note"><strong>Pamięć modeli.</strong> Ollama ładuje model z kontekstem podanym w
+zapytaniu. Integracja używa stałego kontekstu: 4096 dla routera i 8192 dla modelu odpowiedzi.
+Jeśli agent zapasowy w integracji Ollama używa <em>tego samego</em> modelu co model odpowiedzi,
+ustaw mu też kontekst 8192. Inaczej Ollama będzie przeładowywać model przy każdym pytaniu.</div>
+
+<h2 id="instalacja">4. Instalacja</h2>
+<ol>
+  <li>Skopiuj <code>custom_components/assist_router</code> do katalogu
+    <code>/config/custom_components/</code>. Możesz też dodać repozytorium w HACS jako
+    repozytorium niestandardowe typu „Integracja”.</li>
+  <li>Zrestartuj Home Assistant.</li>
+  <li><strong>Ustawienia → Urządzenia i usługi → Dodaj integrację → Assist Router.</strong></li>
+  <li><strong>Ustawienia → Asystenci głosowi:</strong> w każdym potoku zmień agenta rozmowy na
+    <strong>„Assist Router”</strong> (encja <code>conversation.assist_router</code>) i
+    <strong>wyłącz „Preferuj obsługę poleceń lokalnie”</strong>. Przy włączonej opcji HA
+    rozpoznaje wbudowane intencje przed Assist Routerem: „Ogłoszenie, …” poszłoby syntezą,
+    a „Kto to mówi?” i nagrywanie wzorca głosu nie miałyby pierwszeństwa. Assist Router i tak
+    najpierw przekazuje każde zdanie wbudowanemu agentowi, więc nic się nie traci.</li>
+  <li>Skopiuj <code>router.example.pl.yaml</code> z repozytorium do
+    <code>/config/assist/router.yaml</code> i dopasuj encje do swojego domu (opis pliku:
+    <a href="#przyklad">rozdział 8</a>). <code>router.example.yaml</code> to ten sam plik z
+    angielskimi nazwami.</li>
+  <li>W opcjach integracji podaj adres Ollamy i wybierz modele (<a href="#opcje">rozdział 5</a>).</li>
+  <li>Opcjonalnie: <a href="https://github.com/witold-gren/home-assistant-assist-speaker-id">Speaker
+    ID</a>, żeby asystent wiedział, kto pyta (<a href="#mowca">rozdział 7, „Kto pyta”</a>).
+    Assist Router odczytuje mówcę sam, wystarczy zmienić w potokach zamianę mowy na tekst.</li>
+</ol>
+
+<h2 id="opcje">5. Opcje integracji</h2>
+<p><strong>Ustawienia → Urządzenia i usługi → Assist Router → Konfiguruj</strong> otwiera menu:</p>
+<div class="table"><table>
+<tr><th>Pozycja</th><th>Co robi</th></tr>
+<tr><td>Ustawienia</td><td>Dwa kroki opisane niżej.</td></tr>
+<tr><td>Plik routera (router.yaml)</td><td>Edycja <code>/config/assist/router.yaml</code> wprost
+  w HA. Przed zapisem plik jest sprawdzany (zły YAML albo błąd konfiguracji pokazuje komunikat
+  i nic nie zapisuje), a poprzednia wersja zostaje jako <code>router.yaml.bak</code>. Router
+  czyta zmiany od następnego pytania, bez restartu.</td></tr>
+<tr><td>Przykładowe komendy</td><td>Podgląd zdań, które działają w tym domu, i ich generowanie
+  (patrz niżej).</td></tr>
+<tr><td>Nierozpoznane komendy</td><td>Tabela ostatnich 30 wpisów dziennika (od najnowszych)
+  i opcja „Wyczyść dziennik”; poprzednia treść zostaje jako
+  <code>unrecognized_commands.csv.bak</code>.</td></tr>
+</table></div>
+
+<h3 id="przyklady">Przykładowe komendy dla Twojego domu</h3>
+<p>Akcja <code>assist_router.generate_examples</code> albo pozycja menu „Przykładowe
+komendy” działa tak:</p>
+<ol>
+  <li>Dla każdego tematu z <code>router.yaml</code> model odpowiedzi układa zdania z
+    prawdziwymi nazwami: encjami tematu, urządzeniami i pokojami (sterowanie) oraz domownikami.</li>
+  <li><strong>Każde zdanie przechodzi przez prawdziwy router.</strong> Zostaje tylko wtedy,
+    gdy trafi do swojego tematu.</li>
+  <li>Polecenia sterowania przechodzą też rozbiór i plan polecenia, <strong>bez
+    wykonania</strong>.</li>
+</ol>
+<p>Wynik:</p>
+<ul>
+  <li>plik <code>/config/assist/router_examples.yaml</code>: dla każdego tematu
+    <code>description</code> (opis), <code>working</code> (zdania działające) i
+    <code>rejected</code> (odrzucone: <code>sentence</code> i dokąd trafiło - <code>topic</code>, albo
+    <code>control</code> z powodem, dla którego polecenie by nie zadziałało), co jest wskazówką, który
+    opis tematu albo przykład poprawić. Pliki ze starszych wersji z kluczami <code>dzialaja</code> /
+    <code>odrzucone</code> nadal są czytane;</li>
+  <li>sensor <strong>„Przykładowe komendy”</strong>: stan to liczba działających zdań, w
+    atrybucie <code>topics</code> są zdania tematów;</li>
+  <li>podgląd w opcjach.</li>
+</ul>
+<p>Generowanie trwa kilka minut, bo każde zdanie to osobne zapytanie do routera. Opcje
+akcji: <code>per_topic</code> (ile zdań na temat, domyślnie 5) i <code>topics</code> (tylko
+wybrane tematy). Tematy bełkotu (<code>unclear: true</code>) są pomijane. Odpowiedź akcji podaje
+liczby <code>working</code> i <code>rejected</code> dla każdego tematu.</p>
+<p>Akcja <code>assist_router.clear_log</code> czyści dziennik nierozpoznanych. Sensor
+<strong>„Nierozpoznane komendy”</strong> pokazuje liczbę wpisów, a w atrybucie
+<code>last</code> ostatnie 20, co przydaje się do karty Markdown na dashboardzie.</p>
+
+<p><strong>Ustawienia</strong>, krok pierwszy:</p>
+<div class="table"><table>
+<tr><th>Opcja</th><th>Co robi</th></tr>
+<tr><td>Zapisuj nierozpoznane komendy</td><td>Dopisuje każde nierozpoznane zdanie do
+  <code>/config/assist/unrecognized_commands.csv</code> i wysyła zdarzenie
+  <code>assist_router_unrecognized</code>.</td></tr>
+<tr><td>Agent zapasowy</td><td>Agent rozmowy dla pytań, którym router nie dał danych (temat
+  „inne”, błąd). Puste = komunikat „Powiedziałeś: …”.</td></tr>
+<tr><td>Czas na odpowiedź agenta zapasowego</td><td>Po tym czasie słychać „Powiedziałeś: …”.</td></tr>
+<tr><td>Adres Ollamy</td><td>Np. <code>http://localhost:11434</code>. Puste = router wyłączony.</td></tr>
+</table></div>
+<p>Krok drugi pojawia się, gdy podasz adres Ollamy. Lista modeli jest pobierana z serwera:</p>
+<div class="table"><table>
+<tr><th>Opcja</th><th>Co robi</th></tr>
+<tr><td>Model routera</td><td>Wybiera temat. Wystarczy mały i szybki model.</td></tr>
+<tr><td>Model odpowiedzi</td><td>Opcjonalny, ale potrzebny do odpowiedzi z danych. Pisze
+  odpowiedź z danych tematu i streszcza Wikipedię. Bez niego pytania z danymi trafiają do
+  agenta zapasowego, a z Wikipedii czytany jest początek artykułu.</td></tr>
+<tr><td>Czas na odpowiedź routera / modelu</td><td>Domyślnie 8 s i 15 s. Ten sam limit
+  routera dotyczy też wyszukiwania w Wikipedii.</td></tr>
+<tr><td>Trzymaj model w pamięci</td><td>Minuty od ostatniego pytania. <code>-1</code> =
+  zawsze w pamięci, najszybsza odpowiedź. Oba modele są ładowane przy starcie integracji.</td></tr>
+</table></div>
+
+<h2 id="router">6. Plik router.yaml</h2>
+<p><code>/config/assist/router.yaml</code> opisuje Twój dom. Kod integracji jest wspólny dla
+wszystkich użytkowników. Zmiany w pliku działają od razu, bez restartu HA. Brak pliku
+wyłącza router. Poniżej szkielet z najważniejszymi polami; pełny przykład domu z
+kilkunastoma tematami jest w <a href="#przyklad">rozdziale 8</a>, a to, jak kod zbiera i
+przycina dane, opisuje <a href="#dane">rozdział 7</a>.</p>
+<pre><code># language: pl            # pakiet językowy (domyślnie język HA, jeśli jest pakiet, inaczej pl)
+
+# Kto mieszka w domu - trafia do promptu routera i modelu odpowiedzi
+household: "Domownicy: Tomek (tata), Ania (mama), dzieci: Ola, Kuba."
+
+# Osoby w pytaniach: match = początki słów (regex), żeby złapać odmianę
+people:
+  ola:  {name: Ola,  match: "ola|oli|olą|olę|aleksandr"}
+  kuba: {name: Kuba, match: "kub|jakub"}
+  tomek: {name: Tomek, match: "tom|tat(a|y|o|ą)\\b"}
+  # family: {parents: [tomek, ania], children: [ola, kuba], men: [tomek, kuba]}
+  # speaker: identyfikator głosu w Assist Speaker ID (domyślnie klucz osoby, tu „ola”, „kuba”)
+  # owns: [calendar.kalendarz_oli] - encje tej osoby; room: Pokój Oli - jej pokój
+
+sentences: 4              # ile zdań w streszczeniu z Wikipedii
+wikipedia_language: pl
+only_exposed: false       # true = encje tematów tylko spośród udostępnionych Assistowi
+control_model: answer     # kto rozbiera polecenia sterowania: router albo answer
+confirm_entities:         # zawsze dopytaj (wzorce entity_id albo nazwy)
+  - switch.kuchnia_lodowka_przelacznik
+  - switch.*_enabled
+music_players:            # „puść …”: pokój -> odtwarzacze, pierwszy dostępny
+  Salon: [media_player.salon_homepod, media_player.salon_home_assistant_voice]
+
+topics:
+  lekcje:
+    description: szkoła, plan lekcji, zajęcia dodatkowe, o której kończy lekcje
+    examples: ["Na którą Ola idzie jutro do szkoły?"]
+    details: [sensor.plan_lekcji]    # atrybuty encji, przycięte do osoby i dnia z pytania
+    days: dzis                       # bez dnia w pytaniu - dziś
+    drop: [teacher, classroom]       # pomijane klucze
+
+  kalendarz:
+    description: plany, wydarzenia, spotkania, urodziny
+    examples: ["Co mamy w weekend?"]
+    days: "14"                       # bez dnia w pytaniu - 14 dni od dziś
+    fetch:                           # usługa z odpowiedzią
+      - action: calendar.get_events
+        entities: [calendar.rodzina, calendar.praca]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events                # jedna lista ze wszystkich kalendarzy, po kolei
+        title: Wydarzenia w kalendarzach
+
+  samochod:
+    description: auto - paliwo, zasięg, przebieg, czy zamknięte, gdzie stoi
+    examples: ["Ile paliwa ma auto?", "Czy zamknąłem samochód?"]
+    entities: [sensor.moje_auto_*, binary_sensor.moje_auto_*, lock.moje_auto_*]
+
+  swiatla:
+    description: które światła są włączone
+    entities: [light.*, "!light.ipad_*"]   # „!” = wykluczenie
+    skip_states: ["off"]
+
+  sterowanie:
+    description: polecenia - włącz, wyłącz, ustaw, przyciemnij, rolety, cieplej, głośniej
+    examples: ["Zrób jaśniej w salonie.", "Opuść rolety do połowy."]
+    control: true
+
+  wiedza:
+    description: pytanie o wiedzę ogólną - kim był, co to jest, historia, geografia
+    examples: ["Kim był Mikołaj Kopernik?"]
+    search: wikipedia
+
+  inne:
+    description: wszystko inne - rozmowa, żart, polecenia
+    examples: ["Opowiedz coś ciekawego."]</code></pre>
+
+<h3>Pola tematu</h3>
+<div class="table"><table>
+<tr><th>Pole</th><th>Znaczenie</th></tr>
+<tr><td><code>description</code></td><td>Krótki opis dla routera: o czym są pytania z tego
+  tematu. Opisy tematów nie powinny się pokrywać.</td></tr>
+<tr><td><code>examples</code></td><td>2–4 przykładowe pytania. Najbardziej pomagają przy
+  sformułowaniach z pogranicza dwóch tematów.</td></tr>
+<tr><td><code>entities</code></td><td>Wzorce <code>entity_id</code> (<code>*</code> = dowolny
+  ciąg, <code>|klasa1,klasa2</code> = tylko te rodzaje czujników, <code>!wzorzec</code> =
+  wykluczenie). Ich stany trafiają do danych po polsku: okno „otwarte”, zamek „zamknięty”.
+  Pomijane są <code>unknown</code>/<code>unavailable</code>, najwyżej 80 encji, w kolejności
+  wzorców (ważniejsze pierwsze).</td></tr>
+<tr><td><code>details</code></td><td>Wzorce encji, których <strong>atrybuty</strong> idą do
+  modelu (np. plan lekcji, saldo kont, odjazdy tramwajów). Listy są przycinane do osoby z
+  pytania (klucz <code>child</code> albo <code>person</code>) i do dnia (klucz
+  <code>date</code> albo <code>datetime</code>); szum (html, awatary, kolory, wartości
+  <code>false</code>) jest pomijany, czasy są lokalne i z dniem tygodnia.</td></tr>
+<tr><td><code>fetch</code></td><td>Usługi z odpowiedzią: <code>action</code>,
+  <code>entities</code>, <code>data</code> (<code>{start}</code> i <code>{end}</code> = zakres
+  dni z pytania), opcjonalnie <code>merge</code> (lista do połączenia z wszystkich encji),
+  <code>title</code> i <code>limit</code> (najwięcej pozycji, domyślnie 40). Np. kalendarze
+  (<code>calendar.get_events</code>) albo prognoza (<code>weather.get_forecasts</code>).</td></tr>
+<tr><td><code>days</code></td><td>Dzień, gdy pytanie go nie podaje, jako kod dnia. Kody są
+  angielskie i takie same w każdym języku: <code>today</code>, <code>tomorrow</code>,
+  <code>day_after_tomorrow</code>, <code>weekend</code>, <code>week</code> (ten tydzień),
+  <code>monday</code> … <code>sunday</code> albo liczba dni (<code>"14"</code> = dziś i 13
+  kolejnych). Polski pakiet przyjmuje też polskie nazwy jako aliasy: <code>dzis</code>,
+  <code>jutro</code>, <code>pojutrze</code>, <code>tydzien</code>, <code>poniedzialek</code> …
+  <code>niedziela</code> (tak jak w przykładach), więc starsze pliki działają bez zmian.
+  Nieznana wartość wyłącza router z błędem w logu. Bez tego pola dane nie są filtrowane po
+  dniu.</td></tr>
+<tr><td><code>drop</code></td><td>Klucze atrybutów pomijane w tym temacie.</td></tr>
+<tr><td><code>personal</code></td><td><code>true</code>: temat dla osoby, która pyta, także bez
+  „mam” i „moje” („Dzień dobry”). Rodzic (<code>family.parents</code>) dostaje swoje dane i dane
+  dzieci, a dziecko tylko swoje. Mówca nieznany oznacza dane wszystkich. Imię w pytaniu
+  zawsze wygrywa.</td></tr>
+<tr><td><code>answer_hint</code></td><td>Dodatkowa instrukcja dla modelu odpowiedzi w tym temacie, np.
+  jak ułożyć podsumowanie dnia i co powiedzieć rodzicowi, a co dziecku.</td></tr>
+<tr><td><code>verbatim</code></td><td><code>true</code>: odpowiedź HA na wzorcowe zdanie z <code>command</code> jest
+  czytana dosłownie, bez modelu odpowiedzi. Kilka zdań oddzielonych <code>;</code> daje wszystkie
+  odpowiedzi po kolei. Przydaje się, gdy automatyzacja ma stały układ odpowiedzi, np.
+  wiadomości dnia: „Dzisiejsze wiadomości z Polski: Pierwsza wiadomość…”.</td></tr>
+<tr><td><code>answer_hints</code></td><td>Instrukcje zależne od tego, kto pyta. Klucze, po kolei: osoba
+  (np. <code>ola</code>), <code>girl</code>/<code>boy</code> (dzieci), <code>child</code>/<code>parent</code>,
+  <code>unknown</code> (mówca nierozpoznany). Brak pasującego klucza oznacza <code>answer_hint</code>.
+  Prosta instrukcja dla jednej osoby działa pewniej niż jedna długa z warunkami.</td></tr>
+<tr><td><code>answer_tokens</code></td><td>Dłuższa odpowiedź niż domyślne 160 tokenów, np. 360 dla
+  podsumowania dnia.</td></tr>
+<tr><td><code>command</code></td><td>(starsze) Szablon HA (Jinja) z wzorcowym pytaniem do
+  Twojego HA, np. zdaniem automatyzacji. Kilka pytań rozdziel znakiem <code>;</code>.
+  Zamiast tego lepiej użyć <code>details</code> i <code>fetch</code> - bez osobnych
+  automatyzacji Assist.</td></tr>
+<tr><td><code>search: wikipedia</code></td><td>Temat wiedzy: hasło jest brane z pytania,
+  artykuł streszczany.</td></tr>
+<tr><td><code>control: true</code></td><td>Temat poleceń sterowania (<a href="#sterowanie">rozdział 10</a>).</td></tr>
+<tr><td><code>unclear: true</code></td><td>Temat bełkotu z rozpoznawania mowy: model odgaduje, co
+  powiedziano, a asystent pyta „Czy chodziło o…?”; bez propozycji prosi o powtórzenie
+  (<a href="#sterowanie">rozdział 10</a>).</td></tr>
+<tr><td><em>brak danych i search</em></td><td>Pytanie idzie do agenta zapasowego.</td></tr>
+</table></div>
+
+<h3>Zmienne w szablonie <code>command</code> (starsze pole)</h3>
+<div class="table"><table>
+<tr><th>Zmienna</th><th>Polska nazwa (alias)</th><th>Wartość</th></tr>
+<tr><td><code>person</code></td><td><code>osoba</code></td><td>pierwsze imię z pytania (forma z <code>people.name</code>) albo brak</td></tr>
+<tr><td><code>people</code></td><td><code>osoby</code></td><td>wszystkie imiona z pytania, po kolei: „Ola i Kuba” → <code>['Ola', 'Kuba']</code></td></tr>
+<tr><td><code>who</code></td><td><code>kto</code></td><td>klucz pierwszej osoby z <code>people</code> (np. <code>ola</code>)</td></tr>
+<tr><td><code>when</code></td><td><code>kiedy</code></td><td><code>when</code>: kod dnia (<code>today</code>, <code>tomorrow</code>, <code>day_after_tomorrow</code>, <code>weekend</code>, <code>week</code>, <code>monday</code> … <code>sunday</code>, liczba dni) albo brak; <code>kiedy</code>: polska nazwa dnia (<code>dzis</code>, <code>jutro</code>, <code>pojutrze</code>, <code>tydzien</code>, <code>poniedzialek</code> … <code>niedziela</code>), więc np. <code>{{ 'jutro' if kiedy == 'jutro' else 'dzisiaj' }}</code> działa bez zmian</td></tr>
+<tr><td><code>text</code></td><td><code>tekst</code></td><td>pełne pytanie, np. do wyciągnięcia numeru linii tramwaju</td></tr>
+</table></div>
+<p>Udokumentowane są nazwy angielskie; polskie działają dalej (aliasy z pakietu językowego,
+<code>COMMAND_VARIABLE_ALIASES</code>), więc starsze pliki <code>router.yaml</code> nie wymagają
+zmian.</p>
+
+<h3>Prompty modelu odpowiedzi</h3>
+<p>Domyślne prompty są wbudowane w integrację. Możesz je nadpisać w <code>router.yaml</code>
+polami <code>answer_prompt</code> (odpowiedź z danych) i <code>summary_prompt</code>
+(streszczenie). W tekście możesz użyć pól <code>{household}</code>, <code>{now}</code> (data i
+godzina po polsku) i <code>{sentences}</code>.</p>
+
+<h2 id="dane">7. Skąd router bierze dane</h2>
+<p>Router nie potrzebuje specjalnych automatyzacji ani zdań Assist. Dane bierze wprost z Home
+Assistanta, a w <code>router.yaml</code> opisujesz tylko, <strong>które</strong> encje i
+usługi należą do tematu. Resztą zajmuje się kod: wybiera z danych to, o co pytano, usuwa
+szum i podaje modelowi odpowiedzi zwięzłą listę faktów.</p>
+
+<div class="flow">
+<svg viewBox="0 0 900 470" role="img" aria-label="Schemat: pytanie, temat i osoba z dniem, źródła danych (entities, details, fetch), przycinanie, dane, model odpowiedzi">
+  <defs><marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <rect class="box" x="10" y="30" width="210" height="66" rx="8"/>
+  <text x="115" y="56" text-anchor="middle">Pytanie</text>
+  <text class="small" x="115" y="76" text-anchor="middle">„Na którą Ola idzie jutro</text>
+  <text class="small" x="115" y="89" text-anchor="middle">do szkoły?”</text>
+  <rect class="box hot" x="270" y="10" width="220" height="52" rx="8"/>
+  <text x="380" y="32" text-anchor="middle">Router (model)</text>
+  <text class="small" x="380" y="50" text-anchor="middle">tylko temat: szkola</text>
+  <rect class="box" x="270" y="72" width="220" height="52" rx="8"/>
+  <text x="380" y="94" text-anchor="middle">Kod</text>
+  <text class="small" x="380" y="112" text-anchor="middle">osoba: ola · dzień: tomorrow (jutro)</text>
+  <rect class="box" x="560" y="36" width="330" height="62" rx="8"/>
+  <text x="725" y="60" text-anchor="middle">Temat w router.yaml</text>
+  <text class="small" x="725" y="80" text-anchor="middle">szkola: details, fetch, entities, days, drop</text>
+  <rect class="box" x="10" y="160" width="270" height="70" rx="8"/>
+  <text x="145" y="184" text-anchor="middle">entities</text>
+  <text class="small" x="145" y="203" text-anchor="middle">stany encji po polsku</text>
+  <text class="small" x="145" y="218" text-anchor="middle">„Okno salon: otwarte (od 12 min)”</text>
+  <rect class="box" x="315" y="160" width="270" height="70" rx="8"/>
+  <text x="450" y="184" text-anchor="middle">details</text>
+  <text class="small" x="450" y="203" text-anchor="middle">atrybuty encji</text>
+  <text class="small" x="450" y="218" text-anchor="middle">plan lekcji, saldo, odjazdy, adres</text>
+  <rect class="box" x="620" y="160" width="270" height="70" rx="8"/>
+  <text x="755" y="184" text-anchor="middle">fetch</text>
+  <text class="small" x="755" y="203" text-anchor="middle">usługi, które zwracają dane</text>
+  <text class="small" x="755" y="218" text-anchor="middle">calendar.get_events, weather.get_forecasts</text>
+  <rect class="box hot" x="10" y="275" width="880" height="78" rx="8"/>
+  <text x="450" y="299" text-anchor="middle">Przycinanie (kod, bez modelu)</text>
+  <text class="small" x="450" y="320" text-anchor="middle">osoba: tylko elementy z child/person pasującym do „Ola” · dzień: tylko date/datetime z jutra</text>
+  <text class="small" x="450" y="338" text-anchor="middle">bez szumu (html, awatary, kolory, false) · czas lokalny i dzień tygodnia · limity długości</text>
+  <rect class="box" x="10" y="395" width="400" height="62" rx="8"/>
+  <text x="210" y="419" text-anchor="middle">Dane dla modelu (zwięzły YAML)</text>
+  <text class="small" x="210" y="439" text-anchor="middle">zwykle kilkaset do kilku tysięcy znaków</text>
+  <rect class="box hot" x="470" y="395" width="420" height="62" rx="8"/>
+  <text x="680" y="419" text-anchor="middle">Model odpowiedzi</text>
+  <text class="small" x="680" y="439" text-anchor="middle">„Ola idzie jutro na 8:00, pierwsza jest matematyka.”</text>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M220,52 L268,38"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M220,74 L268,96"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M490,36 L558,58"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M490,98 L558,80"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M640,98 C560,130 250,120 160,158"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M700,98 C640,130 470,130 455,158"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M760,98 L758,158"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M145,230 L145,273"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M450,230 L450,273"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M755,230 L755,273"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M210,353 L210,393"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M410,426 L468,426"/>
+</svg>
+</div>
+
+<h3>Trzy źródła danych</h3>
+<div class="table"><table>
+<tr><th>Pole tematu</th><th>Co trafia do modelu</th><th>Typowe przykłady</th></tr>
+<tr><td><code>entities</code></td><td>Stan każdej pasującej encji, po polsku, z najważniejszymi
+  atrybutami: jasność światła, pozycja rolety, temperatura termostatu, co gra, od kiedy
+  czujnik jest otwarty.</td><td>okna i drzwi, światła, czujniki w pokojach, auto, osoby
+  (<code>person.*</code>), ruch, alarm, pralka</td></tr>
+<tr><td><code>details</code></td><td>Atrybuty encji, czyli dane, których nie widać w samym
+  stanie: listy, plany, salda, adresy.</td><td>plan lekcji z dziennika, odjazdy z przystanku,
+  adres telefonu (<code>*_geocoded_location</code>), konta kieszonkowego</td></tr>
+<tr><td><code>fetch</code></td><td>Odpowiedź usługi HA, która zwraca dane. Zakres dni wynika z
+  pytania.</td><td>kalendarze (<code>calendar.get_events</code>), prognoza
+  (<code>weather.get_forecasts</code>)</td></tr>
+</table></div>
+<p>W jednym temacie możesz łączyć wszystkie trzy. Pogoda w przykładzie bierze bieżący odczyt z
+czujników (<code>entities</code>) i prognozę z usługi (<code>fetch</code>).</p>
+
+<h3>Jak kod przycina dane</h3>
+<ul>
+  <li><strong>Osoba.</strong> Element listy z kluczem <code>child</code> albo
+    <code>person</code> zostaje tylko wtedy, gdy pasuje do osoby z pytania (wzorzec
+    <code>match</code> z <code>people</code>, więc „Ola” trafia też w „Aleksandra”). Gdy osoby
+    z pytania w ogóle nie ma w danych (tata pyta o konta dzieci), nic nie jest usuwane.
+    Pytanie o „dzieci” albo bez imienia daje dane wszystkich.</li>
+  <li><strong>Dzień.</strong> Element z kluczem <code>date</code> albo <code>datetime</code>
+    zostaje tylko wtedy, gdy wypada w dniu z pytania. Gdy pytanie nie podaje dnia, liczy się
+    <code>days</code> tematu. Bez <code>days</code> dane nie są filtrowane po dniu. Gdy w danym
+    dniu nic nie ma (lekcje w sobotę), model dostaje „brak” zamiast pustej listy. Filtr nie
+    dotyczy samego korzenia atrybutów, bo tam <code>date</code> to zwykle data odczytu.</li>
+  <li><strong>Szum.</strong> Pomijane są: html, awatary, kolory, identyfikatory,
+    <code>friendly_name</code>, wartości <code>false</code> („odwołana: nie”) i puste
+    wartości oraz klucze z <code>drop</code>.</li>
+  <li><strong>Czas.</strong> Czasy ze strefą (prognozy są w UTC) są przeliczane na lokalne, a
+    przy dacie pojawia się dzień tygodnia: <code>2026-10-24 12:00 (sobota)</code>. Model nie
+    musi liczyć, który dzień to sobota.</li>
+  <li><strong>Limity.</strong> Najwyżej 80 encji w <code>entities</code> (w kolejności wzorców,
+    więc najważniejsze wpisz pierwsze), 40 pozycji listy (<code>limit</code> w
+    <code>fetch</code> zmienia to dla usługi) i 6000 znaków na jedno źródło.</li>
+</ul>
+
+<h3>Dzień z pytania</h3>
+<p>Pakiet językowy rozpoznaje słowa o dniu w pytaniu i zamienia je na <strong>kod dnia</strong>
+(<code>WHEN_PATTERNS</code>). Kody są angielskie i takie same w każdym języku - to je zawiera
+zmienna <code>when</code> i je wpisuje się w <code>days:</code>. W <code>days:</code> działają też
+polskie nazwy z kolumny „Alias”.</p>
+<div class="table"><table>
+<tr><th>W pytaniu</th><th>Kod dnia</th><th>Alias</th><th>Zakres dni</th></tr>
+<tr><td>„dziś”, „dzisiaj”, „teraz”</td><td><code>today</code></td><td><code>dzis</code></td><td>dziś</td></tr>
+<tr><td>„jutro”, „pojutrze”</td><td><code>tomorrow</code>, <code>day_after_tomorrow</code></td><td><code>jutro</code>, <code>pojutrze</code></td><td>ten jeden dzień</td></tr>
+<tr><td>„w poniedziałek” … „w niedzielę”</td><td><code>monday</code> … <code>sunday</code></td><td><code>poniedzialek</code> … <code>niedziela</code></td><td>najbliższy taki dzień (dziś, jeśli to dziś)</td></tr>
+<tr><td>„w weekend”</td><td><code>weekend</code></td><td><code>weekend</code></td><td>najbliższa sobota i niedziela</td></tr>
+<tr><td>„w tym tygodniu”</td><td><code>week</code></td><td><code>tydzien</code></td><td>dziś i 6 kolejnych dni</td></tr>
+<tr><td>nic</td><td colspan="2"><code>days</code> tematu</td><td>np. <code>today</code> (<code>dzis</code>) albo <code>"30"</code> (dziś i 29 kolejnych dni)</td></tr>
+</table></div>
+
+<h3>Przykład krok po kroku: plan lekcji</h3>
+<p>Pytanie: <em>„Na którą Ola idzie jutro do szkoły?”</em>. Router wybiera temat
+<code>szkola</code>, a kod wyciąga osobę <code>ola</code> i dzień <code>tomorrow</code> (<code>jutro</code>). Temat ma
+<code>details: [sensor.dziennik_plan_lekcji]</code>. Atrybuty tej encji to cały tydzień obojga
+dzieci, kilkanaście tysięcy znaków:</p>
+<pre><code>{"friendly_name": "Plan lekcji", "week_start": "2026-10-19",
+ "children": [
+   {"child": "Aleksandra", "avatar": "https://…", "color": "#f5ec00",
+    "days": [
+      {"date": "2026-10-22", "lessons": [{"start": "08:00", "subject": "Matematyka", "canceled": false}, …]},
+      {"date": "2026-10-23", "lessons": [{"start": "08:00", "subject": "Matematyka", "canceled": false},
+                                         {"start": "08:55", "subject": "Przyroda", "canceled": true}, …]},
+      …]},
+   {"child": "Jakub", "days": […]}]}</code></pre>
+<p>Po przycięciu model dostaje tylko jutro Oli, bez awatarów, kolorów i
+<code>canceled: false</code>:</p>
+<pre><code>Plan lekcji (stan: 2026-10-22):
+week_start: 2026-10-19 (poniedziałek)
+children:
+- child: Aleksandra
+  days:
+  - date: 2026-10-23 (piątek)
+    lessons:
+    - start: 08:00
+      subject: Matematyka
+    - start: 08:55
+      subject: Przyroda
+      canceled: true</code></pre>
+<p>Odpowiedź modelu: <em>„Ola idzie jutro na 8:00, pierwsza jest matematyka. Przyroda o 8:55
+jest odwołana.”</em> Model sam zauważył odwołaną lekcję, bo flaga <code>true</code> została w
+danych.</p>
+
+<h3>Przykład: kilka kalendarzy naraz</h3>
+<div class="flow">
+<svg viewBox="0 0 900 210" role="img" aria-label="Schemat: cztery kalendarze, usługa calendar.get_events z zakresem dni, merge w jedną listę po godzinie">
+  <defs><marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <rect class="box" x="10" y="10" width="190" height="40" rx="8"/>
+  <text x="105" y="35" text-anchor="middle">calendar.rodzina</text>
+  <rect class="box" x="10" y="60" width="190" height="40" rx="8"/>
+  <text x="105" y="85" text-anchor="middle">calendar.praca_tomka</text>
+  <rect class="box" x="10" y="110" width="190" height="40" rx="8"/>
+  <text x="105" y="135" text-anchor="middle">calendar.urodziny</text>
+  <rect class="box" x="10" y="160" width="190" height="40" rx="8"/>
+  <text x="105" y="185" text-anchor="middle">calendar.swieta_w_polsce</text>
+  <rect class="box" x="260" y="70" width="250" height="70" rx="8"/>
+  <text x="385" y="94" text-anchor="middle">calendar.get_events</text>
+  <text class="small" x="385" y="113" text-anchor="middle">„w piątek” → start: piątek 00:00</text>
+  <text class="small" x="385" y="128" text-anchor="middle">end: sobota 00:00</text>
+  <rect class="box hot" x="570" y="50" width="320" height="110" rx="8"/>
+  <text x="730" y="74" text-anchor="middle">merge: events</text>
+  <text class="small" x="730" y="96" text-anchor="middle">08:00 (piątek) Rodzina: wywiadówka</text>
+  <text class="small" x="730" y="113" text-anchor="middle">11:45 (piątek) Praca: spotkanie z klientem</text>
+  <text class="small" x="730" y="130" text-anchor="middle">16:30 (piątek) Rodzina: urodziny Franka</text>
+  <text class="small" x="730" y="147" text-anchor="middle">jedna lista po godzinie, ze źródłem</text>
+  <path class="arrow" style="marker-end:url(#arrow3)" d="M200,30 C230,30 240,80 258,92"/>
+  <path class="arrow" style="marker-end:url(#arrow3)" d="M200,80 L258,98"/>
+  <path class="arrow" style="marker-end:url(#arrow3)" d="M200,130 L258,114"/>
+  <path class="arrow" style="marker-end:url(#arrow3)" d="M200,180 C230,180 240,130 258,122"/>
+  <path class="arrow" style="marker-end:url(#arrow3)" d="M510,105 L568,105"/>
+</svg>
+</div>
+<p>Bez <code>merge</code> każdy kalendarz byłby osobnym źródłem i model musiałby sam układać
+wydarzenia w kolejności. Z <code>merge</code> pytanie „Co mamy w piątek?” dostaje gotowy plan
+dnia, a „Kiedy są urodziny babci?” przeszukuje 30 dni (<code>days: "30"</code>).</p>
+
+<div class="note"><strong>Bezpieczeństwo <code>fetch</code>.</strong> Integracja wywołuje
+tylko usługi, które <em>wyłącznie zwracają dane</em> (w HA: <code>SupportsResponse.ONLY</code>,
+np. <code>calendar.get_events</code>, <code>weather.get_forecasts</code>,
+<code>todo.get_items</code>). Wpis z usługą, która coś robi (<code>lock.unlock</code>, skrypt),
+jest pomijany z ostrzeżeniem w logu. Pytanie nigdy niczego nie przełączy.</div>
+
+<h3>A automatyzacje ze zdaniami?</h3>
+<p>Nie są potrzebne. Jeśli już je masz, mogą zostać: HA sprawdza je <em>przed</em> routerem,
+więc zdanie dokładnie pasujące do automatyzacji dostaje odpowiedź w ułamku sekundy, bez modelu.
+Każde inne sformułowanie trafia do routera i odpowiada na nie model z danych. Starsze pole
+<code>command</code> (wzorcowe pytanie do automatyzacji) nadal działa, ale nowe tematy lepiej
+opisywać przez <code>entities</code>, <code>details</code> i <code>fetch</code>.</p>
+
+<h3 id="mowca">Kto pyta: rozpoznany mówca (Assist Speaker ID)</h3>
+<p>Z integracją <a href="https://github.com/witold-gren/home-assistant-assist-speaker-id">Speaker
+ID</a> (zamiana mowy na tekst, która rozpoznaje też głos) router wie, kto zadał pytanie.
+Wystarczy w pipeline'ach ustawić jej STT („Mowa na tekst z mówcą”). Agentem zostaje Assist
+Router, który sam odczytuje mówcę z tego samego przebiegu pipeline'u.</p>
+<ul>
+  <li><strong>Pytanie w 1. osobie bez imienia</strong> („Jakie <em>mam</em> dzisiaj zajęcia?”,
+    „Pokaż <em>moje</em> oceny”) dotyczy mówcy. <code>details</code> są przycinane do jego
+    danych, jakby padło jego imię.</li>
+  <li><strong>Imię w pytaniu wygrywa</strong> („Jakie zajęcia ma Kuba?” od Oli to plan Kuby).
+    Pytanie bez 1. osoby („Jaki jest plan lekcji?”) zostaje dla wszystkich.
+    „Mamy” (my) nie jest 1. osobą liczby pojedynczej.</li>
+  <li><strong>Model odpowiedzi dostaje linię „Pyta: Ola.”</strong>, więc „mam” i „moje”
+    rozumie jako tę osobę. Imię pochodzi z <code>people</code>, nie ze Assist Speaker ID.</li>
+  <li><strong>Przypisanie głosu do osoby:</strong> pole <code>speaker</code> przy osobie.
+    Domyślnie jest to klucz osoby, więc wystarczy zapisać wzorce głosu pod tymi samymi
+    identyfikatorami (<code>ola</code>, <code>kuba</code>…).</li>
+  <li><strong>Mówca nieznany</strong> (obcy głos, za krótka wypowiedź, tekst wpisany ręcznie)
+    oznacza, że wszystko działa jak bez Assist Speaker ID.</li>
+</ul>
+<p><strong>Encje i pokój osoby (<code>owns</code>, <code>room</code>):</strong></p>
+<ul>
+  <li><strong><code>owns</code></strong> to wzorce encji należących do osoby, np. jej
+    kalendarz albo lokalizacja jej telefonu. Gdy pytanie dotyczy konkretnej osoby (z imienia
+    albo „mam”, „moje” od rozpoznanego mówcy), encje <em>innych</em> osób są pomijane w
+    <code>details</code>, <code>fetch</code> i <code>entities</code>. Encje niczyje, np.
+    kalendarz rodzinny, są zawsze brane. „Co mam jutro?” od Oli to więc kalendarz rodzinny
+    i jej własny, bez kalendarza pracy taty. To jest potrzebne, bo wydarzenia kalendarza
+    nie mają pola osoby, po którym dałoby się je przyciąć.</li>
+  <li><strong><code>room</code></strong> to pokój osoby. „Zgaś światło w moim pokoju” albo
+    „u mnie w pokoju” od tej osoby oznacza ten obszar.</li>
+  <li><strong>Określenia rodzinne względem mówcy</strong> (sekcja <code>family</code>:
+    <code>parents</code>, <code>children</code>, <code>men</code>). „Mój brat”, „moja
+    siostra”, „rodzeństwo” od dziecka oraz „mój syn”, „moja córka”, „moje dzieci” od
+    rodzica wskazują odpowiednie osoby, np. „moja córka” od taty to wszystkie córki.
+    Dopisują się do imion z pytania („Czy mama i mój brat są w domu?”).
+    „Mama”, „tata”, „żona” i „mąż” zostają stałymi imionami w <code>match</code>.</li>
+  <li><strong>Agent zapasowy</strong> też dostaje linię „Pyta: Ola.” w prompcie
+    systemowym.</li>
+  <li><strong>Zdania automatyzacji</strong> HA obsługuje przed Assist Routerem, więc nie
+    dostają mówcy wprost. Mogą go odczytać z sensora „Ostatni mówca” Assist Speaker ID, który jest
+    świeży przez kilka sekund po rozpoznaniu, np. makrem <code>speaker()</code> (z README Assist Speaker ID) w
+    <code>custom_templates</code>.</li>
+</ul>
+<p><strong>Podsumowanie dnia i „dobranoc” dla osoby:</strong> tematy z
+<code>personal: true</code> zbierają dane mówcy. „Dzień dobry”, „Jak wygląda mój dzień?”, „Co
+mnie dziś czeka?” od dziecka dają jego lekcje, sprawdziany, obowiązki i kalendarz. Od rodzica
+dają jego kalendarz i pogodę oraz krótki skrót o dzieciach. Jak ułożyć odpowiedź, mówi
+<code>answer_hint</code> tematu. Przykład: tematy <code>podsumowanie_dnia</code> i
+<code>dobranoc</code> w <code>router.example.pl.yaml</code>. Sceny o tych nazwach uruchamia się
+tylko jawnie („Uruchom scenę Dzień dobry”). Samo „Dzień dobry” jest powitaniem.</p>
+<p><strong>Ogłoszenia (intercom):</strong> zdanie zaczynające się od „ogłoszenie”,
+„komunikat”, „do wszystkich” albo „intercom” („Ogłoszenie, dzieci proszę przyjść na
+obiad”) nie trafia do HA ani do modeli. Assist Speaker ID odtwarza <strong>nagranie mówcy</strong>,
+bez cięcia i bez zmian, na pozostałych głośnikach, a głośnik, który nagrał, mówi tylko
+„Ogłoszenie wysłane.”. Odtwarzacze dodatkowe, np. HomePody, podajesz w
+<code>router.yaml</code> jako <code>announce_players: [media_player.…]</code>; z Assist Speaker ID
+0.1.1+ w pokoju gra jeden głośnik: dostępny odtwarzacz (np. HomePod) zamiast satelity, a pokój,
+z którego pada ogłoszenie, nic nie dostaje. Bez nagrania
+(tekst wpisany ręcznie albo brak Assist Speaker ID) zdanie idzie dalej zwykłą drogą: HA czyta je
+syntezą mowy. Te słowa muszą być na początku zdania, więc „Jakie są ogłoszenia w Librusie?”
+to zwykłe pytanie.</p>
+<p><strong>Sprawdzenie rozpoznawania:</strong> „Kto to mówi?”, „Kim jestem?”, „Jak mnie
+rozpoznajesz?”, „Co to za głos?”. Asystent odpowiada od razu, bez HA i modeli, z wyniku tej
+samej wypowiedzi, np. „Mówi Ola, podobieństwo 82 procent. Następna osoba: Kuba, 35 procent.”
+Odpowiedź może też brzmieć „nie rozpoznaję tego głosu” albo „nie jestem pewien”, z dwoma
+najbardziej podobnymi głosami. Krótkie pytanie (poniżej 1 s mowy) daje prośbę o dłuższe
+zdanie, np. „Powiedz mi, kto teraz do ciebie mówi”.</p>
+
+<h2 id="przyklad">8. Przykładowy router.yaml</h2>
+<p>Plik <code>router.example.pl.yaml</code> w repozytorium opisuje zmyślony dom: Tomek, Ania i
+dwoje dzieci, Ola i Kuba. Encje mają nazwy, jakie zwykle tworzą popularne integracje:
+aplikacja mobilna HA (lokalizacja telefonów), Frigate (kamery), Met.no (pogoda), kalendarze,
+auto, odkurzacz, pralka i listy zakupów. Wystarczy podmienić nazwy encji na swoje
+(<em>Narzędzia deweloperskie → Stany</em>). Ten sam dom z angielskimi nazwami tematów, osób i
+pomieszczeń (wzór dla dokumentacji po angielsku) jest w <code>router.example.yaml</code>.</p>
+<div class="table"><table>
+<tr><th>Temat</th><th>Skąd dane</th><th>Co pokazuje</th></tr>
+<tr><td><code>kalendarz</code></td><td><code>fetch</code>: <code>calendar.get_events</code>, <code>merge</code></td><td>kilka kalendarzy w jednej liście, dzień z pytania, bez dnia 30 dni</td></tr>
+<tr><td><code>szkola</code></td><td><code>details</code> albo <code>fetch</code></td><td>plan lekcji przycięty do dziecka i dnia; dwa warianty dziennika</td></tr>
+<tr><td><code>pogoda</code></td><td><code>entities</code> + 2 × <code>fetch</code></td><td>odczyt z czujnika i prognoza dzienna oraz godzinowa (<code>limit: 24</code>)</td></tr>
+<tr><td><code>czujniki</code></td><td><code>entities</code> z <code>|klasa</code></td><td>czujniki według <code>device_class</code>, tylko udostępnione</td></tr>
+<tr><td><code>okna_drzwi</code></td><td><code>entities</code></td><td>okna, drzwi, garaż i rolety z czasem „od kiedy”</td></tr>
+<tr><td><code>osoby</code></td><td><code>entities</code> + <code>details</code></td><td>domownicy, kamery Frigate, ruch, adres z telefonu; kolejność wzorców</td></tr>
+<tr><td><code>samochod</code></td><td><code>entities</code></td><td>wszystkie czujniki auta - model wybiera</td></tr>
+<tr><td><code>swiatla</code></td><td><code>entities</code>, <code>skip_states</code>, <code>!</code></td><td>tylko świecące, bez ekranu tabletu</td></tr>
+<tr><td><code>media</code></td><td><code>entities</code>, <code>skip_states</code></td><td>tylko odtwarzacze, które coś grają</td></tr>
+<tr><td><code>listy</code></td><td><code>entities: [todo.*]</code></td><td>pozycje list (integracja sama woła <code>todo.get_items</code>)</td></tr>
+<tr><td><code>komunikacja</code></td><td><code>details</code></td><td>odjazdy z przystanków z atrybutów</td></tr>
+<tr><td><code>niezrozumiale</code></td><td><code>unclear: true</code></td><td>bełkot z rozpoznawania mowy: propozycja „Czy chodziło o…?” albo prośba o powtórzenie</td></tr>
+<tr><td><code>sterowanie</code>, <code>wiedza</code>, <code>inne</code></td><td>-</td><td>polecenia, Wikipedia, agent zapasowy</td></tr>
+</table></div>
+<pre><code># Przykładowy router.yaml dla Assist Routera - skopiuj do /config/assist/router.yaml
+# i dopasuj encje do swojego domu (Narzędzia deweloperskie → Stany).
+# Ten sam plik z angielskimi nazwami (dokumentacja po angielsku): router.example.yaml.
+#
+# Dom z przykładu: Tomek (tata), Ania (mama), dzieci Ola i Kuba. Encje mają nazwy, jakie
+# zwykle tworzą popularne integracje: aplikacja mobilna HA (lokalizacja telefonów),
+# Frigate (kamery), Met.no (pogoda), kalendarze Google/CalDAV, integracja auta, odkurzacza
+# i pralki. Wszystkie nazwy encji są przykładowe.
+#
+# Jak router używa tego pliku:
+#   1. Model routera wybiera JEDEN temat z `topics` (na podstawie description i examples).
+#   2. Kod wyciąga z pytania osoby (`people`) i dzień („jutro”, „w piątek”).
+#   3. Temat zbiera dane: stany encji (entities), atrybuty encji (details) i odpowiedzi
+#      usług (fetch) - przycięte do osoby i dnia z pytania.
+#   4. Model odpowiedzi odpowiada na pytanie wyłącznie z tych danych.
+# Zmiany w pliku działają od razu, bez restartu HA.
+
+# --- Ustawienia ogólne ---------------------------------------------------------------
+
+# language: pl              # pakiet językowy; domyślnie język HA, jeśli jest dla niego pakiet,
+#                           # inaczej pl. Nieznany kod wyłącza router (błąd w logu).
+
+# Kto mieszka w domu - trafia do promptów (model wie, że „mama” to Ania, a „dzieci” to
+# Ola i Kuba).
+household: &gt;-
+  Domownicy: Tomek (tata, najczęściej pyta), Ania (mama), dzieci: Ola (Aleksandra, 10 lat)
+  i Kuba (Jakub, 7 lat).
+
+# Osoby w pytaniach. `match` to początki słów (regex), żeby złapać odmianę: „Oli”, „Olą”,
+# „Kubie”, „taty”. Osoba z pytania przycina dane, które mają klucz `child` albo `person`
+# (np. plan lekcji tylko Oli). Pytanie bez imienia („dzieci”) - dane wszystkich.
+# Z rozpoznawaniem mówcy (integracja Assist Speaker ID) pytanie w 1. osobie („Co mam jutro?”)
+# dotyczy tego, kto mówi. Dodatkowe pola osoby:
+#   speaker - identyfikator jej głosu w Assist Speaker ID (domyślnie klucz osoby, np. „ola”),
+#   owns    - jej encje (np. kalendarz pracy, telefon): w pytaniu o inną osobę są pomijane,
+#             encje niczyje (kalendarz rodziny) - zawsze,
+#   room    - jej pokój: „zgaś światło w moim pokoju” od tej osoby = ten obszar.
+people:
+  tomek:
+    name: Tomek
+    match: "tom|tat(a|y|o|ą|ę)\\b"
+    owns: [calendar.praca_tomka, sensor.telefon_tomka_*]
+  ania:
+    name: Ania
+    match: "ani|anna|anny|mam(a|y|ie|ą|ę)\\b"
+    owns: [sensor.telefon_ani_*]
+  ola:
+    name: Ola
+    match: "ol(a|i|ą|ę|u)\\b|olk|aleksandr"
+    room: Pokój Oli
+  kuba:
+    name: Kuba
+    match: "kub|jakub"
+    room: Pokój Kuby
+
+# Określenia rodzinne względem mówcy: „mój brat” od Oli = Kuba, „moja córka” od Tomka =
+# Ola, „moje dzieci” od Ani = Ola i Kuba. „mama”/„tata” to stałe imiona (match wyżej).
+family:
+  parents: [tomek, ania]
+  children: [ola, kuba]
+  men: [tomek, kuba]
+
+sentences: 4                # ile zdań w streszczeniu z Wikipedii
+wikipedia_language: pl
+only_exposed: false         # true = encje tematów tylko spośród udostępnionych Assistowi
+control_model: answer       # rozbiór poleceń sterowania: router albo answer (większy model)
+
+# Sterowanie: przy tych urządzeniach asystent zawsze pyta „Czy wyłączyć…?” - także gdy
+# trafią do polecenia zbiorczego („wyłącz wszystkie przełączniki”).
+confirm_entities:
+  - switch.lodowka
+  - switch.serwer_*
+  - switch.*_kamera_enabled     # włączniki kamer (Frigate)
+  - Router Wi-Fi                # można też podać nazwę urządzenia
+
+# „Puść …”: pokój -&gt; odtwarzacze w kolejności (pierwszy dostępny). Odtwarzacze Music
+# Assistanta często nie mają pokoju - stąd ta lista. Bez pokoju w poleceniu: pokój
+# głośnika, do którego mówisz. Pusta lista albo niedostępne odtwarzacze = odpowiedź, że w tym
+# pokoju nie ma na czym puścić muzyki (asystent nie wybiera wtedy innego głośnika).
+music_players:
+  Salon: [media_player.salon_glosnik, media_player.salon_telewizor]
+  Sypialnia: [media_player.sypialnia_glosnik]
+  Kuchnia: [media_player.kuchnia_glosnik]
+
+# --- Tematy ---------------------------------------------------------------------------
+#
+# Źródła danych tematu (można łączyć):
+#   entities  - wzorce entity_id; do modelu idzie stan po polsku („otwarte”, „w domu”).
+#               `*` = dowolny ciąg, `|klasa1,klasa2` = tylko te device_class,
+#               `!wzorzec` = wykluczenie. Kolejność ma znaczenie (limit 80 encji).
+#   details   - wzorce encji, których ATRYBUTY idą do modelu (listy, plany, salda).
+#   fetch     - usługi, które zwracają dane (calendar.get_events, weather.get_forecasts…).
+#               `{start}` i `{end}` = zakres dni z pytania.
+#   days      - dzień, gdy pytanie go nie podaje. Kody dni (angielskie, te same w każdym języku):
+#               today, tomorrow, day_after_tomorrow, weekend, week (ten tydzień), monday … sunday
+#               albo liczba dni ("14" = dziś i 13 kolejnych). Działają też polskie nazwy (aliasy):
+#               dzis, jutro, pojutrze, weekend, tydzien, poniedzialek … niedziela.
+#   drop      - klucze atrybutów do pominięcia (szum, którego model nie potrzebuje).
+#   skip_states - stany pomijane (np. wyłączone światła - zostają tylko świecące).
+#   unavailable - true = niedostępne encje trafiają do modelu jako „niedostępne” (zamiast
+#               pominięcia; model nie odpowie wtedy „nie mam informacji”).
+
+topics:
+  # Podsumowania dla osoby, która pyta (wymaga Assist Speaker ID; bez niego - dla całej rodziny).
+  # personal: bez imienia w pytaniu dane mówcy, a rodzica także dzieci.
+  podsumowanie_dnia:
+    description: dzień dobry, podsumowanie dnia, jak wygląda mój dzień, co mnie dziś czeka, plan na resztę dnia
+    examples: ["Dzień dobry", "Jak wygląda mój dzisiejszy dzień?", "Co mnie dzisiaj czeka?"]
+    personal: true
+    days: dzis
+    answer_tokens: 360
+    answer_hint: &gt;-
+      To podsumowanie dnia na głos. Mów do osoby z „Pyta:”, po imieniu, zwykłymi zdaniami.
+      Najpierw pogoda, potem jej plan (lekcje, wydarzenia, obowiązki). Rodzicowi dodaj
+      jedno lub dwa zdania o najważniejszych sprawach dzieci. Do 6 zdań.
+    details: [sensor.plan_lekcji, sensor.obowiazki]
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.rodzina, calendar.praca_tomka]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events
+      - action: weather.get_forecasts
+        entities: [weather.dom]
+        data: {type: daily}
+
+  dobranoc:
+    description: dobranoc, idę spać, co mnie czeka jutro
+    examples: ["Dobranoc", "Idę spać", "Co mnie jutro czeka?"]
+    personal: true
+    days: jutro
+    # instrukcja zależna od mówcy: osoba, girl/boy, child/parent, unknown
+    answer_hints:
+      girl: &gt;-
+        Jednym-dwoma zdaniami powiedz, co ją czeka jutro (bez domu i pogody), potem czule,
+        bajkowo życz dobrej nocy po imieniu, jak księżniczce.
+      boy: &gt;-
+        Jednym-dwoma zdaniami powiedz, co go czeka jutro (bez domu i pogody), potem na wesoło
+        życz dobrej nocy po imieniu (np. ładowanie baterii superbohatera).
+      parent: &gt;-
+        Co go czeka jutro i pogoda rano, co w domu zostało otwarte lub włączone, jedno
+        zdanie o jutrze dzieci. Zakończ „Dobranoc”. Do 5 zdań.
+      unknown: &gt;-
+        Krótko dla całej rodziny, bez imion: co jutro i co otwarte lub włączone w domu.
+    details: [sensor.plan_lekcji]
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.rodzina, calendar.praca_tomka]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events
+    entities: [binary_sensor.*_okno, light.*]
+
+  # Kalendarze: wydarzenia ze wszystkich kalendarzy w jednej liście, po kolei.
+  # „Co mamy w piątek?” -&gt; tylko piątek; „Kiedy są urodziny babci?” -&gt; 30 dni od dziś.
+  kalendarz:
+    description: plany, wydarzenia, spotkania, urodziny, imieniny, święta, co mamy zaplanowane, terminy
+    examples:
+      - Co mamy w weekend?
+      - Ile mam jutro spotkań w pracy?
+      - Kiedy są urodziny babci?
+      - Czy w czwartek coś się dzieje?
+    days: "30"
+    drop: [description]           # opisy spotkań (linki do wideorozmów) tylko zajmują miejsce
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.rodzina, calendar.praca_tomka, calendar.urodziny, calendar.swieta_w_polsce]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events             # jedna lista ze wszystkich kalendarzy, posortowana po godzinie
+        title: Wydarzenia w kalendarzach (po kolei)
+        limit: 60
+
+  # Szkoła z dziennika elektronicznego. Dwa typowe warianty - wybierz pasujący:
+  #  a) integracja daje encję z atrybutami (dzieci -&gt; dni -&gt; lekcje): `details`;
+  #  b) integracja daje kalendarz lekcji dla każdego dziecka: `fetch` jak w kalendarzu.
+  szkola:
+    description: szkoła, plan lekcji, o której zaczyna lub kończy lekcje, kiedy wraca ze szkoły, zastępstwa, odwołane lekcje
+    examples:
+      - Na którą Ola idzie jutro do szkoły?
+      - Czy Kuba ma jutro WF?
+      - O której dzieci kończą dziś lekcje?
+    details: [sensor.dziennik_plan_lekcji]      # wariant a)
+    days: dzis                                  # bez dnia w pytaniu - dziś
+    drop: [teacher_id, classroom_id]
+    # fetch:                                    # wariant b)
+    #   - action: calendar.get_events
+    #     entities: [calendar.lekcje_ola, calendar.lekcje_kuba]
+    #     data: {start_date_time: "{start}", end_date_time: "{end}"}
+    #     merge: events
+
+  # Pogoda: teraz z czujników na balkonie, prognoza z usługi (dzienna i godzinowa).
+  pogoda:
+    description: pogoda na zewnątrz teraz i prognoza, deszcz, wiatr, czy wziąć parasol, jak się ubrać, temperatura na dworze
+    examples:
+      - Czy jutro będzie padać?
+      - Czy wziąć parasol?
+      - Jak się ubrać na weekend?
+      - Ile jest stopni na dworze?
+    entities:
+      - sensor.balkon_temperatura
+      - sensor.balkon_wilgotnosc
+      - sensor.deszczomierz_*
+    drop: [wind_bearing, uv_index, cloud_coverage, dew_point, pressure]
+    fetch:
+      - action: weather.get_forecasts
+        entities: [weather.dom]
+        data: {type: daily}
+        title: Prognoza na kolejne dni
+      - action: weather.get_forecasts
+        entities: [weather.dom]
+        data: {type: hourly}
+        title: Prognoza godzinowa
+        limit: 24                 # najwyżej doba - więcej tylko spowalnia odpowiedź
+
+  # Klimat w pokojach: czujniki według rodzaju (device_class) i termostaty.
+  czujniki:
+    description: temperatura, wilgotność, CO2, jakość powietrza w pokojach, ogrzewanie, termostaty, czy jest duszno
+    examples:
+      - Ile stopni jest w pokoju Oli?
+      - Gdzie jest najwyższe CO2?
+      - Na ile jest ustawione ogrzewanie w salonie?
+    only_exposed: true            # tylko czujniki udostępnione Assistowi (bez technicznych)
+    entities:
+      - sensor.*|temperature,humidity,carbon_dioxide,pm25,volatile_organic_compounds
+      - climate.*
+
+  # Okna, drzwi i rolety: czujniki otwarcia i pozycja rolet.
+  okna_drzwi:
+    description: które okna lub drzwi są otwarte, czy wszystko zamknięte, drzwi wejściowe, balkon, garaż, rolety
+    examples:
+      - Które okna są otwarte?
+      - Czy zamknąłem drzwi balkonowe?
+      - Od kiedy jest otwarte okno w sypialni?
+    entities:
+      - binary_sensor.*|door,window,opening,garage_door
+      - cover.*
+
+  # Kto jest w domu i gdzie: domownicy (person), adres z telefonu (aplikacja mobilna HA),
+  # kamery Frigate (liczba osób), czujniki ruchu. Kolejność: najważniejsze najpierw.
+  osoby:
+    description: kto jest w domu, gdzie ktoś jest, czy ktoś jest w pokoju, gdzie był ruch, ile osób widzą kamery
+    examples:
+      - Gdzie jest mama?
+      - Czy Kuba jest już w domu?
+      - Czy ktoś jest w salonie?
+      - Ile osób widzi kamera w ogrodzie?
+    entities:
+      - person.*
+      - sensor.*_person_count                    # Frigate: liczba osób w kadrze
+      - binary_sensor.*|motion,occupancy,presence
+    details: [sensor.telefon_*_geocoded_location] # adres telefonu (atrybuty: ulica, miasto)
+    drop: [Location, Country, ISO Country Code, Postal Code, Time Zone, Areas Of Interest,
+           Administrative Area, Sub Administrative Area, Ocean, Inland Water]
+
+  # Samochód: wszystkie czujniki auta - model wybierze, o co pytano.
+  samochod:
+    description: samochód - paliwo, zasięg, przebieg, spalanie, serwis, czy zamknięty, okna, opony, gdzie stoi
+    examples:
+      - Czy muszę zatankować?
+      - Czy zamknąłem auto?
+      - Gdzie zaparkowałem?
+      - Kiedy przegląd?
+    entities:
+      - sensor.moje_auto_*
+      - binary_sensor.moje_auto_*
+      - lock.moje_auto_*
+      - device_tracker.moje_auto_*
+
+  # Światła: tylko świecące (skip_states), bez ekranu tabletu i podświetleń głośników.
+  swiatla:
+    description: które światła są włączone, gdzie się świeci, czy zostało zapalone światło, jasność lamp
+    examples:
+      - Czy zostawiłem gdzieś zapalone światło?
+      - Które lampy świecą w kuchni?
+    only_exposed: true
+    entities:
+      - light.*
+      - "!light.*_ekran"
+      - "!light.*_led_ring"
+    skip_states: ["off"]
+
+  # Co gra: tylko odtwarzacze, które coś robią.
+  media:
+    description: co teraz gra, muzyka, telewizor, głośniki, jaka głośność, czy telewizor jest włączony
+    examples:
+      - Co teraz gra w salonie?
+      - Czy telewizor jest włączony?
+    only_exposed: true
+    entities:
+      - media_player.*
+    skip_states: ["off", "idle", "standby"]
+
+  # Odkurzacz, pralka - stan i czas do końca.
+  odkurzacz:
+    description: odkurzacz, robot sprzątający, czy skończył, bateria, filtr, szczotki
+    examples: ["Czy odkurzacz skończył?", "Ile baterii ma robot?"]
+    entities: [vacuum.*, sensor.odkurzacz_*]
+
+  pranie:
+    description: pralka, suszarka, czy pranie się skończyło, ile zostało do końca
+    examples: ["Czy pralka skończyła?", "Ile jeszcze będzie suszyć?"]
+    entities: [sensor.pralka_*, sensor.suszarka_*]
+
+  # Listy (todo): zawartość list, nie tylko liczba pozycji (todo.get_items).
+  listy:
+    description: lista zakupów, co trzeba kupić, przypomnienia, rzeczy do zrobienia
+    examples: ["Co jest na liście zakupów?", "Czy mamy na liście mleko?"]
+    entities: [todo.*]
+
+  # Alarm i bezpieczeństwo - tylko odczyt (włączanie alarmu zostaw automatyzacjom).
+  alarm:
+    description: alarm, czy alarm jest włączony, tryb ochrony, zalanie, dym, gaz, czy gdzieś cieknie woda
+    examples: ["Czy alarm jest włączony?", "Czy czujnik dymu coś wykrył?"]
+    entities:
+      - alarm_control_panel.*
+      - binary_sensor.*|moisture,smoke,gas,carbon_monoxide
+
+  # Komunikacja miejska: odjazdy z przystanków (integracje MPK/ZTM mają listę odjazdów
+  # w atrybutach). Bez dnia - wszystko, co jest w danych.
+  komunikacja:
+    description: tramwaj, autobus, odjazdy z przystanku, za ile jest tramwaj
+    examples: ["Za ile mam tramwaj 8?", "Kiedy jedzie autobus z Parkowej?"]
+    details: [sensor.przystanek_*]
+    drop: [html, original_departure]
+
+  # Stan pozostałych urządzeń (gniazdka, przełączniki).
+  urzadzenia:
+    description: czy urządzenie jest włączone - gniazdka, przełączniki, ładowarki, akwarium
+    examples: ["Czy akwarium jest włączone?", "Czy ładowarka w garażu działa?"]
+    only_exposed: true
+    unavailable: true             # niedostępne też - „Lustro jest niedostępne”
+    entities: [switch.*]
+
+  # Polecenia, których HA nie rozpoznał: rozbiór na intencję HA i wykonanie
+  # (z dopytaniem przy wątpliwościach). Szczegóły: dokumentacja, rozdział „Sterowanie domem”.
+  sterowanie:
+    description: polecenia - włącz, wyłącz, zgaś, zapal, ustaw, przyciemnij, kolor światła, rolety, cieplej, głośniej, puść muzykę, odkurz, dopisz do listy
+    examples:
+      - Zrób ciepłe światło w sypialni.
+      - Opuść rolety do połowy.
+      - Puść jazz w kuchni.
+      - Dopisz mleko do listy zakupów.
+    control: true
+
+  # Wiedza ogólna: streszczenie artykułu z Wikipedii (3–4 zdania).
+  wiedza:
+    description: pytanie o wiedzę ogólną - kim był, co to jest, historia, geografia, nauka
+    examples: ["Kim był Mikołaj Kopernik?", "Co to jest fotosynteza?"]
+    search: wikipedia
+
+  # Bełkot z rozpoznawania mowy: słowa do siebie nie pasują. Asystent zgaduje, co powiedziano
+  # („Czy chodziło o: włącz nastrój w salonie?”) albo prosi o powtórzenie. W opisie napisz
+  # wprost, co tu NIE należy - inaczej router wrzuci tu też dziwne, ale sensowne pytania.
+  niezrozumiale:
+    description: zdanie bez sensu - słowa do siebie nie pasują i nie da się z nich zrozumieć ani pytania, ani polecenia; wygląda na przekręcone przez rozpoznawanie mowy. Tu NIE należą pytania i polecenia z jednym przekręconym słowem, gdy sens jest jasny, ani pytania o wiedzę, rozmowa i żarty
+    examples:
+      - Głup nastrój w pisarowie.
+      - Szuflada wieczór gazeta kuchni.
+    unclear: true
+
+  # Wszystko inne - agent zapasowy (rozmowa, żarty).
+  inne:
+    description: wszystko inne - rozmowa, żart, prośby, pytania bez danych w domu
+    examples: ["Opowiedz coś ciekawego.", "Jak się masz?"]</code></pre>
+
+<h2 id="nowy">9. Jak dodać nowy temat (krok po kroku)</h2>
+<p>Przykład: pytania o pralkę i suszarkę, np. „Ile jeszcze będzie prać?” albo „Czy mogę wyjąć
+pranie?”.</p>
+<ol>
+  <li><strong>Znajdź encje.</strong> <em>Narzędzia deweloperskie → Stany</em>, wyszukaj np.
+    <code>pralka</code>. Zwróć uwagę, czy potrzebna informacja jest w <em>stanie</em> (np.
+    „czas do końca: 25 min”) - wtedy wystarczy <code>entities</code>, czy w
+    <em>atrybutach</em> (listy, plany) - wtedy <code>details</code>.</li>
+  <li><strong>Jeśli dane daje usługa</strong> (kalendarz, prognoza), sprawdź ją w
+    <em>Narzędzia deweloperskie → Akcje</em> z zaznaczonym „Zwróć odpowiedź”. Ta sama akcja z
+    tymi samymi danymi trafia do <code>fetch</code>; zamiast dat wpisz <code>{start}</code> i
+    <code>{end}</code>.</li>
+  <li><strong>Dopisz temat:</strong>
+<pre><code>  pranie:
+    description: pralka, suszarka, czy pranie się skończyło, ile jeszcze potrwa
+    examples: ["Czy suszarka skończyła?", "Ile jeszcze będzie prać?"]
+    entities: [sensor.pralka_*, sensor.suszarka_*]</code></pre></li>
+  <li><strong>Zapisz i zapytaj</strong> swobodnie. W pliku CSV, w kolumnie <code>route</code>,
+    zobaczysz np. <code>pranie + 12 encji + odpowiedź</code>, a dla <code>details</code> i
+    <code>fetch</code> <code>szkola + 1 źródeł + odpowiedź</code>.</li>
+  <li><strong>Jeśli router wybiera zły temat</strong>, popraw <code>description</code> i dodaj
+    pytanie z dziennika do <code>examples</code>.</li>
+  <li><strong>Jeśli odpowiedź jest zła, a temat dobry</strong>, zobacz, co model dostał: dane
+    są za długie (dodaj <code>drop</code>, <code>days</code>, <code>limit</code>), brakuje w nich
+    odpowiedzi (dodaj encję) albo zawierają podobne, mylące encje (wyklucz je
+    <code>!wzorzec</code>). Pomaga <code>tools/compare_sources.py</code> (<a href="#test">rozdział 12</a>).</li>
+</ol>
+<div class="tip"><strong>Dobre praktyki</strong>
+<ul>
+  <li>Mniej tematów, ale wyraźnie różnych, działa lepiej niż wiele podobnych. Lepiej jeden temat
+    „samochód” z wszystkimi czujnikami auta niż trzy osobne.</li>
+  <li>Daj modelowi pełne dane, np. plan lekcji z godzinami każdej lekcji. Wtedy odpowie też na
+    pytania, których nie przewidziałeś („Ile godzin Ola jest w szkole?”).</li>
+  <li>Dla danych z datami ustaw <code>days</code>, żeby pytanie bez dnia nie ściągało całego
+    tygodnia.</li>
+  <li>Najważniejsze wzorce wpisuj pierwsze: limit 80 encji odcina od końca.</li>
+</ul></div>
+
+<h2 id="sterowanie">10. Sterowanie domem</h2>
+<p>Temat z <code>control: true</code> obsługuje polecenia, których HA nie rozpoznał. Zdania hassil
+i automatyzacje zawsze mają pierwszeństwo.</p>
+<ol>
+  <li><strong>Poprawki Whispera.</strong> Pewne poprawki są stosowane od razu („czystkę” →
+    „wszystkie”), a niepewne (np. „jaś” → „zgaś”) oznaczają dopytanie. Listę zawiera
+    <code>WHISPER_FIXES</code> w pakiecie językowym (<code>languages/pl.py</code>).</li>
+  <li><strong>Rozbiór.</strong> Model zwraca JSON wymuszony schematem. Pole
+    <code>intencja</code> to intencja HA: <code>HassTurnOn</code>/<code>Off</code>,
+    <code>HassLightSet</code>, <code>HassSetPosition</code>,
+    <code>HassClimateSetTemperature</code>, <code>HassSetVolume</code>/<code>Relative</code>,
+    sterowanie mediami, <code>HassMediaSearchAndPlay</code> („puść …”), odkurzacz lub
+    <code>HassListAddItem</code>. Pola
+    <code>domena</code>, <code>obszar</code> i <code>pietro</code> to wybór z list Twojego
+    HA. Do tego dochodzą <code>nazwa</code> (fragment wypowiedzi), <code>wszystkie</code>,
+    <code>wartosc</code> i <code>zmiana</code> (więcej / mniej), a dla światła
+    <code>kolor</code> (np. czerwony) i <code>barwa</code> (ciepła 2700 K, neutralna 4000 K,
+    zimna 6500 K), dla muzyki <code>szukaj</code> i <code>rodzaj</code> (utwór, album,
+    wykonawca, playlista, gatunek, podcast).</li>
+  <li><strong>Dopasowanie w kodzie.</strong>
+    <ul>
+      <li>Fragment nazwy jest porównywany z nazwami i aliasami encji udostępnionych Assistowi.
+        Pod uwagę idą rdzenie słów, więc odmiana nie przeszkadza.</li>
+      <li>Gdy fragment jest słaby, wygrywa urządzenie, którego wszystkie słowa nazwy padły w
+        poleceniu.</li>
+      <li>Obszar, którego nie było w wypowiedzi, jest pomijany. Model potrafi pomylić
+        „garderobie” z „Garaż”.</li>
+      <li>Zmiany względne („jaśniej”, „wyżej”, „cieplej”) są liczone z bieżącego stanu: o 25%
+        albo o 1°.</li>
+    </ul></li>
+  <li><strong>Dopytanie</strong> („Czy wyłączyć Oświetlenie garderoby?”, rozmowa zostaje
+    otwarta przez 30 s) następuje, gdy:
+    <ul>
+      <li>poprawka Whispera była niepewna;</li>
+      <li>w poleceniu nie ma żadnego znanego czasownika;</li>
+      <li>pasuje kilka urządzeń (ale nie encje-bliźniaki - patrz niżej);</li>
+      <li>chodzi o zamek, bramę albo drzwi garażowe;</li>
+      <li>urządzenie jest na liście <code>confirm_entities</code> (także w poleceniu
+        zbiorczym, np. „wyłącz wszystkie przełączniki”).</li>
+    </ul>
+    Przy kilku podobnie pasujących urządzeniach („roletą wewnętrzną okno” - mała i duża)
+    asystent pyta, zamiast podmieniać je na inne urządzenie, którego słowa akurat padły w
+    poleceniu (roleta zewnętrzna okna). Wygrywa tylko urządzenie z większą liczbą słów z
+    polecenia („lampę w garderobie” → Garderoba Lampa).
+    Pytanie ma dwie formy. Przy niepewności („Czy dobrze rozumiem, że mam uruchomić Ekspres -
+    zrób kawę?”) samo „nie” znaczy „źle zrozumiałeś”: asystent przeprasza, prosi o powtórzenie
+    i słucha dalej, a „anuluj”, „nie trzeba” albo „koniec” kończą rozmowę. Przy urządzeniach
+    wrażliwych („Czy otworzyć drzwi wejściowe?”) „nie” znaczy po prostu „nic nie rób”.
+    Odpowiedzi działają tak samo przy każdym pytaniu asystenta: <strong>zgoda</strong> – „tak”, „dokładnie (tak)”, „o to (mi) chodzi”, „działaj”, „zrób”, „wykonaj”, „dawaj”; <strong>powtórzenie</strong> – „nie”, „o coś innego”, „nie o to chodzi”, „jeszcze raz”, „(może) powtórzę” – asystent przeprasza i słucha dalej; <strong>koniec</strong> – „anuluj”, „koniec”, „nieważne”, „zostaw (to)”, „nic nie rób”, „daj (sobie z tym) spokój”, „olej to”. Przy pytaniach o rzeczy wrażliwe („Czy otworzyć drzwi?”) samo „nie” znaczy „nie rób tego” i kończy rozmowę.
+    Odpowiedź czasownikiem jest oceniana w kontekście pytania: na „Czy włączyć…?” samo
+    „włącz” to tak, a „wyłącz” to nie. Dla zamków i rolet kod używa ich własnych czasowników
+    (w HA <code>HassTurnOn</code> dla zamka = zarygluj). Inna wypowiedź unieważnia pytanie.</li>
+  <li><strong>Wykonanie</strong> przez <code>intent.async_handle</code> (HA):
+    <ul>
+      <li><strong>Encje-bliźniaki.</strong> Jedno urządzenie bywa widoczne w dwóch integracjach
+        pod tą samą nazwą i w tym samym pokoju, np. HomePod z integracji Apple TV i z Music
+        Assistanta („Łazienka HomePod” ×2). Intencja HA odrzuca taką nazwę
+        (<code>DUPLICATE_NAME</code>) i nic nie robi, a nie da się w niej wskazać
+        <code>entity_id</code>. Integracja nie pyta więc o „kilka pasujących urządzeń”, tylko
+        wywołuje usługę na każdej z tych encji (<code>media_player.volume_set</code>,
+        <code>homeassistant.turn_on</code>, <code>light.turn_on</code> …); pauza i następny
+        utwór - tylko na tej, która gra. Nazwa podana przez model razem z pokojem
+        („Łazienka HomePod”) jest porównywana bez słowa pokoju.</li>
+      <li>sprawdza, czy encja jest udostępniona Assistowi;</li>
+      <li>jako domyślny bierze pokój głośnika („włącz światło” bez pokoju);</li>
+      <li>w odpowiedzi wymienia, co zostało przełączone: „Wyłączono: …”.</li>
+    </ul></li>
+  <li><strong>Akcje: skrypty i sceny.</strong> Model dostaje listę udostępnionych skryptów z
+    ich <em>opisami</em> oraz scen z listą tego, co ustawiają (HA nie ma pola opisu sceny).
+    Polecenie, które nie pasuje do żadnego urządzenia, może więc trafić w akcję robiącą to, o
+    co proszono, nawet przy przekręconym słowie („zapasz kawę” → „Ekspres - zrób kawę”,
+    „przewietrzmy mieszkanie” → scena wietrzenia). Skrypt jest uruchamiany wprost; jego pola z
+    wyborem satelity Assist dostają głośnik, z którego padło polecenie.
+    <ul>
+      <li><strong>Dlaczego opis, a nie zdania:</strong> automatyzacja ze zdaniami rozumie
+        tylko wpisane słowa, a opis mówi modelowi, <em>co</em> skrypt robi, więc pasuje do
+        dowolnego sformułowania. Kroki (włącz ekspres, poczekaj, zaparz) i tak są w skrypcie.</li>
+      <li><strong>Jak pisać opis:</strong> zacznij od prostego zdania o efekcie („Parzy kawę:
+        …”, „Zamyka wszystkie rolety zewnętrzne: …”) - model widzi pierwsze 160 znaków.
+        Szczegóły techniczne dopisz dalej.</li>
+      <li><strong>Co udostępniać:</strong> tylko akcje do uruchamiania głosem. Skryptów
+        technicznych (powiadomienia, aktualizacje) i alarmu nie udostępniaj - model mógłby je
+        wybrać przez pomyłkę. Akcje, przy których asystent ma zawsze pytać, dopisz do
+        <code>confirm_entities</code>.</li>
+      <li><strong>Automatyzacji się nie udostępnia:</strong> „włącz automatyzację” w HA znaczy
+        „włącz jej działanie”, a nie „uruchom ją teraz”. Czynność, którą chcesz wywoływać
+        głosem, przenieś do skryptu.</li>
+    </ul></li>
+  <li><strong>Bełkot z rozpoznawania mowy.</strong> Whisper czasem przekręca całe zdanie
+    („Głup nastrój w pisarowie” zamiast „Włącz nastrój w salonie”). Temat z
+    <code>unclear: true</code> łapie zdania, w których słowa do siebie nie pasują. Model
+    odgaduje, co powiedziano - zna nazwy pomieszczeń i akcji - a asystent pyta: „Nie jestem
+    pewien, czy dobrze usłyszałem. Czy chodziło o: włącz nastrój w salonie?”. Na „tak”
+    poprawione zdanie przechodzi całą zwykłą drogę (zdania HA, automatyzacje, router); na
+    „nie” asystent prosi o powtórzenie, „anuluj” kończy. Gdy nie da się zgadnąć - od razu
+    „Nie zrozumiałem. Powtórz, proszę.” W opisie tematu warto napisać wprost, co tu
+    <em>nie</em> należy: pytania i polecenia z jednym przekręconym słowem, gdy sens jest jasny,
+    pytania o wiedzę, rozmowa. Nic nie jest wykonywane bez potwierdzenia. Asystent prosi o powtórzenie najwyżej raz z rzędu. Gdy drugi raz nie zrozumie (znów bełkot albo znów „nie” na jego propozycję), mówi „Przepraszam, nie rozumiem. Jeśli będziesz czegoś potrzebować, poproś mnie jeszcze raz.” i kończy rozmowę - mikrofon się zamyka. Każde zrozumiane polecenie albo pytanie zeruje licznik; liczy się każda rozmowa (głośnik) osobno.</li>
+  <li><strong>Zabezpieczenia.</strong>
+    <ul>
+      <li><strong>Alarm tylko zdaniami.</strong> Polecenie ze słowami „alarm”, „czuwanie”,
+        „ochrona”, „syrena”, „uzbrój”, „rozbrój” (także przekręconymi, np. „halaryn”), którego
+        nie złapała automatyzacja ze
+        zdaniami, nie idzie do modelu - asystent odpowiada podpowiedzią („Alarmem steruję tylko
+        konkretnymi zdaniami, na przykład: wyłącz alarm…”). Test pokazał, że model potrafił
+        wtedy wybrać scenę „Dzień dobry”.</li>
+      <li><strong>Bez pomieszczenia - pokój głośnika.</strong> HA przy poleceniu bez obszaru i
+        bez nazwy („wyłącz światło”) bierze <em>wszystkie</em> urządzenia tego rodzaju w domu.
+        Integracja dopisuje więc pomieszczenie głośnika, z którego padło polecenie; bez znanego
+        głośnika pyta „W którym pomieszczeniu?”. (22.10.2026 przekręcone „wyłącz alarm” zgasiło
+        w ten sposób 64 światła.)</li>
+      <li><strong>Duży zasięg.</strong> Więcej niż 8 urządzeń naraz bez „wszystkie”, „cały”,
+        „każdy” w poleceniu - najpierw pytanie.</li>
+      <li><strong>Zgadnięty rodzaj urządzenia.</strong> Gdy model wybrał np. światło, a w
+        poleceniu nie ma ani nazwy urządzenia, ani słowa, które na światło wskazuje
+        („wyłącz kalafiora w kuchni”) - pytanie „Czy dobrze rozumiem…?”.</li>
+      <li><strong>Samo „tak” bez pytania</strong> („tak, zrób to”, „nie rób”) nie jest poleceniem
+        i niczego nie uruchamia; „zrób jaśniej w salonie” jest poleceniem, choć zaczyna się od
+        „zrób”.</li>
+      <li><strong>Akcja zawsze jest uruchamiana.</strong> „Wyłącz telewizor i kino domowe” może
+        trafić w skrypt „Telewizor - wyłącz” - a „wyłącz” na skrypcie w HA by go zatrzymał.
+        Skrypt i scenę model może też pomylić - nazwy szuka się w obu.</li>
+      <li><strong>Nazwa skryptu bez modelu.</strong> Wypowiedziana dokładnie nazwa skryptu albo
+        sceny (min. 3 słowa, np. „Opuść rolety wewnętrzne w salonie”) uruchamia ją od razu, bez
+        rozbioru przez model.</li>
+    </ul></li>
+  <li><strong>„Puść …”</strong> idzie inaczej. Na odtwarzaczu Music Assistanta:
+    <code>music_assistant.play_media</code> - wyszukiwanie MA z rodzajem (utwór, album, wykonawca,
+    playlista, podcast), wykonawcą („puść Małomiasteczkowy Dawida Podsiadło”) i trybem radia
+    („puść coś w stylu …” - podobna muzyka bez końca). Na innych odtwarzaczach, dla gatunku albo
+    gdy MA zgłosi błąd: wyszukanie (<code>media_player.search_media</code>) i odtworzenie
+    pierwszego wyniku. Pusta lista albo niedostępne odtwarzacze pokoju - odpowiedź, że nie ma na
+    czym puścić muzyki. Odtwarzacz wybiera kod:
+    z <code>music_players</code> (pierwszy dostępny), bez wpisu odtwarzacz z wyszukiwaniem w
+    tym obszarze albo z nazwą pokoju w nazwie, a bez pokoju w poleceniu pokój satelity.
+    Światło bez obsługi koloru lub barwy dostaje komunikat zamiast błędu.</li>
+</ol>
+<div class="note"><strong>Zakres.</strong> Router steruje wszystkim, co jest udostępnione
+Assistowi. Urządzenia, których nie chcesz przełączać bez pytania (serwery, lodówka), wpisz do
+<code>confirm_entities</code>, a tych, których nie chcesz przełączać głosem wcale, nie
+udostępniaj.</div>
+
+<h2 id="dziennik">11. Dziennik nierozpoznanych</h2>
+<p><code>/config/assist/unrecognized_commands.csv</code> (UTF-8, separator <code>;</code>)
+otwiera się w Numbers i Excelu. Kolumny:</p>
+<div class="table"><table>
+<tr><th>Kolumna</th><th>Treść</th></tr>
+<tr><td><code>timestamp</code>, <code>area</code>, <code>device</code></td><td>kiedy i na którym głośniku</td></tr>
+<tr><td><code>kind</code></td><td><code>no_intent_match</code> (HA nic nie rozpoznało) albo
+  <code>no_valid_targets</code> (rozpoznało polecenie dla nieistniejącego obszaru lub
+  urządzenia, np. „…w szkole”)</td></tr>
+<tr><td><code>text</code></td><td>co usłyszał Whisper</td></tr>
+<tr><td><code>response</code></td><td>co odpowiedział asystent</td></tr>
+<tr><td><code>route</code></td><td>droga routera: temat, liczba encji i źródeł (<code>details</code>, <code>fetch</code>), „+ odpowiedź” / „+ streszczenie”, a przy sterowaniu intencja i parametry</td></tr>
+<tr><td><code>speaker</code></td><td>rozpoznany mówca (Assist Speaker ID), puste = nieznany</td></tr>
+</table></div>
+<p>Przeglądaj go co jakiś czas. Pytania z pustym <code>route</code> albo złą odpowiedzią
+pokazują, który temat poprawić. Częste zdania warto dopisać jako zwykłe zdania HA, bo te
+działają natychmiast.</p>
+<ul>
+  <li><strong>Podgląd w HA:</strong> opcje integracji → „Nierozpoznane komendy” pokazują
+    tabelę 30 ostatnich wpisów, od najnowszych.</li>
+  <li><strong>Sensor</strong> <code>sensor.assist_router_nierozpoznane_komendy</code> (w HA po angielsku:
+  <code>sensor.assist_router_unrecognized_commands</code>) podaje
+    liczbę wpisów, a w atrybucie <code>last</code> ostatnie 20. Przydaje się do karty
+    Markdown na dashboardzie.</li>
+  <li><strong>Czyszczenie:</strong> akcja <code>assist_router.clear_log</code> albo
+    „Wyczyść dziennik” w opcjach. Nagłówek zostaje, a poprzednia treść ląduje w
+    <code>unrecognized_commands.csv.bak</code>.</li>
+  <li>Kolumna <code>speaker</code> zawiera rozpoznanego mówcę (Assist Speaker ID).</li>
+</ul>
+
+<h2 id="test">12. Test i wybór modeli</h2>
+<p>W katalogu <code>tools/</code> jest pięć narzędzi (Python, uruchamiane z dowolnego
+komputera z dostępem do Ollamy):</p>
+<ul>
+  <li><code>snapshot_data.py</code> zapisuje migawkę prawdziwych danych: odpowiedzi HA na
+    wzorcowe pytania i artykuły z Wikipedii. Oczekiwane fakty w teście się wtedy nie zmieniają.</li>
+  <li><code>model_benchmark.py</code> testuje modele po kolei:
+    <ul>
+      <li>router, z tym samym promptem co integracja;</li>
+      <li>odpowiedzi z danych;</li>
+      <li>streszczenia.</li>
+    </ul>
+    Ocena jest automatyczna: wymagane i zakazane fragmenty oraz długość. Sekcja
+    <code>control</code> sprawdza rozbiór poleceń na obrazie domu z migawki, niczego nie
+    wykonując. Odtwarza całą decyzję integracji: zabezpieczenie alarmu, samą odpowiedź
+    „tak/nie”, nazwę skryptu bez modelu i rozbiór z listą akcji (skrypty z opisami, sceny).
+    Sprawdza intencję, obszar, dopasowane urządzenie lub akcję i to, czy asystent by dopytał.
+    <code>snapshot_data.py --only-home</code> odświeża sam obraz domu, np. po zmianie opisów
+    albo aliasów. Same testy kodu (<code>pytest</code>) sprawdzają sterowanie od zdania do
+    wywołanej usługi na sztucznym domu (<code>tests/test_actions.py</code>). Opcja
+    <code>--rescore</code> ocenia zapisane odpowiedzi ponownie po poprawkach testu.</li>
+  <li><code>model_report.py</code> tworzy raport HTML i dopisuje historię do CSV, więc nowe
+    modele można porównać ze starymi.</li>
+  <li><code>compare_sources.py</code> to test zgodności przy zmianie źródła danych tematu.
+    Dla każdego pytania z listy liczy dane po staremu i po nowemu (dwa pliki router.yaml), np.
+    zdania automatyzacji kontra <code>details</code>/<code>fetch</code>, na żywych danych z HA.
+    Odpowiedzi modelu zapisuje obok siebie. Tylko odczyt.</li>
+  <li><code>check_sentences.py</code> sprawdza Twoje automatyzacje ze zdaniami. Z każdego wzorca
+    wyzwalacza <code>conversation</code> generuje kilka zdań i pyta HA (tryb debug, nic nie
+    jest wykonywane), co by je obsłużyło. Zgłasza zdania, które trafiają w inną automatyzację
+    albo intencję HA, nie pasują do niczego, oraz automatyzacje wyłączone. Uruchamiaj po
+    każdej zmianie zdań.</li>
+</ul>
+<pre><code>.venv/bin/python tools/model_benchmark.py --ollama http://localhost:11434 \
+  --router-config /config/assist/router.yaml --cases model_test.yaml \
+  --data model_test_data.yaml --router gemma4:e4b --answer gemma4:26b --pull --out wyniki.json
+.venv/bin/python tools/model_report.py wyniki.json --label "test" \
+  --html result.html --csv model_results.csv --answers-csv model_answers.csv
+.venv/bin/python tools/compare_sources.py --ha http://homeassistant.local:8123 \
+  --token-file ~/.ha_token --ollama http://localhost:11434 \
+  --old router.yaml --new router.new.yaml --questions pytania.txt --out porownanie.json
+.venv/bin/python tools/check_sentences.py --ha http://homeassistant.local:8123 \
+  --token-file ~/.ha_token --config /config --per-template 5</code></pre>
+<p>Plik przypadków testowych (YAML) zawiera pytania z oczekiwanym tematem oraz dane z pytaniem i
+oczekiwanymi faktami. Format opisuje początek pliku <code>tools/model_benchmark.py</code>. Trzymaj
+go poza repozytorium, bo zawiera dane Twojego domu.</p>
+
+<h2 id="douczanie">13. Douczanie routera (opcjonalnie)</h2>
+<p>Ogólny mały model rozpoznaje tematy dobrze, ale można go douczyć na danych własnego domu.
+Służy do tego osobny zestaw skryptów, które w przyszłości trafią do osobnego repozytorium.
+Do nauki potrzebna jest karta graficzna (np. RTX 4090), a model po douczeniu działa w Ollamie
+jak każdy inny. Kroki:</p>
+<ol>
+  <li>pobranie z HA obszarów, encji z aliasami i osób oraz plików ze zdaniami;</li>
+  <li>zbiór danych:
+    <ul>
+      <li>zdania z Twoich szablonów hassil, z tematem przypisanym przez wzorcowe pytania z
+        <code>router.yaml</code>;</li>
+      <li>wbudowane intencje HA z Twoimi nazwami;</li>
+      <li>pytania o wiedzę;</li>
+      <li>zakłócenia w stylu Whispera.</li>
+    </ul></li>
+  <li>LoRA (Unsloth) z dokładnie tym samym promptem, którego używa integracja;</li>
+  <li>eksport do Ollamy;</li>
+  <li>test na pytaniach, które nie były w nauce.</li>
+</ol>
+<p>Po zmianie listy tematów douczony model trzeba douczyć ponownie.</p>
+<p><strong>Doświadczenie z pierwszej próby:</strong> Gemma 4 E2B douczona na samych zdaniach z
+szablonów rozpoznawała je w 99%, ale na swobodnych pytaniach z dziennika wypadła gorzej od
+zwykłej Gemmy 4 E4B (88/96 wobec 93/96). Nauczyła się stylu szablonów, a nie języka.
+Dlatego drugi przebieg łączy szablony z parafrazami, które pisze duży model (Gemma 4 26B):
+naturalne pytania z imionami, pokojami i błędami Whispera. Bazą jest E4B.</p>
+
+<h2 id="prywatnosc">14. Prywatność i bezpieczeństwo</h2>
+<ul>
+  <li><strong>Wszystko działa lokalnie:</strong> HA, Ollama, Whisper i Piper. Do internetu
+    trafia tylko hasło z pytań o wiedzę (np. „Mikołaj Kopernik”), wysyłane do API Wikipedii.</li>
+  <li><strong>Do modelu trafiają tylko dane tematu, o który pytano:</strong> encje, atrybuty i
+    odpowiedzi usług wskazane w <code>router.yaml</code>, przycięte do osoby i dnia. Z
+    <code>only_exposed: true</code> są to wyłącznie encje udostępnione Assistowi.</li>
+  <li><strong>Pytanie nigdy niczego nie przełącza.</strong> <code>fetch</code> wywołuje tylko
+    usługi, które wyłącznie zwracają dane. Sterowanie przechodzi wyłącznie przez temat
+    <code>control: true</code> i intencje HA, które sprawdzają udostępnienie encji. Niepewne
+    polecenia, zamki, bramy i urządzenia z <code>confirm_entities</code> wymagają
+    potwierdzenia.</li>
+  <li>Plik CSV zawiera wypowiedzi domowników. Gdy go nie potrzebujesz, wyłącz zapis w opcjach.</li>
+</ul>
+
+<h2 id="jezyk">15. Dodanie języka</h2>
+<p>Wszystko, co zależy od języka, jest w jednym <strong>pakiecie językowym</strong>: module Pythona w
+<code>custom_components/assist_router/languages/</code>, nazwanym kodem języka. Integracja ma
+wbudowany pakiet polski, <code>pl.py</code>. Są w nim:</p>
+<ul>
+  <li>odpowiedzi mówione (potwierdzenia, błędy, „Czy chodziło o…?”, komunikaty ogłoszeń i mówcy);</li>
+  <li>słowa i wzorce do rozumienia poleceń i pytań: słowa dni (zamieniane na kody dni), odpowiedzi
+    tak / nie / anuluj, czasowniki, kolory, słowa 1. osoby, określenia rodzinne, słowa ogłoszeń
+    i alarmu, poprawki Whispera, początki pytań o wiedzę;</li>
+  <li>prompty dla modeli (router, odpowiedź, streszczenie, sterowanie, zgadywanie, przykładowe
+    zdania) i nazwy kluczy JSON, o które proszą (<code>TOPIC_KEY</code>, <code>CONTROL_KEYS</code>…);</li>
+  <li>etykiety dziennika, nazwy stanów i kilka funkcji składających zdania (zależą od gramatyki)
+    oraz <code>CODE</code> i domyślny <code>WIKIPEDIA_LANGUAGE</code>.</li>
+</ul>
+<p>Żeby dodać np. czeski:</p>
+<ol>
+  <li>Skopiuj <code>languages/pl.py</code> do <code>languages/cs.py</code>.</li>
+  <li>Przetłumacz wszystkie zwroty, wzorce, prompty i odpowiedzi. Zostaw te same nazwy stałych
+    i funkcji (i ich argumentów) - kod czyta je przez <code>LANG</code>. Nazwy kluczy JSON też możesz
+    przetłumaczyć (opcjonalnie; model pewniej wypełnia klucze w swoim języku). Ustaw
+    <code>CODE = "cs"</code> i <code>WIKIPEDIA_LANGUAGE = "cs"</code>.</li>
+  <li><strong>Kody dni się nie zmieniają.</strong> Kody w <code>days:</code> i w zmiennej
+    <code>when</code> (<code>today</code>, <code>tomorrow</code>, <code>day_after_tomorrow</code>,
+    <code>weekend</code>, <code>week</code>, <code>monday</code> … <code>sunday</code>, liczba dni) to
+    słowa kluczowe, takie same w każdym języku. Nowy pakiet mapuje na nie czeskie słowa
+    (<code>WHEN_PATTERNS</code>) i może dodać własne nazwy dla <code>days:</code>
+    (<code>DAY_ALIASES</code>, jak polskie <code>dzis</code>, <code>jutro</code>); te nazwy dostaje
+    też alias zmiennej <code>when</code> z <code>COMMAND_VARIABLE_ALIASES</code> (po polsku
+    <code>kiedy</code>).</li>
+  <li>Pakiet działa, gdy język Home Assistanta to <code>cs</code> albo gdy <code>router.yaml</code>
+    ma <code>language: cs</code>. Agent konwersacji podaje wtedy czeski wśród obsługiwanych języków.
+    Nieznany kod w <code>language:</code> wyłącza router z błędem w logu.</li>
+  <li>Wybierz model w Ollamie, który dobrze rozumie i pisze w tym języku - router, odpowiedzi
+    i rozbiór poleceń dzieją się w tym języku.</li>
+  <li>Opisy, przykłady i wzorce <code>match</code> w <code>router.yaml</code> napisz po czesku,
+    a całość sprawdź narzędziem <code>tools/model_benchmark.py</code> z czeskimi pytaniami testowymi
+    (<a href="#test">rozdział 12</a>).</li>
+</ol>
+<p class="tip">Nowe pakiety są mile widziane: wyślij go jako pull request do
+<a href="https://github.com/witold-gren/home-assistant-assist-router">repozytorium na GitHubie</a>.</p>
+
+<footer>Assist Router (domena <code>assist_router</code>). Zmiany: <code>CHANGELOG.md</code>.
+Zgłoszenia i propozycje: Issues w repozytorium na GitHubie.</footer>
+</div>
+</body>
+</html>

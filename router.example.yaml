@@ -1,0 +1,375 @@
+# Example router.yaml for Assist Router - copy it to /config/assist/router.yaml
+# and adapt the entities to your home (Developer tools → States).
+#
+# LANGUAGE: the assistant understands and answers in the language of the active language
+# pack. The bundled pack is Polish, so a working setup today uses Polish descriptions,
+# examples and `match` patterns - see router.example.pl.yaml for the same file in Polish.
+# This English file is the reference for the structure; write the texts in the language
+# your household speaks (a pack for it has to exist - see "Adding a language" in the docs).
+#
+# The example home: Tom (dad), Anna (mom), and the kids Olivia and Jack. Entities are named
+# the way popular integrations usually name them: the HA mobile app (phone location),
+# Frigate (cameras), Met.no (weather), Google/CalDAV calendars, a car, robot vacuum and
+# washing machine integration. All entity names are examples.
+#
+# How the router uses this file:
+#   1. The router model picks ONE topic from `topics` (based on description and examples).
+#   2. The code extracts the people (`people`) and the day ("tomorrow", "on Friday") from
+#      the question.
+#   3. The topic collects data: entity states (entities), entity attributes (details) and
+#      service responses (fetch) - trimmed to the person and day in the question.
+#   4. The answer model answers the question using only this data.
+# Changes to the file take effect immediately, without restarting HA.
+
+# --- General settings ----------------------------------------------------------------
+
+# language: pl              # language pack; default: HA's language if there is a pack for it,
+#                           # otherwise pl. An unknown code disables the router (error in the log).
+
+# Who lives in the home - goes into the prompts (the model knows that "mom" is Anna and
+# "the kids" are Olivia and Jack).
+household: >-
+  Household: Tom (dad, asks most often), Anna (mom), kids: Olivia (Liv, 10 years old)
+  and Jack (7 years old).
+
+# People in questions. `match` is word beginnings (regex), so inflected forms match too
+# (in Polish: "Oli", "Olą" for "Ola"). A person from the question trims data that has a
+# `child` or `person` key (e.g. only Olivia's timetable). A question without a name
+# ("the kids") - everyone's data.
+# With speaker recognition (the Assist Speaker ID integration) a first-person question
+# ("What do I have tomorrow?") is about whoever is speaking. Extra person fields:
+#   speaker - their voice identifier in Assist Speaker ID (defaults to the person key, e.g. "olivia"),
+#   owns    - their entities (e.g. work calendar, phone): skipped when asking about another person;
+#             entities owned by no one (family calendar) - always included,
+#   room    - their room: "turn off the light in my room" from this person = this area.
+people:
+  tom:
+    name: Tom
+    match: "tom|dad"
+    owns: [calendar.tom_work, sensor.tom_phone_*]
+  anna:
+    name: Anna
+    match: "ann|mom|mum"
+    owns: [sensor.anna_phone_*]
+  olivia:
+    name: Olivia
+    match: "oliv|liv\\b"
+    room: Olivia's room
+  jack:
+    name: Jack
+    match: "jack"
+    room: Jack's room
+
+# Family terms relative to the speaker: "my brother" from Olivia = Jack, "my daughter" from
+# Tom = Olivia, "my kids" from Anna = Olivia and Jack. "mom"/"dad" are fixed names (match above).
+family:
+  parents: [tom, anna]
+  children: [olivia, jack]
+  men: [tom, jack]
+
+sentences: 4                # number of sentences in a Wikipedia summary
+# wikipedia_language: pl    # Wikipedia edition; default: the language pack's language
+only_exposed: false         # true = topic entities only from those exposed to Assist
+control_model: answer       # parsing control commands: router or answer (the larger model)
+
+# Control: for these devices the assistant always asks "Turn off …?" - also when they are
+# part of a group command ("turn off all switches").
+confirm_entities:
+  - switch.fridge
+  - switch.server_*
+  - switch.*_camera_enabled     # camera switches (Frigate)
+  - Wi-Fi router                # you can also give a device name
+
+# "Play …": room -> players in order (first available). Music Assistant players often have
+# no room - hence this list. With no room in the command: the room of the speaker you are
+# talking to. An empty list or unavailable players = a reply that there is nothing to play on
+# in that room (the assistant does not pick another speaker then).
+music_players:
+  Living room: [media_player.living_room_speaker, media_player.living_room_tv]
+  Bedroom: [media_player.bedroom_speaker]
+  Kitchen: [media_player.kitchen_speaker]
+
+# Announcements (intercom) also play on these players (optional):
+# announce_players: [media_player.living_room_homepod]
+
+# --- Topics ---------------------------------------------------------------------------
+#
+# Topic keys (calendar, school…) are your own names; they only have to be unique.
+#
+# Topic data sources (can be combined):
+#   entities  - entity_id patterns; the state goes to the model in the pack's language
+#               ("open", "home"). `*` = any string, `|class1,class2` = only these
+#               device_class values, `!pattern` = exclusion. Order matters (limit of 80 entities).
+#   details   - patterns of entities whose ATTRIBUTES go to the model (lists, timetables, balances).
+#   fetch     - services that return data (calendar.get_events, weather.get_forecasts…).
+#               `{start}` and `{end}` = the day range from the question.
+#   days      - the day when the question gives none. Day codes, the same in every language:
+#               today, tomorrow, day_after_tomorrow, weekend, week (this week),
+#               monday … sunday, or a number of days ("14" = today and the next 13 days).
+#               The language pack's names work too (Polish: dzis, jutro, tydzien …).
+#   drop      - attribute keys to skip (noise the model does not need).
+#   skip_states - states to skip (e.g. lights that are off - only lights that are on remain).
+#   unavailable - true = unavailable entities go to the model as "unavailable" instead of
+#               being skipped (so the model does not answer "I have no information").
+
+topics:
+  # Summaries for the person asking (requires Assist Speaker ID; without it - for the whole family).
+  # personal: with no name in the question, the speaker's data, and for a parent also the kids'.
+  daily_summary:
+    description: good morning, daily summary, what does my day look like, what's ahead of me today, plan for the rest of the day
+    examples: ["Good morning", "What does my day look like?", "What's ahead of me today?"]
+    personal: true
+    days: today
+    answer_tokens: 360
+    answer_hint: >-
+      This is a spoken daily summary. Talk to the person from "Asking:", by name, in plain
+      sentences. Weather first, then their plan (lessons, events, chores). For a parent add
+      one or two sentences about the kids' most important matters. Up to 6 sentences.
+    details: [sensor.school_timetable, sensor.chores]
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.family, calendar.tom_work]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events
+      - action: weather.get_forecasts
+        entities: [weather.home]
+        data: {type: daily}
+
+  good_night:
+    description: good night, I'm going to bed, what's ahead of me tomorrow
+    examples: ["Good night", "I'm going to bed", "What's ahead of me tomorrow?"]
+    personal: true
+    days: tomorrow
+    # speaker-dependent instructions: person key, girl/boy, child/parent, unknown
+    answer_hints:
+      girl: >-
+        In one or two sentences say what awaits her tomorrow (no house, no weather), then
+        wish her good night by name, tenderly, like in a fairy tale, as to a princess.
+      boy: >-
+        In one or two sentences say what awaits him tomorrow (no house, no weather), then
+        wish him a cheerful good night by name (e.g. recharging a superhero's batteries).
+      parent: >-
+        What awaits them tomorrow and the morning weather, what was left open or on at
+        home, one sentence about the kids' tomorrow. End with "Good night". Up to 5 sentences.
+      unknown: >-
+        Briefly for the whole family, no names: what's tomorrow and what is open or on at home.
+    details: [sensor.school_timetable]
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.family, calendar.tom_work]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events
+    entities: [binary_sensor.*_window, light.*]
+
+  # Calendars: events from all calendars in one list, in order.
+  # "What do we have on Friday?" -> Friday only; "When is grandma's birthday?" -> 30 days from today.
+  calendar:
+    description: plans, events, meetings, birthdays, name days, holidays, what we have planned, dates
+    examples:
+      - What do we have at the weekend?
+      - How many work meetings do I have tomorrow?
+      - When is grandma's birthday?
+      - Is anything happening on Thursday?
+    days: "30"
+    drop: [description]           # meeting descriptions (video call links) just take up space
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.family, calendar.tom_work, calendar.birthdays, calendar.holidays]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events             # one list from all calendars, sorted by time
+        title: Calendar events (in order)
+        limit: 60
+
+  # School from the e-gradebook. Two typical variants - pick the one that fits:
+  #  a) the integration provides an entity with attributes (children -> days -> lessons): `details`;
+  #  b) the integration provides a lesson calendar for each child: `fetch` as for the calendar.
+  school:
+    description: school, timetable, when lessons start or end, when they get back from school, substitutions, cancelled lessons
+    examples:
+      - What time does Olivia go to school tomorrow?
+      - Does Jack have PE tomorrow?
+      - When do the kids finish school today?
+    details: [sensor.gradebook_timetable]       # variant a)
+    days: today                                 # no day in the question - today
+    drop: [teacher_id, classroom_id]
+    # fetch:                                    # variant b)
+    #   - action: calendar.get_events
+    #     entities: [calendar.lessons_olivia, calendar.lessons_jack]
+    #     data: {start_date_time: "{start}", end_date_time: "{end}"}
+    #     merge: events
+
+  # Weather: current conditions from the balcony sensors, forecast from a service (daily and hourly).
+  weather:
+    description: outdoor weather now and the forecast, rain, wind, should I take an umbrella, what to wear, outside temperature
+    examples:
+      - Will it rain tomorrow?
+      - Should I take an umbrella?
+      - What should I wear at the weekend?
+      - How many degrees is it outside?
+    entities:
+      - sensor.balcony_temperature
+      - sensor.balcony_humidity
+      - sensor.rain_gauge_*
+    drop: [wind_bearing, uv_index, cloud_coverage, dew_point, pressure]
+    fetch:
+      - action: weather.get_forecasts
+        entities: [weather.home]
+        data: {type: daily}
+        title: Forecast for the coming days
+      - action: weather.get_forecasts
+        entities: [weather.home]
+        data: {type: hourly}
+        title: Hourly forecast
+        limit: 24                 # one day at most - more only slows the answer down
+
+  # Room climate: sensors by type (device_class) and thermostats.
+  sensors:
+    description: temperature, humidity, CO2, indoor air quality, heating, thermostats, is it stuffy
+    examples:
+      - How warm is it in Olivia's room?
+      - Where is the CO2 highest?
+      - What is the heating in the living room set to?
+    only_exposed: true            # only sensors exposed to Assist (no technical ones)
+    entities:
+      - sensor.*|temperature,humidity,carbon_dioxide,pm25,volatile_organic_compounds
+      - climate.*
+
+  # Windows, doors and blinds: opening sensors and blind position.
+  windows_doors:
+    description: which windows or doors are open, is everything closed, front door, balcony, garage, blinds
+    examples:
+      - Which windows are open?
+      - Did I close the balcony door?
+      - Since when has the bedroom window been open?
+    entities:
+      - binary_sensor.*|door,window,opening,garage_door
+      - cover.*
+
+  # Who is home and where: household members (person), address from the phone (HA mobile app),
+  # Frigate cameras (number of people), motion sensors. Order: most important first.
+  people:
+    description: who is home, where someone is, is anyone in a room, where was there motion, how many people the cameras see
+    examples:
+      - Where is mom?
+      - Is Jack home yet?
+      - Is anyone in the living room?
+      - How many people does the garden camera see?
+    entities:
+      - person.*
+      - sensor.*_person_count                    # Frigate: number of people in frame
+      - binary_sensor.*|motion,occupancy,presence
+    details: [sensor.*_phone_geocoded_location]  # phone address (attributes: street, city)
+    drop: [Location, Country, ISO Country Code, Postal Code, Time Zone, Areas Of Interest,
+           Administrative Area, Sub Administrative Area, Ocean, Inland Water]
+
+  # Car: all car sensors - the model picks what was asked about.
+  car:
+    description: car - fuel, range, mileage, consumption, service, is it locked, windows, tyres, where is it parked
+    examples:
+      - Do I need to fill up?
+      - Did I lock the car?
+      - Where did I park?
+      - When is the car inspection?
+    entities:
+      - sensor.my_car_*
+      - binary_sensor.my_car_*
+      - lock.my_car_*
+      - device_tracker.my_car_*
+
+  # Lights: only those that are on (skip_states), excluding the tablet screen and speaker LED rings.
+  lights:
+    description: which lights are on, where is a light on, was a light left on, lamp brightness
+    examples:
+      - Did I leave a light on anywhere?
+      - Which lamps are on in the kitchen?
+    only_exposed: true
+    entities:
+      - light.*
+      - "!light.*_screen"
+      - "!light.*_led_ring"
+    skip_states: ["off"]
+
+  # What's playing: only players that are doing something.
+  media:
+    description: what's playing now, music, TV, speakers, what volume, is the TV on
+    examples:
+      - What's playing in the living room?
+      - Is the TV on?
+    only_exposed: true
+    entities:
+      - media_player.*
+    skip_states: ["off", "idle", "standby"]
+
+  # Robot vacuum, washing machine - state and time remaining.
+  vacuum:
+    description: vacuum, cleaning robot, has it finished, battery, filter, brushes
+    examples: ["Has the vacuum finished?", "How much battery does the robot have?"]
+    entities: [vacuum.*, sensor.vacuum_*]
+
+  laundry:
+    description: washing machine, dryer, is the laundry done, how long is left
+    examples: ["Is the washing machine done?", "How much longer will the dryer run?"]
+    entities: [sensor.washing_machine_*, sensor.dryer_*]
+
+  # Lists (todo): list contents, not just the number of items (todo.get_items).
+  lists:
+    description: shopping list, what we need to buy, reminders, things to do
+    examples: ["What's on the shopping list?", "Is milk on the list?"]
+    entities: [todo.*]
+
+  # Alarm and safety - read-only (leave arming the alarm to automations).
+  alarm:
+    description: alarm, is the alarm armed, protection mode, flooding, smoke, gas, is water leaking anywhere
+    examples: ["Is the alarm armed?", "Has the smoke detector detected anything?"]
+    entities:
+      - alarm_control_panel.*
+      - binary_sensor.*|moisture,smoke,gas,carbon_monoxide
+
+  # Public transport: departures from stops (transit integrations keep a list of departures
+  # in attributes). Without a day - everything in the data.
+  transport:
+    description: tram, bus, departures from a stop, when is the next tram
+    examples: ["When is my number 8 tram?", "When does the bus leave from Park Street?"]
+    details: [sensor.stop_*]
+    drop: [html, original_departure]
+
+  # State of other devices (sockets, switches).
+  devices:
+    description: is a device on - sockets, switches, chargers, aquarium
+    examples: ["Is the aquarium on?", "Is the charger in the garage working?"]
+    only_exposed: true
+    unavailable: true             # unavailable ones too - "The mirror is unavailable"
+    entities: [switch.*]
+
+  # Commands HA did not recognize: parsed into an HA intent and executed
+  # (with a confirmation question when in doubt). Details: documentation, "Home control".
+  control:
+    description: commands - turn on, turn off, switch on, switch off, set, dim, light color, blinds, warmer, louder, play music, vacuum, add to a list
+    examples:
+      - Make the bedroom light warm.
+      - Lower the blinds halfway.
+      - Play jazz in the kitchen.
+      - Add milk to the shopping list.
+    control: true
+
+  # General knowledge: a summary of a Wikipedia article (3–4 sentences).
+  knowledge:
+    description: a general knowledge question - who was, what is, history, geography, science
+    examples: ["Who was Nicolaus Copernicus?", "What is photosynthesis?"]
+    search: wikipedia
+
+  # Speech recognition gibberish: the words do not fit together. The assistant guesses what was
+  # said ("Did you mean: turn on the mood scene in the living room?") or asks you to repeat.
+  # State explicitly in the description what does NOT belong here - otherwise the router will
+  # also put strange but meaningful questions here.
+  unclear:
+    description: a nonsensical sentence - the words do not fit together and neither a question nor a command can be understood; it looks garbled by speech recognition. NOT for questions and commands with one garbled word when the meaning is clear, nor for knowledge questions, chit-chat and jokes
+    examples:
+      - Glue mood in the lilac groom.
+      - Drawer evening newspaper kitchen.
+    unclear: true
+
+  # Everything else - the fallback agent (chit-chat, jokes).
+  other:
+    description: everything else - chit-chat, jokes, requests, questions without data from the home
+    examples: ["Tell me something interesting.", "How are you?"]

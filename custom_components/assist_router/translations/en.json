@@ -1,0 +1,132 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Assist Router",
+        "description": "Adds the “Assist Router” conversation agent. It behaves like the built-in Home Assistant agent; when a command is not recognized it can route the question with a small Ollama model, ask a fallback agent, and log the command to /config/assist/unrecognized_commands.csv. Select it as the conversation agent in your pipelines under Settings → Voice assistants."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "router": {
+        "title": "Question router",
+        "description": "The router model only picks the topic of the question. The optional answer model writes the reply to the user's question from the Home Assistant data, and summarizes Wikipedia articles.",
+        "data": {
+          "router_model": "Router model",
+          "router_timeout": "Router timeout",
+          "router_keep_alive": "Keep model in memory",
+          "answer_model": "Answer model",
+          "answer_timeout": "Answer timeout"
+        },
+        "data_description": {
+          "router_model": "It only picks a topic; e.g. Bielik Minitron 7B (about 0.5 s).",
+          "router_timeout": "Also used for the Wikipedia search.",
+          "router_keep_alive": "For both models: minutes after the last question; -1 = always loaded (fastest answer).",
+          "answer_model": "Optional. Without it the automation response (or the first sentences of the article) is read as is.",
+          "answer_timeout": "If it does not answer in time, the automation response is read."
+        }
+      },
+      "settings": {
+        "title": "Assist Router",
+        "description": "What happens when Home Assistant does not recognize a command.",
+        "data": {
+          "log_unrecognized": "Log unrecognized commands",
+          "fallback_agent": "Fallback conversation agent",
+          "fallback_timeout": "Fallback answer timeout",
+          "ollama_url": "Ollama URL (question router)"
+        },
+        "data_description": {
+          "log_unrecognized": "Append each unrecognized command to /config/assist/unrecognized_commands.csv and fire the assist_router_unrecognized event.",
+          "fallback_agent": "Answers questions the router could not handle (e.g. Bielik 11B). Leave empty to keep the “Powiedziałeś: …” message.",
+          "fallback_timeout": "If the agent does not answer in time, the “Powiedziałeś: …” message is spoken.",
+          "ollama_url": "E.g. http://localhost:11434. Leave empty to disable the router. Topics are defined in /config/assist/router.yaml."
+        }
+      },
+      "init": {
+        "title": "Assist Router",
+        "menu_options": {
+          "settings": "Settings",
+          "router_file": "Router file (router.yaml)",
+          "examples": "Example commands",
+          "log": "Unrecognized commands"
+        }
+      },
+      "router_file": {
+        "title": "router.yaml",
+        "description": "File `{path}` - the router's topics, people and data sources. It is validated before saving; the previous version is kept as `router.yaml.bak`. The router picks up changes immediately, without a restart.\n\n{error}",
+        "data": {
+          "content": "File content"
+        }
+      },
+      "examples": {
+        "title": "Example commands",
+        "description": "Sentences for your home, checked with the router (control commands with a plan, nothing executed). File: `{path}`; also the \"Example commands\" sensor.\n\n{examples}",
+        "data": {
+          "generate": "Generate again (a few minutes)",
+          "per_topic": "Sentences per topic"
+        }
+      },
+      "examples_generate": {
+        "title": "Example commands"
+      },
+      "log": {
+        "title": "Unrecognized commands",
+        "description": "File `{path}`: {count} entries, the last {shown} below (newest first). Everything: the CSV file or the \"Unrecognized commands\" sensor.\n\n{table}",
+        "data": {
+          "clear": "Clear the log (a copy is kept as .bak)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to Ollama at this address.",
+      "no_models": "Ollama has no models installed.",
+      "invalid_router": "The router file is invalid - nothing was saved."
+    },
+    "progress": {
+      "generating": "The model writes sentences from your entities and the router checks each one. This takes a few minutes - you can close this window, the file is saved anyway."
+    },
+    "abort": {
+      "router_saved": "Saved `{path}`. The router uses the new version from the next question.",
+      "examples_saved": "Done: {working} working sentences, {rejected} rejected. File: `{path}`.",
+      "examples_closed": "No changes.",
+      "examples_failed": "Generating examples failed: {error}",
+      "not_loaded": "Assist Router is not running.",
+      "log_cleared": "Cleared {count} entries. Copy: `{path}.bak`.",
+      "log_closed": "No changes."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "examples": {
+        "name": "Example commands"
+      },
+      "unrecognized": {
+        "name": "Unrecognized commands"
+      }
+    }
+  },
+  "services": {
+    "generate_examples": {
+      "name": "Generate example commands",
+      "description": "The answer model writes sentences for every router.yaml topic with your entity and people names; the router checks each one (control: a plan, nothing executed). Result: /config/assist/router_examples.yaml and the \"Example commands\" sensor.",
+      "fields": {
+        "per_topic": {
+          "name": "Sentences per topic",
+          "description": "How many working sentences to keep per topic."
+        },
+        "topics": {
+          "name": "Topics",
+          "description": "Only these topics (empty = all)."
+        }
+      }
+    },
+    "clear_log": {
+      "name": "Clear the unrecognized log",
+      "description": "Clears /config/assist/unrecognized_commands.csv (the header stays); the previous content is kept as unrecognized_commands.csv.bak."
+    }
+  }
+}

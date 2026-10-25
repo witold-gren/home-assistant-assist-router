@@ -1,0 +1,1541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assist Router</title>
+<style>
+:root {
+  --bg: #fafaf9; --fg: #1c1917; --muted: #6b6560; --line: #e7e5e4; --card: #ffffff;
+  --accent: #0f766e; --accent-soft: #ccfbf1; --code: #f3f1ef; --ok: #166534; --ok-soft: #dcfce7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171514; --fg: #f3f1ef; --muted: #a8a29e; --line: #3a3532; --card: #221f1d;
+    --accent: #2dd4bf; --accent-soft: #12332f; --code: #2b2724; --ok: #86efac; --ok-soft: #14361f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171514; --fg: #f3f1ef; --muted: #a8a29e; --line: #3a3532; --card: #221f1d;
+  --accent: #2dd4bf; --accent-soft: #12332f; --code: #2b2724; --ok: #86efac; --ok-soft: #14361f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; }
+header { display: flex; gap: 20px; align-items: center; margin-bottom: 8px; }
+header img { width: 72px; height: 72px; flex: none; }
+h1 { font-size: 2.1rem; margin: 0; letter-spacing: -0.01em; }
+.lead { color: var(--muted); margin: 4px 0 0; }
+h2 { font-size: 1.45rem; margin: 48px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+p, li { max-width: 72ch; }
+a { color: var(--accent); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .92em; }
+pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+  font-size: .88em; line-height: 1.5; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: .95em; }
+th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: var(--card); }
+.table { overflow-x: auto; }
+nav { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 18px; margin: 24px 0; }
+nav ol { margin: 6px 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+nav li { break-inside: avoid; }
+@media (max-width: 640px) { nav ol { columns: 1; } h1 { font-size: 1.7rem; } }
+.lang { margin: 4px 0 0; font-size: 0.9em; color: var(--muted); }
+.note { background: var(--accent-soft); border-left: 4px solid var(--accent); padding: 10px 14px;
+  border-radius: 6px; margin: 16px 0; }
+.tip { background: var(--ok-soft); border-left: 4px solid var(--ok); padding: 10px 14px;
+  border-radius: 6px; margin: 16px 0; }
+.flow { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin: 16px 0; overflow-x: auto; }
+.flow svg { display: block; min-width: 640px; width: 100%; height: auto; }
+.flow .box { fill: var(--bg); stroke: var(--line); stroke-width: 1.5; }
+.flow .hot { fill: var(--accent-soft); stroke: var(--accent); }
+.flow text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+.flow .small { fill: var(--muted); font-size: 11px; }
+.flow .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.flow marker path { fill: var(--muted); }
+footer { margin-top: 56px; color: var(--muted); font-size: .9em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <img src="../assets/icon.png" alt="">
+  <div>
+    <h1>Assist Router</h1>
+    <p class="lead">A Home Assistant voice assistant that understands ordinary questions and commands,
+    even when they do not match any sentence template. Everything runs locally.</p>
+    <p class="lang"><a href="../pl/" hreflang="pl">Polski</a> · <strong>English</strong> ·
+    <a href="https://github.com/witold-gren/home-assistant-assist-router">GitHub</a></p>
+  </div>
+</header>
+
+<p class="note"><strong>Language:</strong> everything Assist Router says, recognizes or sends to the
+models lives in a <strong>language pack</strong>. The integration ships the <strong>Polish</strong> pack,
+so today it understands and answers Polish. Example sentences below are written in English for
+readability; where a behavior depends on the words of the pack (inflection, yes/no replies, keywords),
+the Polish words of the bundled pack are shown with a translation. The rest - topics in router.yaml, data from entities, control, speaker
+recognition - is language-neutral, and a new pack is a single file: see
+<a href="#adding-a-language">section 15, “Adding a language”</a>. The configuration examples use
+English names; the same example in Polish is <code>router.example.pl.yaml</code>.</p>
+
+<nav>
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#what">What it is</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#requirements">Requirements and models</a></li>
+    <li><a href="#installation">Installation</a></li>
+    <li><a href="#options">Integration options</a></li>
+    <li><a href="#router">The router.yaml file</a></li>
+    <li><a href="#data">Where the router gets its data</a></li>
+    <li><a href="#example">Example router.yaml</a></li>
+    <li><a href="#new-topic">How to add a new topic</a></li>
+    <li><a href="#control">Home control</a></li>
+    <li><a href="#log">Log of unrecognized commands</a></li>
+    <li><a href="#testing">Testing and choosing models</a></li>
+    <li><a href="#fine-tuning">Fine-tuning the router</a></li>
+    <li><a href="#privacy">Privacy and security</a></li>
+    <li><a href="#adding-a-language">Adding a language</a></li>
+  </ol>
+</nav>
+
+<p class="note">Setting up the whole voice stack from scratch (satellites, Whisper, Piper, Ollama,
+speaker recognition)? Start with <a href="https://github.com/witold-gren/home-assistant-assist-router/blob/main/GUIDE.md">the step-by-step guide (GUIDE.md)</a>, which
+walks you through it step by step and refers back here for the details.</p>
+
+<h2 id="what">1. What it is</h2>
+<p>The built-in Home Assistant assistant recognizes sentences using templates: HA intents, your own
+sentences in <code>custom_sentences</code> and automations with a sentence trigger. It is fast and
+reliable, but as soon as you phrase something differently (“What time does Olivia go to school
+tomorrow?” instead of “When do Olivia's lessons start?”), you hear “Sorry, I couldn't understand
+that”. Adding more and more
+sentence variants never ends.</p>
+<p><strong>Assist Router</strong> is a conversation agent layered on top of the built-in HA agent.
+Everything HA understands keeps working unchanged. When HA does not recognize a sentence:</p>
+<ul>
+  <li>a small language model (e.g. Gemma 4 E4B in Ollama) <strong>only recognizes the topic</strong>
+    of the question, e.g. “school” or “car”. This takes about half a second;</li>
+  <li>the integration fetches <strong>real data from HA</strong> for that topic: entity states,
+    their attributes (e.g. a school timetable) and service responses (calendars, forecast), trimmed
+    to the person and day mentioned in the question. You do not need to write any automations for this;</li>
+  <li>the answer model <strong>writes an answer to the question asked</strong> based solely on
+    that data: “Olivia finishes at 12:40 today, so she is at school for 5 hours and 10 minutes”;</li>
+  <li>general knowledge questions (“Who was Copernicus?”) get a 3–4 sentence
+    summary of a Wikipedia article;</li>
+  <li><strong>commands</strong> that HA does not know literally (“make it brighter in the living
+    room”, “lower the blind halfway”) are parsed into an HA intent and executed. When the assistant is
+    not sure, it asks first (“Should I turn off the kitchen light?”);</li>
+  <li>everything else (chit-chat, jokes) is handled by the fallback agent of your choice;</li>
+  <li>every unrecognized sentence is written to a CSV file. It shows what was said, what the
+    assistant answered and which path the router took.</li>
+</ul>
+
+<h2 id="how">2. How it works</h2>
+<div class="flow">
+<svg viewBox="0 0 900 430" role="img" aria-label="Diagram: speech, Whisper, HA agent, router, data, control, Wikipedia, answer model, Piper">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <rect class="box" x="10" y="20" width="140" height="56" rx="8"/>
+  <text x="80" y="44" text-anchor="middle">Speech</text>
+  <text class="small" x="80" y="62" text-anchor="middle">Whisper (STT)</text>
+  <rect class="box" x="190" y="20" width="230" height="56" rx="8"/>
+  <text x="305" y="44" text-anchor="middle">HA agent</text>
+  <text class="small" x="305" y="62" text-anchor="middle">intents, custom_sentences, automations</text>
+  <rect class="box" x="470" y="20" width="170" height="56" rx="8"/>
+  <text x="555" y="44" text-anchor="middle">Recognized</text>
+  <text class="small" x="555" y="62" text-anchor="middle">answer unchanged</text>
+  <rect class="box" x="740" y="180" width="150" height="56" rx="8"/>
+  <text x="815" y="204" text-anchor="middle">Speaker</text>
+  <text class="small" x="815" y="222" text-anchor="middle">Piper (TTS)</text>
+  <rect class="box hot" x="190" y="120" width="230" height="56" rx="8"/>
+  <text x="305" y="144" text-anchor="middle">Router (small model)</text>
+  <text class="small" x="305" y="162" text-anchor="middle">topic only: {"topic": "school"}</text>
+  <rect class="box" x="10" y="240" width="200" height="66" rx="8"/>
+  <text x="110" y="264" text-anchor="middle">Topic data</text>
+  <text class="small" x="110" y="282" text-anchor="middle">entities, attributes, services</text>
+  <text class="small" x="110" y="296" text-anchor="middle">trimmed to person and day</text>
+  <rect class="box hot" x="225" y="240" width="175" height="66" rx="8"/>
+  <text x="312" y="264" text-anchor="middle">Control</text>
+  <text class="small" x="312" y="282" text-anchor="middle">parse -> HA intent</text>
+  <text class="small" x="312" y="296" text-anchor="middle">confirm, intent.async_handle</text>
+  <rect class="box" x="415" y="240" width="140" height="66" rx="8"/>
+  <text x="485" y="264" text-anchor="middle">Wikipedia</text>
+  <text class="small" x="485" y="282" text-anchor="middle">knowledge questions</text>
+  <rect class="box" x="570" y="240" width="140" height="66" rx="8"/>
+  <text x="640" y="264" text-anchor="middle">Fallback</text>
+  <text class="small" x="640" y="282" text-anchor="middle">agent (chit-chat)</text>
+  <rect class="box hot" x="10" y="350" width="545" height="56" rx="8"/>
+  <text x="282" y="374" text-anchor="middle">Answer model</text>
+  <text class="small" x="282" y="392" text-anchor="middle">answers the question from the data only; summarizes the article</text>
+  <path class="arrow" d="M150,48 L188,48"/>
+  <path class="arrow" d="M420,48 L468,48"/>
+  <path class="arrow" d="M640,48 C720,48 800,110 815,178"/>
+  <path class="arrow" d="M305,76 L305,118"/>
+  <text class="small" x="313" y="102">not recognized</text>
+  <path class="arrow" d="M240,176 L130,238"/>
+  <path class="arrow" d="M305,176 L310,238"/>
+  <path class="arrow" d="M370,176 L470,238"/>
+  <path class="arrow" d="M420,150 C560,150 630,190 640,238"/>
+  <path class="arrow" d="M110,306 L150,348"/>
+  <path class="arrow" d="M485,306 L440,348"/>
+  <path class="arrow" d="M400,280 C700,300 790,280 805,238"/>
+  <path class="arrow" d="M555,378 C700,378 800,300 815,238"/>
+  <path class="arrow" d="M710,272 C740,262 770,250 790,238"/>
+</svg>
+</div>
+
+<h3>Why the router returns only the topic</h3>
+<p>Small models make mistakes when they have to pick the topic, the person and the day and call a
+tool all at once. That is why the work is split like this:</p>
+<ul>
+  <li>The <strong>router model</strong> returns a single field in schema-constrained JSON: a topic
+    from the list. It cannot make up a value that is not on the list.</li>
+  <li>The <strong>code</strong> extracts from the question the people (names including inflected
+    forms - in Polish „Oli”, „Olą” for „Ola”), the day (“tomorrow”, “the day after tomorrow”, “at the
+    weekend”; the words come from the language pack) and the Wikipedia search term. This is reliable and
+    instant.</li>
+  <li><strong>Home Assistant</strong> supplies the data, and the <strong>answer model</strong>
+    only reads, calculates and compares it.</li>
+</ul>
+<p>As a result, answers are not made up, and a small model is enough for most tasks. The same split
+applies to home control: the model picks the intent and parameters from lists, the code matches the
+device, and HA executes the action.</p>
+
+<h3>Knowledge questions (Wikipedia)</h3>
+<ol>
+  <li><strong>Search term.</strong> The code strips the beginning of the question (“who was”, “what
+    is”, “who is currently”, “who wrote / invented / won”, “where is”…; the phrases come from the
+    language pack), so only the term itself is sent to the search: “Who wrote Pan Tadeusz?” → “Pan
+    Tadeusz”.</li>
+  <li><strong>Typos.</strong> When the search returns nothing (a misspelled word), the integration
+    takes Wikipedia's spelling suggestion and searches again.</li>
+  <li><strong>Matching article.</strong> The article title must contain a word from the search term -
+    the search engine always finds something, even for gibberish, and we do not read such an article.</li>
+  <li><strong>Several articles.</strong> The model gets the first article (up to 4000 characters) and
+    the introductions of the next two matching ones (1000 each). For “Who is the current world
+    champion…” the first result is the upcoming tournament,
+    while the answer is in the article about the most recent one.</li>
+  <li><strong>Answer.</strong> The model answers the question from these texts in 3–4 sentences.</li>
+</ol>
+
+<h2 id="requirements">3. Requirements and models</h2>
+<ul>
+  <li>Home Assistant 2026.x (tested on 2026.10) with Assist in a language that has a language pack -
+    Polish today (Whisper and Piper, or other STT/TTS).</li>
+  <li>An <a href="https://ollama.com">Ollama</a> server on the local network. It can run on a
+    different computer than HA. Choose models that understand and write your language well.</li>
+  <li>Optionally a fallback agent, e.g. the Ollama integration with a model for free-form conversation.</li>
+</ul>
+<p class="tip"><strong>Proven in daily use:</strong> the whole setup runs every day in the author's home
+on an <strong>NVIDIA Jetson AGX Orin 64 GB</strong>: Ollama (Gemma 4 26B as both router and answer model),
+faster-whisper and Assist Speaker ID. It works very well: the router answers in about 0.7 s and an
+answer from data (router plus answer model) takes about 2 s. 64 GB of unified memory holds the model alongside Whisper.</p>
+<p>Example results from an NVIDIA Jetson AGX Orin 64 GB. The test covered 96 router questions, 34
+questions about real HA data and 8 Wikipedia summaries:</p>
+<div class="table"><table>
+<tr><th>Role</th><th>Model</th><th>Accuracy</th><th>Time</th></tr>
+<tr><td>Router</td><td>Gemma 4 26B (same model as for answers, loaded in memory once)</td><td>153/153 (incl. actions and gibberish)</td><td>0.7 s</td></tr>
+<tr><td>Router (smaller)</td><td>Gemma 4 E4B</td><td>92/96</td><td>0.5 s</td></tr>
+<tr><td>Answer model</td><td>Gemma 4 26B (MoE, 4B active)</td><td>34/34 data, 8/8 summaries</td><td>1.2 s / 5.5 s</td></tr>
+<tr><td>Parsing control commands</td><td>Gemma 4 26B (<code>control_model: answer</code>)</td><td>67/67 commands (incl. actions)</td><td>2.7 s</td></tr>
+<tr><td>Guessing the sentence behind gibberish</td><td>Gemma 4 26B</td><td>out of 10 samples: 6 correct, 3× “don't know” (asks to repeat), 1 bold guess</td><td>1.6 s</td></tr>
+<tr><td>Lightweight setup</td><td>Gemma 4 E4B in all roles</td><td>29/34 data, 8/8 summaries, 26/32 commands</td><td>0.8 s / 3.8 s / 1.7 s</td></tr>
+</table></div>
+<p><strong><a href="models.html">Full comparison of more than a dozen models</a></strong>
+(Gemma 4, Bielik, PLLuM, Qwen 3.5, Ministral; the test used Polish questions):
+accuracy and time in each role, conclusions, typical errors and fine-tuning results. You can repeat
+the test on your own hardware: <a href="#testing">section 12</a>.</p>
+<div class="note"><strong>Model memory.</strong> Ollama loads a model with the context size given in
+the request. The integration uses a fixed context: 4096 for the router and 8192 for the answer model.
+If the fallback agent in the Ollama integration uses <em>the same</em> model as the answer model,
+set its context to 8192 as well. Otherwise Ollama will reload the model on every question.</div>
+
+<h2 id="installation">4. Installation</h2>
+<ol>
+  <li>Copy <code>custom_components/assist_router</code> into the
+    <code>/config/custom_components/</code> directory. Alternatively, add the repository to HACS as a
+    custom repository of type “Integration”.</li>
+  <li>Restart Home Assistant.</li>
+  <li><strong>Settings → Devices &amp; services → Add integration → Assist Router.</strong></li>
+  <li><strong>Settings → Voice assistants:</strong> in every pipeline change the conversation agent to
+    <strong>“Assist Router”</strong> (entity <code>conversation.assist_router</code>) and
+    <strong>turn off “Prefer handling commands locally”</strong>. With that option on, HA recognizes
+    built-in intents before Assist Router: an announcement (“Announcement, …”) would be spoken by
+    text-to-speech, and “Who is speaking?” and recording a voice sample would not take priority. Assist Router passes every sentence to the built-in agent first anyway, so nothing
+    is lost.</li>
+  <li>Copy <code>router.example.yaml</code> from the repository to
+    <code>/config/assist/router.yaml</code> and adapt the entities to your home (file description:
+    <a href="#example">section 8</a>). For a Polish household start from
+    <code>router.example.pl.yaml</code> - the same file with Polish descriptions and examples.</li>
+  <li>In the integration options, enter the Ollama address and choose the models (<a href="#options">section 5</a>).</li>
+  <li>Optionally: <a href="https://github.com/witold-gren/home-assistant-assist-speaker-id">Speaker
+    ID</a>, so the assistant knows who is asking (<a href="#speaker">section 7, “Who is asking”</a>).
+    Assist Router reads the speaker by itself; you only need to change speech-to-text in your pipelines.</li>
+</ol>
+
+<h2 id="options">5. Integration options</h2>
+<p><strong>Settings → Devices &amp; services → Assist Router → Configure</strong> opens a menu:</p>
+<div class="table"><table>
+<tr><th>Item</th><th>What it does</th></tr>
+<tr><td>Settings</td><td>Two steps, described below.</td></tr>
+<tr><td>Router file (router.yaml)</td><td>Edit <code>/config/assist/router.yaml</code> directly
+  in HA. The file is validated before saving (invalid YAML or a configuration error shows a message
+  and saves nothing), and the previous version is kept as <code>router.yaml.bak</code>. The router
+  picks up changes from the next question, without a restart.</td></tr>
+<tr><td>Example commands</td><td>Preview of sentences that work in this home, and generating them
+  (see below).</td></tr>
+<tr><td>Unrecognized commands</td><td>Table of the last 30 log entries (newest first)
+  and a “Clear log” option; the previous content is kept as
+  <code>unrecognized_commands.csv.bak</code>.</td></tr>
+</table></div>
+
+<h3 id="examples">Example commands for your home</h3>
+<p>The <code>assist_router.generate_examples</code> action, or the “Example commands” menu item,
+works like this:</p>
+<ol>
+  <li>For each topic in <code>router.yaml</code>, the answer model composes sentences using real
+    names: the topic's entities, devices and rooms (for control), and household members.</li>
+  <li><strong>Every sentence goes through the real router.</strong> It is kept only if it lands
+    in its own topic.</li>
+  <li>Control commands also go through parsing and command planning, <strong>without being
+    executed</strong>.</li>
+</ol>
+<p>Result:</p>
+<ul>
+  <li>the file <code>/config/assist/router_examples.yaml</code>: for each topic its
+    <code>description</code>, <code>working</code> (the sentences that work) and <code>rejected</code>
+    (items with <code>sentence</code> and where it ended up: <code>topic</code>, or <code>control</code>
+    with the reason a command would not work), which hints at which topic description or example to
+    improve. Files written by older versions with the Polish keys <code>dzialaja</code> /
+    <code>odrzucone</code> are still read;</li>
+  <li>the <strong>“Example commands”</strong> sensor: its state is the number of working sentences,
+    and the <code>topics</code> attribute holds the sentences per topic;</li>
+  <li>a preview in the options.</li>
+</ul>
+<p>Generation takes a few minutes, because every sentence is a separate router request. Action
+options: <code>per_topic</code> (sentences per topic, default 5) and <code>topics</code> (only
+selected topics). Topics with <code>unclear: true</code> (gibberish) are skipped. The action response
+gives the <code>working</code> and <code>rejected</code> counts per topic.</p>
+<p>The <code>assist_router.clear_log</code> action clears the unrecognized log. The
+<strong>“Unrecognized commands”</strong> sensor shows the number of entries, and its
+<code>last</code> attribute holds the last 20, which is handy for a Markdown card on a dashboard.</p>
+
+<p><strong>Settings</strong>, step one:</p>
+<div class="table"><table>
+<tr><th>Option</th><th>What it does</th></tr>
+<tr><td>Log unrecognized commands</td><td>Appends every unrecognized sentence to
+  <code>/config/assist/unrecognized_commands.csv</code> and fires the
+  <code>assist_router_unrecognized</code> event.</td></tr>
+<tr><td>Fallback agent</td><td>Conversation agent for questions the router provided no data for
+  (a topic without data, e.g. “other”; an error). Empty = the message “You said: …” („Powiedziałeś: …”).</td></tr>
+<tr><td>Fallback agent timeout</td><td>After this time you hear “You said: …”.</td></tr>
+<tr><td>Ollama address</td><td>E.g. <code>http://localhost:11434</code>. Empty = router disabled.</td></tr>
+</table></div>
+<p>Step two appears once you enter the Ollama address. The model list is fetched from the server:</p>
+<div class="table"><table>
+<tr><th>Option</th><th>What it does</th></tr>
+<tr><td>Router model</td><td>Picks the topic. A small, fast model is enough.</td></tr>
+<tr><td>Answer model</td><td>Optional, but required for answers from data. It writes the answer from
+  the topic data and summarizes Wikipedia. Without it, data questions go to the fallback agent,
+  and for Wikipedia the beginning of the article is read out.</td></tr>
+<tr><td>Router / model timeout</td><td>Default 8 s and 15 s. The router limit also applies to the
+  Wikipedia search.</td></tr>
+<tr><td>Keep model in memory</td><td>Minutes since the last question. <code>-1</code> =
+  always in memory, fastest response. Both models are loaded when the integration starts.</td></tr>
+</table></div>
+
+<h2 id="router">6. The router.yaml file</h2>
+<p><code>/config/assist/router.yaml</code> describes your home. The integration code is the same for
+all users. Changes to the file take effect immediately, without restarting HA. Without the file the
+router is disabled. Below is a skeleton with the most important fields; a full example home with
+more than a dozen topics is in <a href="#example">section 8</a>, and how the code collects and
+trims data is described in <a href="#data">section 7</a>.</p>
+<pre><code># language: pl            # language pack (default: HA's language if there is a pack, otherwise pl)
+
+# Who lives in the home - goes into the router and answer model prompts
+household: "Household: Tom (dad), Anna (mom), kids: Olivia, Jack."
+
+# People in questions: match = word beginnings (regex), so inflected forms match too
+people:
+  olivia: {name: Olivia, match: "oliv|liv\\b"}
+  jack:   {name: Jack,   match: "jack"}
+  tom:    {name: Tom,    match: "tom|dad"}
+  # family: {parents: [tom, anna], children: [olivia, jack], men: [tom, jack]}
+  # speaker: voice identifier in Assist Speaker ID (defaults to the person key, here "olivia", "jack")
+  # owns: [calendar.olivia] - this person's entities; room: Olivia's room - their room
+
+sentences: 4              # number of sentences in a Wikipedia summary
+only_exposed: false       # true = topic entities only from those exposed to Assist
+control_model: answer     # which model parses control commands: router or answer
+confirm_entities:         # always ask for confirmation (entity_id patterns or names)
+  - switch.kitchen_fridge
+  - switch.*_enabled
+music_players:            # "play …": room -> players, first available wins
+  Living room: [media_player.living_room_homepod, media_player.living_room_voice]
+
+topics:
+  school:
+    description: school, timetable, extra classes, when lessons end
+    examples: ["What time does Olivia go to school tomorrow?"]
+    details: [sensor.school_timetable]  # entity attributes, trimmed to the person and day in the question
+    days: today                         # day code: no day in the question - today
+    drop: [teacher, classroom]          # keys to skip
+
+  calendar:
+    description: plans, events, meetings, birthdays
+    examples: ["What do we have at the weekend?"]
+    days: "14"                          # no day in the question - 14 days from today
+    fetch:                              # service with a response
+      - action: calendar.get_events
+        entities: [calendar.family, calendar.work]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events                   # one list from all calendars, in order
+        title: Calendar events
+
+  car:
+    description: car - fuel, range, mileage, is it locked, where is it parked
+    examples: ["How much fuel is in the car?", "Did I lock the car?"]
+    entities: [sensor.my_car_*, binary_sensor.my_car_*, lock.my_car_*]
+
+  lights:
+    description: which lights are on
+    entities: [light.*, "!light.ipad_*"]   # "!" = exclusion
+    skip_states: ["off"]
+
+  control:
+    description: commands - turn on, turn off, set, dim, blinds, warmer, louder
+    examples: ["Make it brighter in the living room.", "Lower the blinds halfway."]
+    control: true
+
+  knowledge:
+    description: a general knowledge question - who was, what is, history, geography
+    examples: ["Who was Nicolaus Copernicus?"]
+    search: wikipedia
+
+  other:
+    description: everything else - chit-chat, jokes, requests
+    examples: ["Tell me something interesting."]</code></pre>
+<p class="note">Topic keys (<code>school</code>, <code>calendar</code>…) are your own names. Write
+<code>description</code> and <code>examples</code> in the language your household speaks - the router
+compares them with the question. With the bundled Polish pack that means Polish (see
+<code>router.example.pl.yaml</code>).</p>
+
+<h3>Topic fields</h3>
+<div class="table"><table>
+<tr><th>Field</th><th>Meaning</th></tr>
+<tr><td><code>description</code></td><td>A short description for the router: what questions in this
+  topic are about. Topic descriptions should not overlap.</td></tr>
+<tr><td><code>examples</code></td><td>2–4 example questions. They help most with phrasings on the
+  border between two topics.</td></tr>
+<tr><td><code>entities</code></td><td><code>entity_id</code> patterns (<code>*</code> = any
+  string, <code>|class1,class2</code> = only these sensor device classes, <code>!pattern</code> =
+  exclusion). Their states go into the data in words of the language pack: a window is “open”
+  (Polish „otwarte”), a lock is “locked” („zamknięty”). <code>unknown</code>/<code>unavailable</code> are skipped; at most 80
+  entities, in pattern order (most important first).</td></tr>
+<tr><td><code>details</code></td><td>Patterns of entities whose <strong>attributes</strong> are sent
+  to the model (e.g. school timetable, account balances, tram departures). Lists are trimmed to the
+  person in the question (key <code>child</code> or <code>person</code>) and to the day (key
+  <code>date</code> or <code>datetime</code>); noise (html, avatars, colors, <code>false</code>
+  values) is skipped, and times are local and include the weekday.</td></tr>
+<tr><td><code>fetch</code></td><td>Services with a response: <code>action</code>,
+  <code>entities</code>, <code>data</code> (<code>{start}</code> and <code>{end}</code> = the day range
+  from the question), optionally <code>merge</code> (a list to combine across all entities),
+  <code>title</code> and <code>limit</code> (maximum number of items, default 40). E.g. calendars
+  (<code>calendar.get_events</code>) or the forecast (<code>weather.get_forecasts</code>).</td></tr>
+<tr><td><code>days</code></td><td>The day used when the question does not give one, as a day code:
+  <code>today</code>, <code>tomorrow</code>, <code>day_after_tomorrow</code>, <code>weekend</code>,
+  <code>week</code> (this week), <code>monday</code> … <code>sunday</code> or a number of days
+  (<code>"14"</code> = today and the next 13 days). The codes are keywords and stay the same in
+  every language; the language pack maps spoken words to them. The pack may also accept its own
+  names here - the Polish one takes <code>dzis</code>, <code>jutro</code>, <code>pojutrze</code>,
+  <code>tydzien</code>, <code>poniedzialek</code> … <code>niedziela</code>, so older Polish
+  files keep working. An unknown value disables the router with an error in the log. Without
+  this field, data is not filtered by day.</td></tr>
+<tr><td><code>drop</code></td><td>Attribute keys skipped in this topic.</td></tr>
+<tr><td><code>personal</code></td><td><code>true</code>: the topic is for the person asking, even
+  without “I have” or “my” (“Good morning”). A parent
+  (<code>family.parents</code>) gets their own data and the children's data, a child only their own.
+  An unknown speaker means everyone's data. A name in the question always wins.</td></tr>
+<tr><td><code>answer_hint</code></td><td>An extra instruction for the answer model in this topic, e.g.
+  how to structure a daily summary and what to say to a parent versus a child.</td></tr>
+<tr><td><code>verbatim</code></td><td><code>true</code>: HA's answer to the template sentence in
+  <code>command</code> is read out word for word, without the answer model. Several sentences separated
+  by <code>;</code> give all the answers in turn. Useful when an automation has a fixed answer layout,
+  e.g. the daily news: “Today's news: First item…”.</td></tr>
+<tr><td><code>answer_hints</code></td><td>Instructions that depend on who is asking. Keys, in order:
+  person (e.g. <code>olivia</code>), <code>girl</code>/<code>boy</code> (children),
+  <code>child</code>/<code>parent</code>, <code>unknown</code> (speaker not recognized). If no key
+  matches, <code>answer_hint</code> is used. A simple instruction for one person works more reliably
+  than one long instruction with conditions.</td></tr>
+<tr><td><code>answer_tokens</code></td><td>A longer answer than the default 160 tokens, e.g. 360 for
+  a daily summary.</td></tr>
+<tr><td><code>command</code></td><td>(legacy) An HA (Jinja) template with a template question for
+  your HA, e.g. an automation sentence. Separate several questions with <code>;</code>.
+  It is better to use <code>details</code> and <code>fetch</code> instead - no separate Assist
+  automations needed.</td></tr>
+<tr><td><code>search: wikipedia</code></td><td>Knowledge topic: the search term is taken from the
+  question and the article is summarized.</td></tr>
+<tr><td><code>control: true</code></td><td>Control commands topic (<a href="#control">section 10</a>).</td></tr>
+<tr><td><code>unclear: true</code></td><td>Speech recognition gibberish topic: the model guesses what
+  was said and the assistant asks “Did you mean…?”; without a guess it asks you
+  to repeat (<a href="#control">section 10</a>).</td></tr>
+<tr><td><em>no data and no search</em></td><td>The question goes to the fallback agent.</td></tr>
+</table></div>
+
+<h3>Variables in the <code>command</code> template (legacy field)</h3>
+<div class="table"><table>
+<tr><th>Variable</th><th>Polish alias</th><th>Value</th></tr>
+<tr><td><code>person</code></td><td><code>osoba</code></td><td>the first name in the question (the form from <code>people.name</code>) or none</td></tr>
+<tr><td><code>people</code></td><td><code>osoby</code></td><td>all names in the question, in order: “Olivia and Jack” → <code>['Olivia', 'Jack']</code></td></tr>
+<tr><td><code>who</code></td><td><code>kto</code></td><td>the key of the first person from <code>people</code> (e.g. <code>olivia</code>)</td></tr>
+<tr><td><code>when</code></td><td><code>kiedy</code></td><td>a day code: <code>today</code>, <code>tomorrow</code>, <code>day_after_tomorrow</code>, <code>weekend</code>, <code>week</code>, a weekday (<code>monday</code> … <code>sunday</code>), a number of days or none. <code>kiedy</code> gets the Polish day name instead (<code>jutro</code>, <code>tydzien</code> …), so old templates like <code>{{ 'jutro' if kiedy == 'jutro' else 'dzisiaj' }}</code> still work</td></tr>
+<tr><td><code>text</code></td><td><code>tekst</code></td><td>the full question, e.g. to extract a tram line number</td></tr>
+</table></div>
+<p>The Polish names keep older <code>router.yaml</code> files working; they come from the language pack
+(<code>COMMAND_VARIABLE_ALIASES</code>). Example:
+<code>command: "{{ 'What does ' ~ person ~ ' have ' ~ when ~ '?' if person else text }}"</code>.</p>
+
+<h3>Answer model prompts</h3>
+<p>The default prompts are built into the integration. You can override them in <code>router.yaml</code>
+with the fields <code>answer_prompt</code> (answer from data) and <code>summary_prompt</code>
+(summary). In the text you can use the fields <code>{household}</code>, <code>{now}</code> (date and
+time in the pack's language) and <code>{sentences}</code>. The defaults come from the language
+pack.</p>
+
+<h2 id="data">7. Where the router gets its data</h2>
+<p>The router needs no special automations or Assist sentences. It takes data directly from Home
+Assistant, and in <code>router.yaml</code> you only describe <strong>which</strong> entities and
+services belong to a topic. The code does the rest: it picks out what was asked about, removes
+noise and gives the answer model a concise list of facts.</p>
+
+<div class="flow">
+<svg viewBox="0 0 900 470" role="img" aria-label="Diagram: question, topic and person with day, data sources (entities, details, fetch), trimming, data, answer model">
+  <defs><marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <rect class="box" x="10" y="30" width="210" height="66" rx="8"/>
+  <text x="115" y="56" text-anchor="middle">Question</text>
+  <text class="small" x="115" y="76" text-anchor="middle">“What time does Olivia go</text>
+  <text class="small" x="115" y="89" text-anchor="middle">to school tomorrow?”</text>
+  <rect class="box hot" x="270" y="10" width="220" height="52" rx="8"/>
+  <text x="380" y="32" text-anchor="middle">Router (model)</text>
+  <text class="small" x="380" y="50" text-anchor="middle">topic only: school</text>
+  <rect class="box" x="270" y="72" width="220" height="52" rx="8"/>
+  <text x="380" y="94" text-anchor="middle">Code</text>
+  <text class="small" x="380" y="112" text-anchor="middle">person: olivia · day: tomorrow</text>
+  <rect class="box" x="560" y="36" width="330" height="62" rx="8"/>
+  <text x="725" y="60" text-anchor="middle">Topic in router.yaml</text>
+  <text class="small" x="725" y="80" text-anchor="middle">school: details, fetch, entities, days, drop</text>
+  <rect class="box" x="10" y="160" width="270" height="70" rx="8"/>
+  <text x="145" y="184" text-anchor="middle">entities</text>
+  <text class="small" x="145" y="203" text-anchor="middle">entity states in plain words</text>
+  <text class="small" x="145" y="218" text-anchor="middle">“Living room window: open (12 min)”</text>
+  <rect class="box" x="315" y="160" width="270" height="70" rx="8"/>
+  <text x="450" y="184" text-anchor="middle">details</text>
+  <text class="small" x="450" y="203" text-anchor="middle">entity attributes</text>
+  <text class="small" x="450" y="218" text-anchor="middle">timetable, balance, departures, address</text>
+  <rect class="box" x="620" y="160" width="270" height="70" rx="8"/>
+  <text x="755" y="184" text-anchor="middle">fetch</text>
+  <text class="small" x="755" y="203" text-anchor="middle">services that return data</text>
+  <text class="small" x="755" y="218" text-anchor="middle">calendar.get_events, weather.get_forecasts</text>
+  <rect class="box hot" x="10" y="275" width="880" height="78" rx="8"/>
+  <text x="450" y="299" text-anchor="middle">Trimming (code, no model)</text>
+  <text class="small" x="450" y="320" text-anchor="middle">person: only items whose child/person matches “Olivia” · day: only date/datetime from tomorrow</text>
+  <text class="small" x="450" y="338" text-anchor="middle">no noise (html, avatars, colors, false) · local time and weekday · length limits</text>
+  <rect class="box" x="10" y="395" width="400" height="62" rx="8"/>
+  <text x="210" y="419" text-anchor="middle">Data for the model (concise YAML)</text>
+  <text class="small" x="210" y="439" text-anchor="middle">usually a few hundred to a few thousand characters</text>
+  <rect class="box hot" x="470" y="395" width="420" height="62" rx="8"/>
+  <text x="680" y="419" text-anchor="middle">Answer model</text>
+  <text class="small" x="680" y="439" text-anchor="middle">“Olivia goes in at 8:00 tomorrow, maths is first.”</text>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M220,52 L268,38"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M220,74 L268,96"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M490,36 L558,58"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M490,98 L558,80"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M640,98 C560,130 250,120 160,158"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M700,98 C640,130 470,130 455,158"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M760,98 L758,158"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M145,230 L145,273"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M450,230 L450,273"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M755,230 L755,273"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M210,353 L210,393"/>
+  <path class="arrow" style="marker-end:url(#arrow2)" d="M410,426 L468,426"/>
+</svg>
+</div>
+
+<h3>Three data sources</h3>
+<div class="table"><table>
+<tr><th>Topic field</th><th>What goes to the model</th><th>Typical examples</th></tr>
+<tr><td><code>entities</code></td><td>The state of every matching entity, in words, with the most
+  important attributes: light brightness, blind position, thermostat temperature, what is playing,
+  how long a sensor has been open.</td><td>windows and doors, lights, room sensors, car, people
+  (<code>person.*</code>), motion, alarm, washing machine</td></tr>
+<tr><td><code>details</code></td><td>Entity attributes, i.e. data you cannot see in the state
+  itself: lists, timetables, balances, addresses.</td><td>school timetable from the e-gradebook,
+  departures from a stop, phone address (<code>*_geocoded_location</code>), pocket-money accounts</td></tr>
+<tr><td><code>fetch</code></td><td>The response of an HA service that returns data. The day range
+  comes from the question.</td><td>calendars (<code>calendar.get_events</code>), forecast
+  (<code>weather.get_forecasts</code>)</td></tr>
+</table></div>
+<p>You can combine all three in a single topic. The weather topic in the example takes the current
+reading from sensors (<code>entities</code>) and the forecast from a service (<code>fetch</code>).</p>
+
+<h3>How the code trims data</h3>
+<ul>
+  <li><strong>Person.</strong> A list item with a <code>child</code> or <code>person</code> key is
+    kept only if it matches the person in the question (the <code>match</code> pattern from
+    <code>people</code>, so “Olivia” also matches “Liv”). If the person from the question does
+    not appear in the data at all (dad asking about the children's accounts), nothing is removed.
+    A question about “the kids” or without a name gives everyone's data.</li>
+  <li><strong>Day.</strong> An item with a <code>date</code> or <code>datetime</code> key is kept
+    only if it falls on the day from the question. If the question gives no day, the topic's
+    <code>days</code> applies. Without <code>days</code>, data is not filtered by day. When there is
+    nothing on that day (lessons on a Saturday), the model gets “none” (Polish pack: „brak”) instead
+    of an empty list. The filter does not apply to the attribute root itself, because there <code>date</code> is
+    usually the reading date.</li>
+  <li><strong>Noise.</strong> Skipped: html, avatars, colors, identifiers,
+    <code>friendly_name</code>, <code>false</code> values (“cancelled: no”) and
+    empty values, plus the keys listed in <code>drop</code>.</li>
+  <li><strong>Time.</strong> Times with a time zone (forecasts are in UTC) are converted to local
+    time, and the weekday is added next to the date: <code>2026-10-24 12:00 (Saturday)</code> (the
+    weekday name comes from the language pack - <code>sobota</code> in Polish). The model does not have
+    to work out which day is Saturday.</li>
+  <li><strong>Limits.</strong> At most 80 entities in <code>entities</code> (in pattern order,
+    so put the most important first), 40 list items (<code>limit</code> in <code>fetch</code>
+    changes this per service) and 6000 characters per source.</li>
+</ul>
+
+<h3>Day from the question</h3>
+<p>The language pack recognizes the day words in the question and turns them into a <strong>day
+code</strong>. The codes are the same in every language and are what you write in <code>days:</code>
+and what the <code>when</code> variable holds. The Polish words of the bundled pack are given in
+brackets; in <code>days:</code> the Polish pack also accepts its own names (<code>dzis</code>,
+<code>jutro</code>, <code>tydzien</code> …).</p>
+<div class="table"><table>
+<tr><th>In the question</th><th>Day code</th><th>Day range</th></tr>
+<tr><td>“today”, “now” („dziś”, „dzisiaj”, „teraz”)</td><td><code>today</code></td><td>today</td></tr>
+<tr><td>“tomorrow”, “the day after tomorrow” („jutro”, „pojutrze”)</td><td><code>tomorrow</code>, <code>day_after_tomorrow</code></td><td>that single day</td></tr>
+<tr><td>“on Monday” … “on Sunday” („w poniedziałek” … „w niedzielę”)</td><td><code>monday</code> … <code>sunday</code></td><td>the nearest such day (today, if it is today)</td></tr>
+<tr><td>“at the weekend” („w weekend”)</td><td><code>weekend</code></td><td>the nearest Saturday and Sunday</td></tr>
+<tr><td>“this week” („w tym tygodniu”)</td><td><code>week</code></td><td>today and the next 6 days</td></tr>
+<tr><td>nothing</td><td>the topic's <code>days</code></td><td>e.g. <code>today</code> or <code>"30"</code> (today and the next 29 days)</td></tr>
+</table></div>
+
+<h3>Step-by-step example: school timetable</h3>
+<p>Question: <em>“What time does Olivia go to school tomorrow?”</em>. The router picks the topic
+<code>school</code>, and the code extracts the person <code>olivia</code> and the day <code>tomorrow</code>. The topic has <code>details: [sensor.gradebook_timetable]</code>. This entity's attributes contain
+the whole week for both children, well over ten thousand characters:</p>
+<pre><code>{"friendly_name": "Timetable", "week_start": "2026-10-19",
+ "children": [
+   {"child": "Olivia", "avatar": "https://…", "color": "#f5ec00",
+    "days": [
+      {"date": "2026-10-22", "lessons": [{"start": "08:00", "subject": "Maths", "canceled": false}, …]},
+      {"date": "2026-10-23", "lessons": [{"start": "08:00", "subject": "Maths", "canceled": false},
+                                         {"start": "08:55", "subject": "Science", "canceled": true}, …]},
+      …]},
+   {"child": "Jack", "days": […]}]}</code></pre>
+<p>After trimming, the model gets only Olivia's tomorrow, without avatars, colors and
+<code>canceled: false</code> (the state label and weekday names come from the language pack; English
+shown here):</p>
+<pre><code>Timetable (state: 2026-10-22):
+week_start: 2026-10-19 (Monday)
+children:
+- child: Olivia
+  days:
+  - date: 2026-10-23 (Friday)
+    lessons:
+    - start: 08:00
+      subject: Maths
+    - start: 08:55
+      subject: Science
+      canceled: true</code></pre>
+<p>The model's answer: <em>“Olivia goes in at 8:00 tomorrow, maths is first. Science at 8:55 is
+cancelled.”</em> The model noticed the cancelled lesson on its own, because the <code>true</code> flag
+stayed in the data.</p>
+
+<h3>Example: several calendars at once</h3>
+<div class="flow">
+<svg viewBox="0 0 900 210" role="img" aria-label="Diagram: four calendars, the calendar.get_events service with a day range, merge into one list sorted by time">
+  <defs><marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <rect class="box" x="10" y="10" width="190" height="40" rx="8"/>
+  <text x="105" y="35" text-anchor="middle">calendar.family</text>
+  <rect class="box" x="10" y="60" width="190" height="40" rx="8"/>
+  <text x="105" y="85" text-anchor="middle">calendar.tom_work</text>
+  <rect class="box" x="10" y="110" width="190" height="40" rx="8"/>
+  <text x="105" y="135" text-anchor="middle">calendar.birthdays</text>
+  <rect class="box" x="10" y="160" width="190" height="40" rx="8"/>
+  <text x="105" y="185" text-anchor="middle">calendar.holidays</text>
+  <rect class="box" x="260" y="70" width="250" height="70" rx="8"/>
+  <text x="385" y="94" text-anchor="middle">calendar.get_events</text>
+  <text class="small" x="385" y="113" text-anchor="middle">“on Friday” → start: Friday 00:00</text>
+  <text class="small" x="385" y="128" text-anchor="middle">end: Saturday 00:00</text>
+  <rect class="box hot" x="570" y="50" width="320" height="110" rx="8"/>
+  <text x="730" y="74" text-anchor="middle">merge: events</text>
+  <text class="small" x="730" y="96" text-anchor="middle">08:00 (Friday) Family: parents' evening</text>
+  <text class="small" x="730" y="113" text-anchor="middle">11:45 (Friday) Work: client meeting</text>
+  <text class="small" x="730" y="130" text-anchor="middle">16:30 (Friday) Family: Sam's birthday</text>
+  <text class="small" x="730" y="147" text-anchor="middle">one list sorted by time, with source</text>
+  <path class="arrow" style="marker-end:url(#arrow3)" d="M200,30 C230,30 240,80 258,92"/>
+  <path class="arrow" style="marker-end:url(#arrow3)" d="M200,80 L258,98"/>
+  <path class="arrow" style="marker-end:url(#arrow3)" d="M200,130 L258,114"/>
+  <path class="arrow" style="marker-end:url(#arrow3)" d="M200,180 C230,180 240,130 258,122"/>
+  <path class="arrow" style="marker-end:url(#arrow3)" d="M510,105 L568,105"/>
+</svg>
+</div>
+<p>Without <code>merge</code>, each calendar would be a separate source and the model would have to
+put the events in order itself. With <code>merge</code>, the question “What do we have on Friday?”
+gets a ready-made plan for the day, and “When is grandma's birthday?” searches 30 days
+(<code>days: "30"</code>).</p>
+
+<div class="note"><strong><code>fetch</code> safety.</strong> The integration only calls services
+that <em>only return data</em> (in HA: <code>SupportsResponse.ONLY</code>, e.g.
+<code>calendar.get_events</code>, <code>weather.get_forecasts</code>,
+<code>todo.get_items</code>). An entry with a service that does something (<code>lock.unlock</code>,
+a script) is skipped with a warning in the log. A question never switches anything.</div>
+
+<h3>What about automations with sentences?</h3>
+<p>They are not needed. If you already have them, they can stay: HA checks them <em>before</em> the
+router, so a sentence that exactly matches an automation gets an answer in a fraction of a second,
+without a model. Any other phrasing goes to the router and the model answers it from the data. The
+legacy <code>command</code> field (a template question for an automation) still works, but new
+topics are better described with <code>entities</code>, <code>details</code> and <code>fetch</code>.</p>
+
+<h3 id="speaker">Who is asking: recognized speaker (Assist Speaker ID)</h3>
+<p>With the <a href="https://github.com/witold-gren/home-assistant-assist-speaker-id">Assist Speaker
+ID</a> integration (speech-to-text that also recognizes the voice), the router knows who asked the
+question. You only need to set its STT (“Speech-to-text with speaker”) in your pipelines. The agent
+stays Assist Router, which reads the speaker by itself from the same pipeline run. First-person words,
+family terms and the phrases below are recognized by the language pack (Polish words in brackets).</p>
+<ul>
+  <li><strong>A first-person question without a name</strong> (“What classes do <em>I</em> have
+    today?”, “Show <em>my</em> grades”) is about the speaker. <code>details</code> are trimmed to their
+    data, as if their name had been said.</li>
+  <li><strong>A name in the question wins</strong> (“What classes does Jack have?” from Olivia gives
+    Jack's timetable). A question without the first person (“What is the timetable?”) stays for
+    everyone. “We have” (Polish „mamy”) is not first person singular.</li>
+  <li><strong>The answer model gets the line “Asking: Olivia.”</strong> (Polish pack: „Pyta: …”), so it
+    understands “I” and “my” as that person. The name comes from <code>people</code>, not from
+    Assist Speaker ID.</li>
+  <li><strong>Mapping a voice to a person:</strong> the <code>speaker</code> field on the person.
+    It defaults to the person key, so it is enough to save voice samples under the same identifiers
+    (<code>olivia</code>, <code>jack</code>…).</li>
+  <li><strong>Unknown speaker</strong> (unfamiliar voice, utterance too short, text typed by hand)
+    means everything works as without Assist Speaker ID.</li>
+</ul>
+<p><strong>A person's entities and room (<code>owns</code>, <code>room</code>):</strong></p>
+<ul>
+  <li><strong><code>owns</code></strong> are patterns of entities that belong to the person, e.g.
+    their calendar or their phone's location. When a question is about a specific person (by name,
+    or “I”, “my” from a recognized speaker), <em>other</em> people's entities are skipped in
+    <code>details</code>, <code>fetch</code> and <code>entities</code>. Entities that belong to no
+    one, e.g. the family calendar, are always included. So “What do I have tomorrow?” from Olivia
+    gives the family calendar and her own, without dad's work calendar. This is needed because
+    calendar events have no person field to trim by.</li>
+  <li><strong><code>room</code></strong> is the person's room. “Turn off the light in my room” from
+    that person means this area.</li>
+  <li><strong>Family terms relative to the speaker</strong> (the <code>family</code> section:
+    <code>parents</code>, <code>children</code>, <code>men</code>). “My brother”, “my sister”, “my
+    siblings” from a child, and “my son”, “my daughter”, “my kids” from a parent point to the right
+    people, e.g. “my daughter” from dad means all daughters. They are added to the names in the
+    question (“Are mom and my brother at home?”). “Mom”, “dad”, “wife” and “husband” remain fixed
+    names in <code>match</code>.</li>
+  <li><strong>The fallback agent</strong> also gets the line “Asking: Olivia.” in its system prompt.</li>
+  <li><strong>Automation sentences</strong> are handled by HA before Assist Router, so they do not get
+    the speaker directly. They can read it from the Assist Speaker ID “Last speaker” sensor, which
+    stays fresh for a few seconds after recognition, e.g. with a macro in
+    <code>custom_templates</code> (see the Assist Speaker ID README).</li>
+</ul>
+<p><strong>Daily summary and “good night” for a person:</strong> topics with
+<code>personal: true</code> collect the speaker's data. “Good morning”, “What does my day look like?”,
+“What's ahead of me today?” from a child give their lessons, tests, chores and calendar. From a parent
+they give the parent's calendar and the weather, plus a short summary about the kids. How to structure
+the answer is set by the topic's <code>answer_hint</code>. Example: the <code>daily_summary</code> and
+<code>good_night</code> topics in <code>router.example.yaml</code>. Scenes with these names are only
+run when asked explicitly (“Run the Good morning scene”). A plain “Good morning” is a greeting.</p>
+<p><strong>Announcements (intercom):</strong> a sentence starting with an announcement keyword (Polish
+pack: „ogłoszenie”, „komunikat”, „do wszystkich”, „intercom”), e.g. “Announcement, kids, please come
+to dinner”, goes neither to HA nor to the models. Assist Speaker ID plays the <strong>speaker's
+recording</strong>, uncut and unchanged, on the other speakers, and the speaker that recorded it only
+says “Announcement sent.” Additional players, e.g. HomePods, are set in <code>router.yaml</code> as
+<code>announce_players: [media_player.…]</code>; with Assist Speaker ID 0.1.1+ one speaker plays per
+room: an available player (e.g. a HomePod) instead of the satellite, and the announcing room gets
+nothing. Without a recording (text typed by hand or no Assist Speaker ID) the sentence continues along
+the normal path: HA reads it out with text-to-speech. The keyword must be at the start of the
+sentence, so “What are the announcements in the school app?” is an ordinary question.</p>
+<p><strong>Checking recognition:</strong> “Who is speaking?”, “Who am I?”, “How do you recognize me?”,
+“Whose voice is this?” (Polish pack: „Kto to mówi?”, „Kim jestem?”…). The assistant answers
+immediately, without HA or models, from the result of that same utterance, e.g. “Olivia is speaking,
+82 percent similarity. Next person: Jack, 35 percent.” The answer may also be “I don't recognize this
+voice” or “I'm not sure”, with the two most similar voices. A short question (under 1 s of speech)
+gets a request for a longer sentence, e.g. “Tell me who is talking to you now”.</p>
+
+<h2 id="example">8. Example router.yaml</h2>
+<p>The <code>router.example.yaml</code> file in the repository describes a made-up home: Tom, Anna
+and two kids, Olivia and Jack. Entities are named the way popular integrations usually name them:
+the HA mobile app (phone location), Frigate (cameras), Met.no (weather), calendars, a car, a robot
+vacuum, a washing machine and shopping lists. Just replace the entity names with your own
+(<em>Developer tools → States</em>). The same home with Polish descriptions, examples and
+<code>match</code> patterns - ready for the bundled Polish pack - is
+<code>router.example.pl.yaml</code>.</p>
+<div class="table"><table>
+<tr><th>Topic</th><th>Data source</th><th>What it shows</th></tr>
+<tr><td><code>daily_summary</code>, <code>good_night</code></td><td><code>personal</code>, <code>details</code> + <code>fetch</code></td><td>a summary for the speaker; <code>answer_hint</code> / <code>answer_hints</code></td></tr>
+<tr><td><code>calendar</code></td><td><code>fetch</code>: <code>calendar.get_events</code>, <code>merge</code></td><td>several calendars in one list, day from the question, 30 days if no day given</td></tr>
+<tr><td><code>school</code></td><td><code>details</code> or <code>fetch</code></td><td>timetable trimmed to the child and day; two e-gradebook variants</td></tr>
+<tr><td><code>weather</code></td><td><code>entities</code> + 2 × <code>fetch</code></td><td>sensor reading plus daily and hourly forecast (<code>limit: 24</code>)</td></tr>
+<tr><td><code>sensors</code></td><td><code>entities</code> with <code>|class</code></td><td>sensors by <code>device_class</code>, exposed only</td></tr>
+<tr><td><code>windows_doors</code></td><td><code>entities</code></td><td>windows, doors, garage and blinds with the “since when” time</td></tr>
+<tr><td><code>people</code></td><td><code>entities</code> + <code>details</code></td><td>household members, Frigate cameras, motion, address from the phone; pattern order</td></tr>
+<tr><td><code>car</code></td><td><code>entities</code></td><td>all car sensors - the model picks</td></tr>
+<tr><td><code>lights</code></td><td><code>entities</code>, <code>skip_states</code>, <code>!</code></td><td>only lights that are on, excluding the tablet screen</td></tr>
+<tr><td><code>media</code></td><td><code>entities</code>, <code>skip_states</code></td><td>only players that are playing something</td></tr>
+<tr><td><code>lists</code></td><td><code>entities: [todo.*]</code></td><td>list items (the integration calls <code>todo.get_items</code> itself)</td></tr>
+<tr><td><code>transport</code></td><td><code>details</code></td><td>departures from stops, from attributes</td></tr>
+<tr><td><code>devices</code></td><td><code>entities</code>, <code>unavailable: true</code></td><td>sockets and switches, unavailable ones included</td></tr>
+<tr><td><code>unclear</code></td><td><code>unclear: true</code></td><td>speech recognition gibberish: a “Did you mean…?” suggestion or a request to repeat</td></tr>
+<tr><td><code>control</code>, <code>knowledge</code>, <code>other</code></td><td>-</td><td>commands, Wikipedia, fallback agent</td></tr>
+</table></div>
+<pre><code># Example router.yaml for Assist Router - copy it to /config/assist/router.yaml
+# and adapt the entities to your home (Developer tools → States).
+#
+# LANGUAGE: the assistant understands and answers in the language of the active language
+# pack. The bundled pack is Polish, so a working setup today uses Polish descriptions,
+# examples and `match` patterns - see router.example.pl.yaml for the same file in Polish.
+# This English file is the reference for the structure; write the texts in the language
+# your household speaks (a pack for it has to exist - see "Adding a language" in the docs).
+#
+# The example home: Tom (dad), Anna (mom), and the kids Olivia and Jack. Entities are named
+# the way popular integrations usually name them: the HA mobile app (phone location),
+# Frigate (cameras), Met.no (weather), Google/CalDAV calendars, a car, robot vacuum and
+# washing machine integration. All entity names are examples.
+#
+# How the router uses this file:
+#   1. The router model picks ONE topic from `topics` (based on description and examples).
+#   2. The code extracts the people (`people`) and the day ("tomorrow", "on Friday") from
+#      the question.
+#   3. The topic collects data: entity states (entities), entity attributes (details) and
+#      service responses (fetch) - trimmed to the person and day in the question.
+#   4. The answer model answers the question using only this data.
+# Changes to the file take effect immediately, without restarting HA.
+
+# --- General settings ----------------------------------------------------------------
+
+# language: pl              # language pack; default: HA's language if there is a pack for it,
+#                           # otherwise pl. An unknown code disables the router (error in the log).
+
+# Who lives in the home - goes into the prompts (the model knows that "mom" is Anna and
+# "the kids" are Olivia and Jack).
+household: &gt;-
+  Household: Tom (dad, asks most often), Anna (mom), kids: Olivia (Liv, 10 years old)
+  and Jack (7 years old).
+
+# People in questions. `match` is word beginnings (regex), so inflected forms match too
+# (in Polish: "Oli", "Olą" for "Ola"). A person from the question trims data that has a
+# `child` or `person` key (e.g. only Olivia's timetable). A question without a name
+# ("the kids") - everyone's data.
+# With speaker recognition (the Assist Speaker ID integration) a first-person question
+# ("What do I have tomorrow?") is about whoever is speaking. Extra person fields:
+#   speaker - their voice identifier in Assist Speaker ID (defaults to the person key, e.g. "olivia"),
+#   owns    - their entities (e.g. work calendar, phone): skipped when asking about another person;
+#             entities owned by no one (family calendar) - always included,
+#   room    - their room: "turn off the light in my room" from this person = this area.
+people:
+  tom:
+    name: Tom
+    match: "tom|dad"
+    owns: [calendar.tom_work, sensor.tom_phone_*]
+  anna:
+    name: Anna
+    match: "ann|mom|mum"
+    owns: [sensor.anna_phone_*]
+  olivia:
+    name: Olivia
+    match: "oliv|liv\\b"
+    room: Olivia's room
+  jack:
+    name: Jack
+    match: "jack"
+    room: Jack's room
+
+# Family terms relative to the speaker: "my brother" from Olivia = Jack, "my daughter" from
+# Tom = Olivia, "my kids" from Anna = Olivia and Jack. "mom"/"dad" are fixed names (match above).
+family:
+  parents: [tom, anna]
+  children: [olivia, jack]
+  men: [tom, jack]
+
+sentences: 4                # number of sentences in a Wikipedia summary
+# wikipedia_language: pl    # Wikipedia edition; default: the language pack's language
+only_exposed: false         # true = topic entities only from those exposed to Assist
+control_model: answer       # parsing control commands: router or answer (the larger model)
+
+# Control: for these devices the assistant always asks "Turn off …?" - also when they are
+# part of a group command ("turn off all switches").
+confirm_entities:
+  - switch.fridge
+  - switch.server_*
+  - switch.*_camera_enabled     # camera switches (Frigate)
+  - Wi-Fi router                # you can also give a device name
+
+# "Play …": room -&gt; players in order (first available). Music Assistant players often have
+# no room - hence this list. With no room in the command: the room of the speaker you are
+# talking to. An empty list or unavailable players = a reply that there is nothing to play on
+# in that room (the assistant does not pick another speaker then).
+music_players:
+  Living room: [media_player.living_room_speaker, media_player.living_room_tv]
+  Bedroom: [media_player.bedroom_speaker]
+  Kitchen: [media_player.kitchen_speaker]
+
+# Announcements (intercom) also play on these players (optional):
+# announce_players: [media_player.living_room_homepod]
+
+# --- Topics ---------------------------------------------------------------------------
+#
+# Topic keys (calendar, school…) are your own names; they only have to be unique.
+#
+# Topic data sources (can be combined):
+#   entities  - entity_id patterns; the state goes to the model in the pack's language
+#               ("open", "home"). `*` = any string, `|class1,class2` = only these
+#               device_class values, `!pattern` = exclusion. Order matters (limit of 80 entities).
+#   details   - patterns of entities whose ATTRIBUTES go to the model (lists, timetables, balances).
+#   fetch     - services that return data (calendar.get_events, weather.get_forecasts…).
+#               `{start}` and `{end}` = the day range from the question.
+#   days      - the day when the question gives none. Day codes, the same in every language:
+#               today, tomorrow, day_after_tomorrow, weekend, week (this week),
+#               monday … sunday, or a number of days ("14" = today and the next 13 days).
+#               The language pack's names work too (Polish: dzis, jutro, tydzien …).
+#   drop      - attribute keys to skip (noise the model does not need).
+#   skip_states - states to skip (e.g. lights that are off - only lights that are on remain).
+#   unavailable - true = unavailable entities go to the model as "unavailable" instead of
+#               being skipped (so the model does not answer "I have no information").
+
+topics:
+  # Summaries for the person asking (requires Assist Speaker ID; without it - for the whole family).
+  # personal: with no name in the question, the speaker's data, and for a parent also the kids'.
+  daily_summary:
+    description: good morning, daily summary, what does my day look like, what's ahead of me today, plan for the rest of the day
+    examples: ["Good morning", "What does my day look like?", "What's ahead of me today?"]
+    personal: true
+    days: today
+    answer_tokens: 360
+    answer_hint: &gt;-
+      This is a spoken daily summary. Talk to the person from "Asking:", by name, in plain
+      sentences. Weather first, then their plan (lessons, events, chores). For a parent add
+      one or two sentences about the kids' most important matters. Up to 6 sentences.
+    details: [sensor.school_timetable, sensor.chores]
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.family, calendar.tom_work]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events
+      - action: weather.get_forecasts
+        entities: [weather.home]
+        data: {type: daily}
+
+  good_night:
+    description: good night, I'm going to bed, what's ahead of me tomorrow
+    examples: ["Good night", "I'm going to bed", "What's ahead of me tomorrow?"]
+    personal: true
+    days: tomorrow
+    # speaker-dependent instructions: person key, girl/boy, child/parent, unknown
+    answer_hints:
+      girl: &gt;-
+        In one or two sentences say what awaits her tomorrow (no house, no weather), then
+        wish her good night by name, tenderly, like in a fairy tale, as to a princess.
+      boy: &gt;-
+        In one or two sentences say what awaits him tomorrow (no house, no weather), then
+        wish him a cheerful good night by name (e.g. recharging a superhero's batteries).
+      parent: &gt;-
+        What awaits them tomorrow and the morning weather, what was left open or on at
+        home, one sentence about the kids' tomorrow. End with "Good night". Up to 5 sentences.
+      unknown: &gt;-
+        Briefly for the whole family, no names: what's tomorrow and what is open or on at home.
+    details: [sensor.school_timetable]
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.family, calendar.tom_work]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events
+    entities: [binary_sensor.*_window, light.*]
+
+  # Calendars: events from all calendars in one list, in order.
+  # "What do we have on Friday?" -&gt; Friday only; "When is grandma's birthday?" -&gt; 30 days from today.
+  calendar:
+    description: plans, events, meetings, birthdays, name days, holidays, what we have planned, dates
+    examples:
+      - What do we have at the weekend?
+      - How many work meetings do I have tomorrow?
+      - When is grandma's birthday?
+      - Is anything happening on Thursday?
+    days: "30"
+    drop: [description]           # meeting descriptions (video call links) just take up space
+    fetch:
+      - action: calendar.get_events
+        entities: [calendar.family, calendar.tom_work, calendar.birthdays, calendar.holidays]
+        data: {start_date_time: "{start}", end_date_time: "{end}"}
+        merge: events             # one list from all calendars, sorted by time
+        title: Calendar events (in order)
+        limit: 60
+
+  # School from the e-gradebook. Two typical variants - pick the one that fits:
+  #  a) the integration provides an entity with attributes (children -&gt; days -&gt; lessons): `details`;
+  #  b) the integration provides a lesson calendar for each child: `fetch` as for the calendar.
+  school:
+    description: school, timetable, when lessons start or end, when they get back from school, substitutions, cancelled lessons
+    examples:
+      - What time does Olivia go to school tomorrow?
+      - Does Jack have PE tomorrow?
+      - When do the kids finish school today?
+    details: [sensor.gradebook_timetable]       # variant a)
+    days: today                                 # no day in the question - today
+    drop: [teacher_id, classroom_id]
+    # fetch:                                    # variant b)
+    #   - action: calendar.get_events
+    #     entities: [calendar.lessons_olivia, calendar.lessons_jack]
+    #     data: {start_date_time: "{start}", end_date_time: "{end}"}
+    #     merge: events
+
+  # Weather: current conditions from the balcony sensors, forecast from a service (daily and hourly).
+  weather:
+    description: outdoor weather now and the forecast, rain, wind, should I take an umbrella, what to wear, outside temperature
+    examples:
+      - Will it rain tomorrow?
+      - Should I take an umbrella?
+      - What should I wear at the weekend?
+      - How many degrees is it outside?
+    entities:
+      - sensor.balcony_temperature
+      - sensor.balcony_humidity
+      - sensor.rain_gauge_*
+    drop: [wind_bearing, uv_index, cloud_coverage, dew_point, pressure]
+    fetch:
+      - action: weather.get_forecasts
+        entities: [weather.home]
+        data: {type: daily}
+        title: Forecast for the coming days
+      - action: weather.get_forecasts
+        entities: [weather.home]
+        data: {type: hourly}
+        title: Hourly forecast
+        limit: 24                 # one day at most - more only slows the answer down
+
+  # Room climate: sensors by type (device_class) and thermostats.
+  sensors:
+    description: temperature, humidity, CO2, indoor air quality, heating, thermostats, is it stuffy
+    examples:
+      - How warm is it in Olivia's room?
+      - Where is the CO2 highest?
+      - What is the heating in the living room set to?
+    only_exposed: true            # only sensors exposed to Assist (no technical ones)
+    entities:
+      - sensor.*|temperature,humidity,carbon_dioxide,pm25,volatile_organic_compounds
+      - climate.*
+
+  # Windows, doors and blinds: opening sensors and blind position.
+  windows_doors:
+    description: which windows or doors are open, is everything closed, front door, balcony, garage, blinds
+    examples:
+      - Which windows are open?
+      - Did I close the balcony door?
+      - Since when has the bedroom window been open?
+    entities:
+      - binary_sensor.*|door,window,opening,garage_door
+      - cover.*
+
+  # Who is home and where: household members (person), address from the phone (HA mobile app),
+  # Frigate cameras (number of people), motion sensors. Order: most important first.
+  people:
+    description: who is home, where someone is, is anyone in a room, where was there motion, how many people the cameras see
+    examples:
+      - Where is mom?
+      - Is Jack home yet?
+      - Is anyone in the living room?
+      - How many people does the garden camera see?
+    entities:
+      - person.*
+      - sensor.*_person_count                    # Frigate: number of people in frame
+      - binary_sensor.*|motion,occupancy,presence
+    details: [sensor.*_phone_geocoded_location]  # phone address (attributes: street, city)
+    drop: [Location, Country, ISO Country Code, Postal Code, Time Zone, Areas Of Interest,
+           Administrative Area, Sub Administrative Area, Ocean, Inland Water]
+
+  # Car: all car sensors - the model picks what was asked about.
+  car:
+    description: car - fuel, range, mileage, consumption, service, is it locked, windows, tyres, where is it parked
+    examples:
+      - Do I need to fill up?
+      - Did I lock the car?
+      - Where did I park?
+      - When is the car inspection?
+    entities:
+      - sensor.my_car_*
+      - binary_sensor.my_car_*
+      - lock.my_car_*
+      - device_tracker.my_car_*
+
+  # Lights: only those that are on (skip_states), excluding the tablet screen and speaker LED rings.
+  lights:
+    description: which lights are on, where is a light on, was a light left on, lamp brightness
+    examples:
+      - Did I leave a light on anywhere?
+      - Which lamps are on in the kitchen?
+    only_exposed: true
+    entities:
+      - light.*
+      - "!light.*_screen"
+      - "!light.*_led_ring"
+    skip_states: ["off"]
+
+  # What's playing: only players that are doing something.
+  media:
+    description: what's playing now, music, TV, speakers, what volume, is the TV on
+    examples:
+      - What's playing in the living room?
+      - Is the TV on?
+    only_exposed: true
+    entities:
+      - media_player.*
+    skip_states: ["off", "idle", "standby"]
+
+  # Robot vacuum, washing machine - state and time remaining.
+  vacuum:
+    description: vacuum, cleaning robot, has it finished, battery, filter, brushes
+    examples: ["Has the vacuum finished?", "How much battery does the robot have?"]
+    entities: [vacuum.*, sensor.vacuum_*]
+
+  laundry:
+    description: washing machine, dryer, is the laundry done, how long is left
+    examples: ["Is the washing machine done?", "How much longer will the dryer run?"]
+    entities: [sensor.washing_machine_*, sensor.dryer_*]
+
+  # Lists (todo): list contents, not just the number of items (todo.get_items).
+  lists:
+    description: shopping list, what we need to buy, reminders, things to do
+    examples: ["What's on the shopping list?", "Is milk on the list?"]
+    entities: [todo.*]
+
+  # Alarm and safety - read-only (leave arming the alarm to automations).
+  alarm:
+    description: alarm, is the alarm armed, protection mode, flooding, smoke, gas, is water leaking anywhere
+    examples: ["Is the alarm armed?", "Has the smoke detector detected anything?"]
+    entities:
+      - alarm_control_panel.*
+      - binary_sensor.*|moisture,smoke,gas,carbon_monoxide
+
+  # Public transport: departures from stops (transit integrations keep a list of departures
+  # in attributes). Without a day - everything in the data.
+  transport:
+    description: tram, bus, departures from a stop, when is the next tram
+    examples: ["When is my number 8 tram?", "When does the bus leave from Park Street?"]
+    details: [sensor.stop_*]
+    drop: [html, original_departure]
+
+  # State of other devices (sockets, switches).
+  devices:
+    description: is a device on - sockets, switches, chargers, aquarium
+    examples: ["Is the aquarium on?", "Is the charger in the garage working?"]
+    only_exposed: true
+    unavailable: true             # unavailable ones too - "The mirror is unavailable"
+    entities: [switch.*]
+
+  # Commands HA did not recognize: parsed into an HA intent and executed
+  # (with a confirmation question when in doubt). Details: documentation, "Home control".
+  control:
+    description: commands - turn on, turn off, switch on, switch off, set, dim, light color, blinds, warmer, louder, play music, vacuum, add to a list
+    examples:
+      - Make the bedroom light warm.
+      - Lower the blinds halfway.
+      - Play jazz in the kitchen.
+      - Add milk to the shopping list.
+    control: true
+
+  # General knowledge: a summary of a Wikipedia article (3–4 sentences).
+  knowledge:
+    description: a general knowledge question - who was, what is, history, geography, science
+    examples: ["Who was Nicolaus Copernicus?", "What is photosynthesis?"]
+    search: wikipedia
+
+  # Speech recognition gibberish: the words do not fit together. The assistant guesses what was
+  # said ("Did you mean: turn on the mood scene in the living room?") or asks you to repeat.
+  # State explicitly in the description what does NOT belong here - otherwise the router will
+  # also put strange but meaningful questions here.
+  unclear:
+    description: a nonsensical sentence - the words do not fit together and neither a question nor a command can be understood; it looks garbled by speech recognition. NOT for questions and commands with one garbled word when the meaning is clear, nor for knowledge questions, chit-chat and jokes
+    examples:
+      - Glue mood in the lilac groom.
+      - Drawer evening newspaper kitchen.
+    unclear: true
+
+  # Everything else - the fallback agent (chit-chat, jokes).
+  other:
+    description: everything else - chit-chat, jokes, requests, questions without data from the home
+    examples: ["Tell me something interesting.", "How are you?"]</code></pre>
+
+<h2 id="new-topic">9. How to add a new topic (step by step)</h2>
+<p>Example: questions about the washing machine and dryer, e.g. “How much longer will the wash
+take?” or “Can I take the laundry out?”.</p>
+<ol>
+  <li><strong>Find the entities.</strong> <em>Developer tools → States</em>, search e.g. for
+    <code>washing_machine</code>. Check whether the information you need is in the <em>state</em> (e.g.
+    “time remaining: 25 min”) - then <code>entities</code> is enough - or in the
+    <em>attributes</em> (lists, timetables) - then use <code>details</code>.</li>
+  <li><strong>If the data comes from a service</strong> (calendar, forecast), try it in
+    <em>Developer tools → Actions</em> with “Return response” checked. The same action with the same
+    data goes into <code>fetch</code>; use <code>{start}</code> and <code>{end}</code> instead of
+    dates.</li>
+  <li><strong>Add the topic:</strong>
+<pre><code>  laundry:
+    description: washing machine, dryer, is the laundry done, how much longer
+    examples: ["Is the dryer done?", "How much longer will the wash take?"]
+    entities: [sensor.washing_machine_*, sensor.dryer_*]</code></pre></li>
+  <li><strong>Save and ask</strong> freely. In the CSV file, in the <code>route</code> column, you will
+    see e.g. <code>laundry + 12 encji + odpowiedź</code> (12 entities + answer; the labels come from
+    the language pack), and for <code>details</code> and <code>fetch</code>
+    <code>school + 1 źródeł + odpowiedź</code> (1 source + answer).</li>
+  <li><strong>If the router picks the wrong topic</strong>, improve the <code>description</code> and add
+    the question from the log to <code>examples</code>.</li>
+  <li><strong>If the answer is wrong but the topic is right</strong>, look at what the model received:
+    the data is too long (add <code>drop</code>, <code>days</code>, <code>limit</code>), the answer is
+    missing from it (add an entity), or it contains similar, confusing entities (exclude them with
+    <code>!pattern</code>). <code>tools/compare_sources.py</code> helps (<a href="#testing">section 12</a>).</li>
+</ol>
+<div class="tip"><strong>Good practices</strong>
+<ul>
+  <li>Fewer, clearly distinct topics work better than many similar ones. One “car” topic with all the
+    car's sensors is better than three separate ones.</li>
+  <li>Give the model complete data, e.g. a timetable with the time of every lesson. Then it will also
+    answer questions you did not anticipate (“How many hours is Olivia at school?”).</li>
+  <li>For data with dates, set <code>days</code> so that a question without a day does not pull in the
+    whole week.</li>
+  <li>Put the most important patterns first: the 80-entity limit cuts from the end.</li>
+</ul></div>
+
+<h2 id="control">10. Home control</h2>
+<p>A topic with <code>control: true</code> handles commands that HA did not recognize. hassil
+sentences and automations always take priority.</p>
+<p class="note">The verbs, Whisper corrections, yes/no replies, alarm words and the JSON field names
+below belong to the language pack. The examples are in English; the Polish words of the bundled pack
+(<code>languages/pl.py</code>) are given in brackets where the behavior depends on them.</p>
+<ol>
+  <li><strong>Whisper corrections.</strong> Certain corrections of words speech recognition often
+    garbles are applied immediately (Polish: „czystkę” → „wszystkie”, “all”), while uncertain ones
+    (e.g. „jaś” → „zgaś”, “turn off”) trigger a confirmation question. The list is
+    <code>WHISPER_FIXES</code> in the language pack.</li>
+  <li><strong>Parsing.</strong> The model returns schema-constrained JSON. The <em>intent</em> field is
+    an HA intent: <code>HassTurnOn</code>/<code>Off</code>, <code>HassLightSet</code>,
+    <code>HassSetPosition</code>, <code>HassClimateSetTemperature</code>,
+    <code>HassSetVolume</code>/<code>Relative</code>, media control,
+    <code>HassMediaSearchAndPlay</code> (“play …”), vacuum or <code>HassListAddItem</code>. The
+    <em>domain</em>, <em>area</em> and <em>floor</em> fields are chosen from your HA's lists. On top
+    of that come <em>name</em> (a fragment of the utterance), <em>all</em>, <em>value</em> and
+    <em>change</em> (set / more / less), for lights <em>color</em> (e.g. red) and <em>white</em>
+    (color temperature: warm 2700 K, neutral 4000 K, cool 6500 K), and for music <em>query</em>,
+    <em>media class</em> (track, album, artist, playlist, genre, podcast), <em>artist</em> and
+    <em>radio</em>. The key names the model is asked for come from the pack
+    (<code>CONTROL_KEYS</code>; Polish: <code>intencja</code>, <code>domena</code>,
+    <code>obszar</code>, <code>pietro</code>, <code>nazwa</code>, <code>wszystkie</code>,
+    <code>wartosc</code>, <code>zmiana</code>, <code>kolor</code>, <code>barwa</code>,
+    <code>szukaj</code>, <code>rodzaj</code>, <code>wykonawca</code>, <code>radio</code>), because a
+    model fills in fields named in its own language more reliably.</li>
+  <li><strong>Matching in code.</strong>
+    <ul>
+      <li>The name fragment is compared with the names and aliases of entities exposed to Assist.
+        Word stems are used, so inflection is not a problem.</li>
+      <li>When the fragment is weak, the device whose name words were all said in the command wins.</li>
+      <li>An area that was not in the utterance is ignored. The model can confuse “in the walk-in
+        closet” with “Garage” (in Polish „garderobie” and „Garaż” look alike).</li>
+      <li>Relative changes (“brighter”, “higher”, “warmer”) are calculated from the current state: by
+        25% or by 1°.</li>
+    </ul></li>
+  <li><strong>A confirmation question</strong> (“Turn off the closet lighting?”; the conversation
+    stays open for 30 s) is asked when:
+    <ul>
+      <li>the Whisper correction was uncertain;</li>
+      <li>the command contains no known verb;</li>
+      <li>several devices match (but not twin entities - see below);</li>
+      <li>it concerns a lock, a gate or a garage door;</li>
+      <li>the device is on the <code>confirm_entities</code> list (also in a group command, e.g.
+        “turn off all switches”).</li>
+    </ul>
+    With several similarly matching devices (“inner window blind” - small and large) the assistant
+    asks, instead of swapping in another device whose words happened to be said in the command (the
+    outer window blind). Only a device with more words from the command wins (“the lamp in the
+    closet” → Closet Lamp).
+    The question comes in two forms. When uncertain (“Do I understand correctly that I should run
+    Coffee machine - make coffee?”), a plain “no” means “you misunderstood”: the assistant apologizes,
+    asks you to repeat and keeps listening, while “cancel”, “no need” or “stop” end the conversation.
+    For sensitive devices (“Open the front door?”) “no” simply means “do nothing”.
+    Replies work the same way for every question from the assistant. In the Polish pack:
+    <strong>yes</strong> – „tak” (yes), „dokładnie (tak)” (exactly), „o to (mi) chodzi” (that's what I
+    mean), „działaj” (go ahead), „zrób” (do it), „wykonaj” (execute), „dawaj” (go on);
+    <strong>repeat</strong> – „nie” (no), „o coś innego” (something else), „nie o to chodzi” (that's
+    not it), „jeszcze raz” (once more), „(może) powtórzę” (let me repeat) – the assistant apologizes
+    and keeps listening; <strong>stop</strong> – „anuluj” (cancel), „koniec” (stop), „nieważne” (never
+    mind), „zostaw (to)” (leave it), „nic nie rób” (do nothing), „daj (sobie z tym) spokój” (forget
+    it), „olej to” (skip it). For questions about sensitive things (“Open the door?”) a plain “no”
+    means “don't do it” and ends the conversation.
+    A reply with a verb is judged in the context of the question: to “Turn on…?” a plain “turn on”
+    means yes, and “turn off” means no. For locks and blinds the code uses their own verbs (in HA,
+    <code>HassTurnOn</code> for a lock = lock it). Any other utterance cancels the question.</li>
+  <li><strong>Execution</strong> via <code>intent.async_handle</code> (HA):
+    <ul>
+      <li><strong>Twin entities.</strong> A single device is sometimes visible through two integrations
+        under the same name and in the same room, e.g. a HomePod from the Apple TV integration and from
+        Music Assistant (“Bathroom HomePod” ×2). The HA intent rejects such a name
+        (<code>DUPLICATE_NAME</code>) and does nothing, and there is no way to specify an
+        <code>entity_id</code> in it. So the integration does not ask about “several matching devices”;
+        instead it calls the service on each of these entities (<code>media_player.volume_set</code>,
+        <code>homeassistant.turn_on</code>, <code>light.turn_on</code> …); pause and next track - only on
+        the one that is playing. A name given by the model together with the room (“Bathroom HomePod”)
+        is compared without the room word.</li>
+      <li>it checks whether the entity is exposed to Assist;</li>
+      <li>it uses the speaker's room as the default (“turn on the light” without a room);</li>
+      <li>the reply lists what was switched: “Turned off: …”.</li>
+    </ul></li>
+  <li><strong>Actions: scripts and scenes.</strong> The model gets a list of exposed scripts with their
+    <em>descriptions</em>, and of scenes with a list of what they set (HA has no description field for
+    scenes). So a command that does not match any device can still hit an action that does what was
+    asked, even with a garbled word (“make me a coffee” → “Coffee machine - make coffee”, “let's air
+    the flat” → the airing scene). The script is run directly; its fields that select an Assist
+    satellite receive the speaker the command came from.
+    <ul>
+      <li><strong>Why a description and not sentences:</strong> an automation with sentences only
+        understands the words typed in, while a description tells the model <em>what</em> the script
+        does, so it matches any phrasing. The steps (turn on the coffee machine, wait, brew) are in
+        the script anyway.</li>
+      <li><strong>How to write the description:</strong> start with a simple sentence about the effect
+        (“Brews coffee: …”, “Closes all outer blinds: …”) - the model sees the first 160 characters.
+        Add technical details after that.</li>
+      <li><strong>What to expose:</strong> only actions meant to be run by voice. Do not expose technical
+        scripts (notifications, updates) or the alarm - the model could pick them by mistake. Add
+        actions the assistant should always ask about to <code>confirm_entities</code>.</li>
+      <li><strong>Automations are not exposed:</strong> in HA, “turn on the automation” means “enable
+        it”, not “run it now”. Move an action you want to trigger by voice into a script.</li>
+    </ul></li>
+  <li><strong>Speech recognition gibberish.</strong> Whisper sometimes garbles a whole sentence
+    (Polish: „Głup nastrój w pisarowie” instead of „Włącz nastrój w salonie”, “Turn on the mood scene
+    in the living room”). A topic with <code>unclear: true</code> catches sentences whose words do not
+    fit together. The model guesses what was said - it knows the names of rooms and actions - and the
+    assistant asks: “I'm not sure I heard you right. Did you mean: turn on the mood scene in the living
+    room?”. On “yes” the corrected sentence goes through the whole normal path (HA sentences,
+    automations, router); on “no” the assistant asks you to repeat, and “cancel” ends the
+    conversation. When no guess is possible, it says straight away “I didn't understand. Please
+    repeat.” In the topic description it is worth stating explicitly what does <em>not</em> belong
+    here: questions and commands with one garbled word when the meaning is clear, knowledge questions,
+    chit-chat. Nothing is executed without confirmation. The assistant asks you to repeat at most once
+    in a row. If it fails to understand a second time (gibberish again, or “no” to its suggestion
+    again), it says “Sorry, I don't understand. If you need anything, just ask me again.” and ends the
+    conversation - the microphone closes. Every command or question that is understood resets the
+    counter; each conversation (speaker) is counted separately.</li>
+  <li><strong>Safeguards.</strong>
+    <ul>
+      <li><strong>Alarm only via sentences.</strong> A command with alarm words (Polish pack:
+        „alarm”, „czuwanie”, „ochrona”, „syrena”, „uzbrój”, „rozbrój”, also garbled, e.g. „halaryn”)
+        that was not caught by an automation with sentences does not go to the model - the assistant
+        replies with a hint (“I only control the alarm with specific sentences, for example: turn off
+        the alarm…”). Testing showed that the model could otherwise pick the “Good morning” scene.</li>
+      <li><strong>No room - the speaker's room.</strong> For a command without an area and without a
+        name (“turn off the light”), HA takes <em>all</em> devices of that kind in the home. So the
+        integration adds the room of the speaker the command came from; if the speaker is unknown, it
+        asks “In which room?”. (In testing, a garbled “turn off the alarm” once turned off 64 lights
+        this way.)</li>
+      <li><strong>Large scope.</strong> More than 8 devices at once without “all”, “whole”, “every” in
+        the command - a question first.</li>
+      <li><strong>Guessed device type.</strong> When the model chose e.g. a light, but the command has
+        neither a device name nor a word that points to a light (“turn off the cauliflower in the
+        kitchen”) - the question “Do I understand correctly…?”.</li>
+      <li><strong>A plain “yes” with no question pending</strong> (“yes, do it”, “don't”) is not a
+        command and does not run anything; “make it brighter in the living room” is a command, even
+        though it starts with “make”.</li>
+      <li><strong>An action is always run.</strong> “Turn off the TV and home cinema” may hit the script
+        “TV - turn off” - and “turn off” on a script in HA would stop it. The model may also confuse a
+        script and a scene - the name is looked up in both.</li>
+      <li><strong>Script name without the model.</strong> Saying the exact name of a script or scene
+        (at least 3 words, e.g. “Lower the inner blinds in the living room”) runs it immediately,
+        without parsing by the model.</li>
+    </ul></li>
+  <li><strong>“Play …”</strong> works differently. On a Music Assistant player:
+    <code>music_assistant.play_media</code> - MA's own search with the media type (track, album, artist,
+    playlist, podcast), the artist (“play Bohemian Rhapsody by Queen”) and radio mode (“play something
+    like …”, endless similar music). On other players, for a genre, or when MA reports an error: a
+    search (<code>media_player.search_media</code>) and playback of the first result. An empty list or
+    unavailable players in the room - a reply that there is nothing to play on.
+    The code chooses the player: from <code>music_players</code> (first available); without an entry, a
+    player with search support in that area or with the room name in its name; and with no room in the
+    command, the satellite's room. A light without color or color temperature support gets a message
+    instead of an error.</li>
+</ol>
+<div class="note"><strong>Scope.</strong> The router controls everything that is exposed to Assist.
+Put devices you do not want switched without a question (servers, the fridge) in
+<code>confirm_entities</code>, and do not expose those you never want controlled by voice.</div>
+
+<h2 id="log">11. Log of unrecognized commands</h2>
+<p><code>/config/assist/unrecognized_commands.csv</code> (UTF-8, separator <code>;</code>)
+opens in Numbers and Excel. Columns:</p>
+<div class="table"><table>
+<tr><th>Column</th><th>Content</th></tr>
+<tr><td><code>timestamp</code>, <code>area</code>, <code>device</code></td><td>when and on which speaker</td></tr>
+<tr><td><code>kind</code></td><td><code>no_intent_match</code> (HA recognized nothing) or
+  <code>no_valid_targets</code> (it recognized a command for a non-existent area or device,
+  e.g. “…at school”)</td></tr>
+<tr><td><code>text</code></td><td>what Whisper heard</td></tr>
+<tr><td><code>response</code></td><td>what the assistant answered</td></tr>
+<tr><td><code>route</code></td><td>the router's path: topic, number of entities and sources (<code>details</code>, <code>fetch</code>), “+ answer” / “+ summary”, and for control the intent and parameters (labels from the language pack, e.g. Polish „+ odpowiedź”)</td></tr>
+<tr><td><code>speaker</code></td><td>recognized speaker (Assist Speaker ID), empty = unknown</td></tr>
+</table></div>
+<p>Review it from time to time. Questions with an empty <code>route</code> or a wrong answer show
+which topic to improve. Frequent sentences are worth adding as regular HA sentences, because those
+work instantly.</p>
+<ul>
+  <li><strong>Preview in HA:</strong> integration options → “Unrecognized commands” shows a table of
+    the last 30 entries, newest first.</li>
+  <li><strong>Sensor</strong> <code>sensor.assist_router_unrecognized_commands</code> gives the number
+    of entries, and its <code>last</code> attribute holds the last 20. Handy for a Markdown card on a
+    dashboard.</li>
+  <li><strong>Clearing:</strong> the <code>assist_router.clear_log</code> action or “Clear log” in the
+    options. The header stays, and the previous content goes to
+    <code>unrecognized_commands.csv.bak</code>.</li>
+  <li>The <code>speaker</code> column contains the recognized speaker (Assist Speaker ID).</li>
+</ul>
+
+<h2 id="testing">12. Testing and choosing models</h2>
+<p>The <code>tools/</code> directory contains five tools (Python, run from any computer with access
+to Ollama):</p>
+<ul>
+  <li><code>snapshot_data.py</code> saves a snapshot of real data: HA answers to template questions and
+    Wikipedia articles. This way the expected facts in the test do not change.</li>
+  <li><code>model_benchmark.py</code> tests models in turn:
+    <ul>
+      <li>router, with the same prompt as the integration;</li>
+      <li>answers from data;</li>
+      <li>summaries.</li>
+    </ul>
+    Scoring is automatic: required and forbidden fragments, and length. The
+    <code>control</code> section checks command parsing against the home snapshot, without executing
+    anything. It replays the integration's whole decision: the alarm safeguard, a plain “yes/no” reply,
+    the script name without the model, and parsing with the list of actions (scripts with descriptions,
+    scenes). It checks the intent, the area, the matched device or action, and whether the assistant
+    would ask for confirmation.
+    <code>snapshot_data.py --only-home</code> refreshes just the home snapshot, e.g. after changing
+    descriptions or aliases. The code tests alone (<code>pytest</code>) check control from sentence to
+    the called service on a fake home (<code>tests/test_actions.py</code>). The
+    <code>--rescore</code> option re-scores saved answers after test fixes.</li>
+  <li><code>model_report.py</code> creates an HTML report and appends history to a CSV, so new models
+    can be compared with old ones.</li>
+  <li><code>compare_sources.py</code> is a consistency test for changing a topic's data source.
+    For each question in a list it computes the data the old way and the new way (two router.yaml
+    files), e.g. automation sentences versus <code>details</code>/<code>fetch</code>, on live HA data.
+    It saves the model's answers side by side. Read-only.</li>
+  <li><code>check_sentences.py</code> checks your automations with sentences. From each
+    <code>conversation</code> trigger template it generates a few sentences and asks HA (debug mode,
+    nothing is executed) what would handle them. It reports sentences that hit a different automation
+    or HA intent, sentences that match nothing, and disabled automations. Run it after every change to
+    your sentences.</li>
+</ul>
+<pre><code>.venv/bin/python tools/model_benchmark.py --ollama http://localhost:11434 \
+  --router-config /config/assist/router.yaml --cases model_test.yaml \
+  --data model_test_data.yaml --router gemma4:e4b --answer gemma4:26b --pull --out results.json
+.venv/bin/python tools/model_report.py results.json --label "test" \
+  --html result.html --csv model_results.csv --answers-csv model_answers.csv
+.venv/bin/python tools/compare_sources.py --ha http://homeassistant.local:8123 \
+  --token-file ~/.ha_token --ollama http://localhost:11434 \
+  --old router.yaml --new router.new.yaml --questions questions.txt --out comparison.json
+.venv/bin/python tools/check_sentences.py --ha http://homeassistant.local:8123 \
+  --token-file ~/.ha_token --config /config --per-template 5</code></pre>
+<p>The test case file (YAML) contains questions with the expected topic, and data with a question and
+the expected facts. The format is described at the top of <code>tools/model_benchmark.py</code>. Keep
+it outside the repository, because it contains your home's data. The test questions are in the
+language of your pack (Polish for the bundled one); a new language pack is checked the same way.</p>
+
+<h2 id="fine-tuning">13. Fine-tuning the router (optional)</h2>
+<p>A general small model recognizes topics well, but it can be fine-tuned on your own home's data.
+This is done with a separate set of scripts that will move to a separate repository in the future.
+Training requires a graphics card (e.g. an RTX 4090), and after fine-tuning the model runs in Ollama
+like any other. Steps:</p>
+<ol>
+  <li>fetching areas, entities with aliases, people and sentence files from HA;</li>
+  <li>the dataset:
+    <ul>
+      <li>sentences from your hassil templates, with the topic assigned via the template questions in
+        <code>router.yaml</code>;</li>
+      <li>built-in HA intents with your names;</li>
+      <li>knowledge questions;</li>
+      <li>Whisper-style noise.</li>
+    </ul></li>
+  <li>LoRA (Unsloth) with exactly the same prompt the integration uses;</li>
+  <li>export to Ollama;</li>
+  <li>a test on questions that were not in the training data.</li>
+</ol>
+<p>After the topic list changes, the fine-tuned model has to be fine-tuned again.</p>
+<p><strong>Lessons from the first attempt:</strong> Gemma 4 E2B fine-tuned on template sentences alone
+recognized them 99% of the time, but on free-form questions from the log it did worse than plain
+Gemma 4 E4B (88/96 versus 93/96). It learned the style of the templates, not the language.
+That is why the second run combines templates with paraphrases written by a large model (Gemma 4 26B):
+natural questions with names, rooms and Whisper errors. The base is E4B.</p>
+
+<h2 id="privacy">14. Privacy and security</h2>
+<ul>
+  <li><strong>Everything runs locally:</strong> HA, Ollama, Whisper and Piper. The only thing sent to
+    the internet is the search term from knowledge questions (e.g. “Nicolaus Copernicus”), sent to the
+    Wikipedia API.</li>
+  <li><strong>Only the data of the topic asked about goes to the model:</strong> the entities,
+    attributes and service responses listed in <code>router.yaml</code>, trimmed to the person and day.
+    With <code>only_exposed: true</code> these are exclusively entities exposed to Assist.</li>
+  <li><strong>A question never switches anything.</strong> <code>fetch</code> only calls services that
+    only return data. Control goes exclusively through the <code>control: true</code> topic and HA
+    intents, which check whether entities are exposed. Uncertain commands, locks, gates and devices in
+    <code>confirm_entities</code> require confirmation.</li>
+  <li>The CSV file contains what household members said. If you do not need it, turn logging off in
+    the options.</li>
+</ul>
+
+<h2 id="adding-a-language">15. Adding a language</h2>
+<p>Everything that depends on a language lives in one <strong>language pack</strong>: a Python module in
+<code>custom_components/assist_router/languages/</code> named after the language code. The integration
+ships the Polish pack, <code>pl.py</code>. It holds:</p>
+<ul>
+  <li>the spoken replies (confirmations, errors, “Did you mean…?”, announcement and speaker messages);</li>
+  <li>the words and patterns used to understand commands and questions: day words (mapped to day
+    codes), yes / no / cancel replies, verbs, colors, first-person words, family terms, announcement and
+    alarm keywords, Whisper corrections, the beginnings of knowledge questions;</li>
+  <li>the LLM prompts (router, answer, summary, control, guessing, example sentences) and the JSON key
+    names they ask for (<code>TOPIC_KEY</code>, <code>CONTROL_KEYS</code>…);</li>
+  <li>log labels, state names and a few functions that build sentences (they depend on grammar),
+    plus <code>CODE</code> and the default <code>WIKIPEDIA_LANGUAGE</code>.</li>
+</ul>
+<p>To add, for example, Czech:</p>
+<ol>
+  <li>Copy <code>languages/pl.py</code> to <code>languages/cs.py</code>.</li>
+  <li>Translate all phrases, patterns, prompts and replies. Keep the same names of constants and
+    functions (and their arguments) - the code reads them through <code>LANG</code>. JSON key names can
+    be translated too (optional; a model fills in keys in its own language more reliably). Set
+    <code>CODE = "cs"</code> and <code>WIKIPEDIA_LANGUAGE = "cs"</code>.</li>
+  <li><strong>Day codes stay the same.</strong> The codes used in <code>days:</code> and in the
+    <code>when</code> variable (<code>today</code>, <code>tomorrow</code>,
+    <code>day_after_tomorrow</code>, <code>weekend</code>, <code>week</code>, <code>monday</code> …
+    <code>sunday</code>, a number of days) are keywords and the same in every language. The new pack
+    maps the spoken Czech words to them (<code>WHEN_PATTERNS</code>) and may add its own names for
+    <code>days:</code> (<code>DAY_ALIASES</code>, like Polish <code>dzis</code>, <code>jutro</code>);
+    the alias of <code>when</code> in <code>COMMAND_VARIABLE_ALIASES</code> (Polish
+    <code>kiedy</code>) then gets those names.</li>
+  <li>The pack is used when Home Assistant's language is <code>cs</code>, or when
+    <code>router.yaml</code> has <code>language: cs</code>. The conversation agent then also lists
+    Czech among its supported languages. An unknown code in <code>language:</code> disables the router
+    with an error in the log.</li>
+  <li>Choose an Ollama model that understands and writes the language well - the router, the answers
+    and command parsing all happen in that language.</li>
+  <li>Write <code>router.yaml</code> descriptions, examples and <code>match</code> patterns in Czech, and
+    test with <code>tools/model_benchmark.py</code> using Czech test questions
+    (<a href="#testing">section 12</a>).</li>
+</ol>
+<p class="tip">Contributions are welcome: send the new pack as a pull request to the
+<a href="https://github.com/witold-gren/home-assistant-assist-router">GitHub repository</a>.</p>
+
+<footer>Assist Router (domain <code>assist_router</code>). Changes: <code>CHANGELOG.md</code>.
+Bug reports and suggestions: Issues in the GitHub repository.</footer>
+</div>
+</body>
+</html>

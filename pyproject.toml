@@ -1,0 +1,24 @@
+[project]
+name = "home-assistant-assist-router"
+version = "0.1.0"
+description = "Assist Router for Home Assistant: answers questions and controls the home through a local LLM (Ollama) before falling back to the default agent."
+requires-python = ">=3.13"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+# test case tables - one case per line reads better
+per-file-ignores = { "tests/test_actions.py" = ["E501"] }
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components"]
+force-sort-within-sections = true
+combine-as-imports = true
