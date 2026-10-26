@@ -1391,6 +1391,12 @@ below belong to the language pack. The examples are in English; the Polish words
       <li><strong>Guessed device type.</strong> When the model chose e.g. a light, but the command has
         neither a device name nor a word that points to a light (“turn off the cauliflower in the
         kitchen”) - the question “Do I understand correctly…?”.</li>
+      <li><strong>A device that does not respond.</strong> When the named device (or everything
+        in the named room) is unavailable, nothing runs and the reply says why: “Urządzenie
+        Skrzynka pocztowa nie odpowiada (jest niedostępne), więc nic nie zmieniłem.” (“The mailbox
+        does not respond (unavailable), so I changed nothing.”). The same for a state question HA
+        answers: instead of “Nie, … jest unavailable” - “…does not respond, so I don't know its
+        state”. When only some devices do not respond, the command works on the others.</li>
       <li><strong>A plain “yes” with no question pending</strong> (“yes, do it”, “don't”) is not a
         command and does not run anything; “make it brighter in the living room” is a command, even
         though it starts with “make”.</li>
@@ -1411,6 +1417,15 @@ below belong to the language pack. The examples are in English; the Polish words
     player with search support in that area or with the room name in its name; and with no room in the
     command, the satellite's room. A light without color or color temperature support gets a message
     instead of an error.</li>
+  <li><strong>Music without a title</strong> (“turn on the music”, “play something in the
+    kitchen”, “resume the music”) resumes the queue of the room's player from <code>music_players</code>
+    (or the satellite's room). With <code>music_players</code> set, music plays only on those players - a
+    satellite's own speaker named in the command is ignored.</li>
+  <li><strong>“Turn off the music [in …]”</strong> pauses the players that are playing in that room
+    (<code>HassMediaPause</code>) instead of turning devices off: a Music Assistant player cannot be
+    turned off, and turning off a HomePod (Apple TV integration) or a satellite's speaker does not stop
+    the music. “Turn off the TV” still turns it off. The music words are <code>MUSIC_WORDS</code> in the
+    language pack.</li>
 </ol>
 <div class="note"><strong>Scope.</strong> The router controls everything that is exposed to Assist.
 Put devices you do not want switched without a question (servers, the fridge) in
@@ -1450,8 +1465,11 @@ work instantly.</p>
 <p>The <code>tools/</code> directory contains five tools (Python, run from any computer with access
 to Ollama):</p>
 <ul>
-  <li><code>snapshot_data.py</code> saves a snapshot of real data: HA answers to template questions and
-    Wikipedia articles. This way the expected facts in the test do not change.</li>
+  <li><code>snapshot_data.py</code> saves a snapshot of real data: Wikipedia articles and, for cases
+    with a topic (<code>topic</code>, question, speaker), the topic data exactly as the integration
+    builds it: entities, <code>details</code> and <code>fetch</code>, with the person and day from the
+    question (needs <code>--router-config</code>). It also stores the snapshot time, which the model
+    gets as "now", so the expected facts in the test do not change.</li>
   <li><code>model_benchmark.py</code> tests models in turn:
     <ul>
       <li>router, with the same prompt as the integration;</li>
@@ -1467,7 +1485,14 @@ to Ollama):</p>
     <code>snapshot_data.py --only-home</code> refreshes just the home snapshot, e.g. after changing
     descriptions or aliases. The code tests alone (<code>pytest</code>) check control from sentence to
     the called service on a fake home (<code>tests/test_actions.py</code>). The
-    <code>--rescore</code> option re-scores saved answers after test fixes.</li>
+    <code>--rescore</code> option re-scores saved answers after test fixes.
+    A section without its own <code>system</code> prompt uses the integration's prompts: answers get
+    the topic data with the speaker and the hint, summaries (<code>prompt: summary</code>) the summary
+    prompt. In the router part an ambiguous question may list several equally good topics.
+    For a long run over many models: <code>--pull</code> downloads missing models (the next one
+    already in the background), <code>--delete-after</code> removes them after their test (never models
+    installed before the start; <code>--keep</code> protects more), and <code>--resume</code> skips models
+    that already have all results, so an interrupted run can be resumed.</li>
   <li><code>model_report.py</code> creates an HTML report and appends history to a CSV, so new models
     can be compared with old ones.</li>
   <li><code>compare_sources.py</code> is a consistency test for changing a topic's data source.

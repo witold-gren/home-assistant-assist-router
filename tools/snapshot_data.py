@@ -16,6 +16,12 @@ In the cases file:
       kalendarz_jutro: jakie są jutro wydarzenia
     wiki:               # key: phrase
       everest: Mount Everest
+    real:               # cases with a topic: the topic data as the integration builds it
+      cases:            # (entities, details, fetch) for this question and speaker
+        - {name: zosia_jutro, topic: lekcje, question: "Jakie jutro mam lekcje?", speaker: zosia}
+
+Cases with ``topic`` need ``--router-config``; their data is stored under ``live`` together
+with the snapshot time (``now``), which the benchmark gives the model as the current time.
 """
 
 from __future__ import annotations
@@ -174,12 +180,39 @@ def wikipedia(phrase: str, language: str = LANG.WIKIPEDIA_LANGUAGE) -> tuple[str
     return page["title"], clean_article(page["extract"], WIKIPEDIA_CHARS)
 
 
+def live_data(
+    url: str, token: str, router_config: Path | None, cases: list[dict], time_zone: str
+) -> dict:
+    """Topic data of every case (``topic``, ``question``, ``speaker``) as in the integration."""
+    from zoneinfo import ZoneInfo
+
+    from topic_data import HA, load_home, topic_data
+
+    from custom_components.assist_router.router import parse_config
+
+    if router_config is None:
+        raise SystemExit("cases with a topic need --router-config")
+    config = parse_config(yaml.safe_load(router_config.read_text(encoding="utf-8")))
+    home_now = load_home(HA(url, token))
+    now = datetime.now(ZoneInfo(time_zone)).replace(second=0, microsecond=0)
+    live = {}
+    for case in cases:
+        entry = topic_data(
+            home_now, config, case["topic"], case["question"], case.get("speaker"), now
+        )
+        live[case["name"]] = {"topic": case["topic"], "question": case["question"], **entry}
+        print(f"{case['name']}: {case['topic']}, {len(entry['data'])} chars")
+    return {"now": now.isoformat(), "live": live}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--ha", required=True)
     parser.add_argument("--token-file", type=Path, required=True)
     parser.add_argument("--cases", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--router-config", type=Path, help="router.yaml (cases with a topic)")
+    parser.add_argument("--time-zone", default="Europe/Warsaw", help="HA time zone")
     parser.add_argument(
         "--only-home",
         action="store_true",
@@ -207,6 +240,9 @@ def main() -> None:
         text = ask_ha(args.ha.rstrip("/"), token, command)
         out["sources"][key] = {"command": command, "text": text}
         print(f"{key}: {out['sources'][key]['text'][:100]}")
+    if live := [c for c in (spec.get("real") or {}).get("cases", []) if "topic" in c]:
+        out.update(live_data(args.ha.rstrip("/"), token, args.router_config, live, args.time_zone))
+        print(f"live: {len(out['live'])} cases, now {out['now']}")
     if spec.get("control"):
         out["home"] = home(args.ha.rstrip("/"), token)
         print(f"home: {len(out['home']['targets'])} exposed entities")

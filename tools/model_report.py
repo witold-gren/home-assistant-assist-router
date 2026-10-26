@@ -66,7 +66,7 @@ def rows_from_results(results: dict, run: str, date: str, sizes: dict[str, float
                     "percent": round(100 * data["score"] / data["total"]),
                     "avg_s": f"{data['avg_s']:.2f}",
                     "load_s": entry.get("load_s", ""),
-                    "size_gb": sizes.get(model, ""),
+                    "size_gb": sizes.get(model) or entry.get("size_gb") or "",
                 }
             )
             for detail in data.get("details", []):

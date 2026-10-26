@@ -20,6 +20,7 @@ from typing import Any
 
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.components.media_player import MediaPlayerEntityFeature
+from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
     area_registry as ar,
@@ -528,6 +529,26 @@ def _said(target: Target, said: set[str]) -> int:
     return max(len(set(stems(name)) & said) for name in target.names)
 
 
+def music_intent(command: Command, text: str) -> None:
+    """Turning music on or off works on the room's music player (changes ``command``)."""
+    if (
+        command.intent == "HassTurnOff"
+        and command.domain in (None, "media_player")
+        and LANG.MUSIC_WORDS.search(text)
+    ):
+        # „wyłącz muzykę” = pause what plays: a Music Assistant player cannot be turned off,
+        # and turning off a HomePod (Apple TV) or a satellite's speaker does not stop it
+        command.intent, command.domain = "HassMediaPause", "media_player"
+    if (
+        command.intent in ("HassTurnOn", "HassMediaUnpause")
+        and command.domain in (None, "media_player")
+        and LANG.MUSIC_WORDS.search(text)
+    ):
+        # „włącz muzykę”, „wznów muzykę” - resume on the room's music player (one player,
+        # not every speaker in the house)
+        command.intent, command.domain, command.query = "HassMediaSearchAndPlay", None, None
+
+
 def plan_command(
     hass: HomeAssistant,
     home: Home,
@@ -546,6 +567,7 @@ def plan_command(
     """
     if command.intent == "HassLightSet" and not command.domain:
         command.domain = "light"
+    music_intent(command, text)
     if command.intent == "HassMediaSearchAndPlay":
         return _plan_play(hass, home, command, text, music_players or {}, here)
     match = find_target(home, command, text)
@@ -619,6 +641,22 @@ def plan_command(
     if any(always_confirm(t, confirm_entities) for t in targets):
         confirm = LANG.CONFIRM_LISTED
         sensitive = True
+    # the named device (with its twins) or everything in the named room does not respond -
+    # say so instead of a command that changes nothing (HA skips unavailable entities)
+    scope = (
+        (same or targets)
+        if "name" in slots and not (match and match.ambiguous)
+        else targets
+        if command.area and "name" not in slots
+        else []
+    )
+    if scope and not any(responds(hass, t.entity_id) for t in scope):
+        return Plan(
+            command.intent,
+            slots,
+            describe(command, match),
+            error=LANG.unavailable_command(list(dict.fromkeys(t.name for t in scope))),
+        )
 
     attribute = {
         "HassLightSet": "brightness",
@@ -755,6 +793,12 @@ def always_confirm(target: Target, patterns: tuple[str, ...]) -> bool:
     )
 
 
+def responds(hass: HomeAssistant, entity_id: str) -> bool:
+    """Whether the entity is reachable (an "unavailable" device ignores commands)."""
+    state = hass.states.get(entity_id)
+    return state is not None and state.state != STATE_UNAVAILABLE
+
+
 def _color_modes(hass: HomeAssistant, lights: list[Target]) -> set[str]:
     modes: set[str] = set()
     for light in lights:
@@ -803,16 +847,24 @@ def _plan_play(
     music_players: dict[str, tuple[str, ...]],
     here: str | None,
 ) -> Plan:
-    """„Puść …” - search and play on the chosen player (search_media)."""
+    """„Puść …” - search and play on the chosen player (search_media); without a title
+    („puść muzykę”) resume what the player played last."""
     command.domain = "media_player"
     if text and command.area and not area_mentioned(home, command.area, text):
         command.area = None
-    if not command.query:
-        return Plan(command.intent, {}, LANG.PLAY_MUSIC, error=LANG.ERROR_WHAT_TO_PLAY)
+    if command.query and LANG.GENERIC_MUSIC.match(command.query.strip()):
+        command.query = None
+    # with music_players set, music plays only on those (not on a satellite's speaker)
+    allowed = {p for players in music_players.values() for p in players}
     player = None
     if command.name:
         match = resolve_name(home, command.name, command)
-        if match.target and match.score >= CERTAIN and _can_play(hass, match.target.entity_id):
+        if (
+            match.target
+            and match.score >= CERTAIN
+            and _can_play(hass, match.target.entity_id)
+            and (not allowed or match.target.entity_id in allowed)
+        ):
             player = match.target.entity_id
     area = command.area or here
     if player is None and area:
@@ -826,6 +878,16 @@ def _plan_play(
                 LANG.ERROR_NO_PLAYER_IN_AREA.format(area=area) if area else LANG.ERROR_WHERE_TO_PLAY
             ),
         )
+    target = next((t for t in home.targets if t.entity_id == player), None)
+    state = hass.states.get(player)
+    name = target.name if target else state.name if state else player
+    if not command.query:
+        return Plan(
+            command.intent,
+            {"entity_id": player, "resume": True},
+            LANG.describe_resume(name),
+            domain="media_player",
+        )
     slots: dict[str, Any] = {"search_query": command.query, "entity_id": player}
     if command.media_class:
         slots["media_class"] = LANG.MEDIA_CLASSES[command.media_class]
@@ -833,9 +895,6 @@ def _plan_play(
         slots["artist"] = command.artist
     if command.radio:
         slots["radio_mode"] = True
-    target = next((t for t in home.targets if t.entity_id == player), None)
-    state = hass.states.get(player)
-    name = target.name if target else state.name if state else player
     return Plan(
         command.intent,
         slots,

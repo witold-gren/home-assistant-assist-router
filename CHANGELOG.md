@@ -2,6 +2,46 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions: [SemVer](https://semver.org/).
 
+## [0.1.4] - 2026-10-26
+
+### Added
+- A device that does not respond (state `unavailable`) is reported instead of a vague error:
+  a command for it (or for a room where nothing responds) says „Urządzenie … nie odpowiada
+  (jest niedostępne), więc nic nie zmieniłem.” and changes nothing - also when it stopped
+  responding while the assistant was asking „czy dobrze rozumiem?”. A state question answered
+  by the HA agent no longer says „Nie, … jest unavailable”, but that the device does not
+  respond, so its state is unknown; when only some devices of the answer do not respond, the
+  state word is translated. Language pack: `unavailable_command`, `unavailable_state`.
+
+### Changed
+- Music without a title - „włącz muzykę”, „puść coś w kuchni”, „wznów muzykę w salonie” -
+  resumes the queue of the room's music player (`music_players`, or the satellite's room)
+  instead of asking „Co mam puścić?” or offering to resume every speaker in the house.
+  Language pack: `GENERIC_MUSIC`, `describe_resume`, `resumed`.
+- With `music_players` set, music plays only on those players: a speaker named by the model
+  (e.g. a satellite's own speaker) that is not on the list is ignored and the room's player
+  from the list plays.
+- Benchmark tools (`tools/`): answers from HA data now use the integration's own topic data
+  and prompts - `snapshot_data.py` stores, per case (`topic`, question, speaker), the data
+  the integration builds (entities, `details`, `fetch`, the person and day from the question;
+  new shared module `tools/topic_data.py`), and `model_benchmark.py` sends it through
+  `answer_messages` (speaker, hint, the topic's token limit) and summaries through
+  `summary_messages`. Router cases may list several equally good topics, control `expect`
+  values may list alternatives and replay the music intent mapping. New options for long runs:
+  `--delete-after`, `--keep`, `--resume`, and the next model downloads in the background. The
+  model file size is stored in the results (the report needs it after `--delete-after`). A
+  dropped Ollama connection is retried twice instead of stopping the run.
+- Model comparison page (`docs/pl/modele.html`, `docs/en/models.html`): round 3 of 26.10.2026 -
+  16 models, each on the same 669 cases in all five parts (router 379, control 155, given data
+  34, HA data 86, Wikipedia 15); conclusions and typical errors updated.
+
+### Fixed
+- „Wyłącz muzykę w łazience” said the music was off while the HomePod kept playing: the
+  command turned off the HomePod (Apple TV) and the satellites' speakers, but the Music
+  Assistant player that plays cannot be turned off. Turning off music now pauses the players
+  that are playing in that room (`HassMediaPause`); other speakers are left alone and
+  „wyłącz telewizor” still turns the TV off. Language pack: `MUSIC_WORDS`.
+
 ## [0.1.3] - 2026-10-25
 
 ### Added

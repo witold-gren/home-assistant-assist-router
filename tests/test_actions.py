@@ -19,6 +19,7 @@ from homeassistant.helpers import (
     area_registry as ar,
     entity_registry as er,
     floor_registry as fr,
+    intent,
 )
 from homeassistant.setup import async_setup_component
 import pytest
@@ -64,6 +65,7 @@ SERVICES = [
     ("media_player", "media_pause"), ("media_player", "media_play"),
     ("media_player", "media_next_track"), ("media_player", "media_previous_track"),
     ("media_player", "volume_set"), ("media_player", "play_media"),
+    ("media_player", "turn_off"),
     ("vacuum", "start"), ("vacuum", "return_to_base"), ("scene", "turn_on"),
 ]  # fmt: skip
 PLAYER = (
@@ -234,6 +236,12 @@ DIRECT = [
      "Ustawiono głośność"),
     ("zatrzymaj muzykę w salonie", {"intencja": "HassMediaPause", "obszar": "Salon"},
      "media_player.media_pause", {"media_player.salon_glosnik"}, None, "Wstrzymano"),
+    # a Music Assistant player cannot be turned off - „wyłącz muzykę” pauses it
+    ("wyłącz muzykę w salonie",
+     {"intencja": "HassTurnOff", "domena": "media_player", "obszar": "Salon"},
+     "media_player.media_pause", {"media_player.salon_glosnik"}, None, "Wstrzymano"),
+    ("wyłącz muzykę w salonie", {"intencja": "HassTurnOff", "obszar": "Salon"},
+     "media_player.media_pause", {"media_player.salon_glosnik"}, None, "Wstrzymano"),
     ("następna piosenka w salonie", {"intencja": "HassMediaNext", "obszar": "Salon"},
      "media_player.media_next_track", {"media_player.salon_glosnik"}, None, "Następny utwór"),
     ("poprzednia piosenka w salonie", {"intencja": "HassMediaPrevious", "obszar": "Salon"},
@@ -254,6 +262,83 @@ DIRECT = [
     ("zgaś światła na parterze", {"intencja": "HassTurnOff", "domena": "light", "pietro": "Parter"},
      "light.turn_off", {"light.kuchnia_sufit", "light.salon_lampa"}, None, "Wyłączono"),
 ]  # fmt: skip
+
+
+async def test_turn_off_music_pauses_only_the_playing_player(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """„Wyłącz muzykę w łazience” turned off the HomePod (Apple TV) and the satellites'
+    speakers while the Music Assistant player (no turn off) kept playing: now only the
+    playing player is paused, the idle satellite speaker is left alone."""
+    ent_reg = er.async_get(hass)
+    salon = ar.async_get(hass).async_get_area_by_name("Salon")
+    _entity(hass, ent_reg, salon.id, "media_player.salon_satelita", "Satelita salon", "idle",
+            supported_features=MP.PAUSE | MP.TURN_OFF | MP.VOLUME_SET)  # fmt: skip
+    _control_ollama(aioclient_mock, {"intencja": "HassTurnOff", "domena": "media_player",
+                                     "obszar": "Salon"})  # fmt: skip
+
+    result = await _say(hass, "Wyłącz muzykę w salonie.")
+
+    assert _speech(result).startswith("Wstrzymano"), _speech(result)
+    assert _entities(dom["media_player.media_pause"]) == {"media_player.salon_glosnik"}
+    assert dom["media_player.turn_off"] == []
+
+
+@pytest.mark.parametrize(
+    ("text", "parsed"),
+    [
+        ("puść coś w salonie", {"intencja": "HassMediaSearchAndPlay", "obszar": "Salon"}),
+        ("puść muzykę w salonie",
+         {"intencja": "HassMediaSearchAndPlay", "obszar": "Salon", "szukaj": "muzykę"}),
+        ("włącz muzykę w salonie",
+         {"intencja": "HassTurnOn", "domena": "media_player", "obszar": "Salon"}),
+        ("wznów muzykę w salonie", {"intencja": "HassMediaUnpause", "obszar": "Salon"}),
+    ],
+)  # fmt: skip
+async def test_music_without_a_title_resumes_the_room_player(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker, text: str, parsed: dict
+) -> None:
+    """„Puść coś w kuchni” asked „Co mam puścić?” and „Włącz muzykę” wanted to resume 72
+    devices: now the room's music player (music_players) resumes its queue."""
+    _control_ollama(aioclient_mock, parsed)
+
+    result = await _say(hass, text)
+
+    assert _speech(result) == "Wznawiam muzykę na Głośnik salon."
+    assert _entities(dom["media_player.media_play"]) == {"media_player.salon_glosnik"}
+
+
+async def test_music_is_not_played_on_a_satellite_speaker(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """„Włącz muzykę Chord Play w salonie” played on the satellite's speaker (the model named
+    it): with music_players set only those players play music."""
+    ent_reg = er.async_get(hass)
+    salon = ar.async_get(hass).async_get_area_by_name("Salon")
+    _entity(hass, ent_reg, salon.id, "media_player.salon_home_assistant_voice",
+            "Salon Home Assistant Voice", "idle", supported_features=PLAYER)  # fmt: skip
+    _control_ollama(aioclient_mock, {"intencja": "HassMediaSearchAndPlay", "obszar": "Salon",
+                                     "nazwa": "Salon Home Assistant Voice", "szukaj": "jazz"})  # fmt: skip
+
+    await _say(hass, "puść jazz na salon home assistant voice")
+
+    assert _entities(dom["media_player.play_media"]) == {"media_player.salon_glosnik"}
+
+
+async def test_turn_off_tv_still_turns_off(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    ent_reg = er.async_get(hass)
+    salon = ar.async_get(hass).async_get_area_by_name("Salon")
+    _entity(hass, ent_reg, salon.id, "media_player.telewizor", "Telewizor", "on",
+            supported_features=MP.TURN_OFF | MP.TURN_ON)  # fmt: skip
+    _control_ollama(aioclient_mock, {"intencja": "HassTurnOff", "domena": "media_player",
+                                     "nazwa": "telewizor"})  # fmt: skip
+
+    await _say(hass, "wyłącz telewizor")
+
+    assert _entities(dom["media_player.turn_off"]) == {"media_player.telewizor"}
+    assert dom["media_player.media_pause"] == []
 
 
 @pytest.mark.parametrize(("text", "parsed", "service", "entities", "data", "speech"), DIRECT)
@@ -547,8 +632,6 @@ ERRORS = [
      "To światło nie zmienia barwy."),
     ("ustaw głośność w salonie", {"intencja": "HassSetVolume", "obszar": "Salon"},
      "Nie wiem, jaką ustawić głośność."),
-    ("puść coś w salonie", {"intencja": "HassMediaSearchAndPlay", "obszar": "Salon"},
-     "Co mam puścić?"),
     ("puść jazz", {"intencja": "HassMediaSearchAndPlay", "szukaj": "jazz"},
      "W którym pomieszczeniu mam puścić?"),
 ]  # fmt: skip
@@ -1313,3 +1396,146 @@ async def test_sentence_the_model_keeps_whole_goes_the_usual_way(
     await hass.async_block_till_done()
 
     assert _called(dom) == {"light.turn_off": 1}
+
+
+# --- devices that do not respond (state "unavailable") ---
+
+
+async def test_unavailable_device_says_so_and_does_nothing(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A named device that does not respond: the reply says why nothing changed."""
+    hass.states.async_set("switch.akwarium", "unavailable", {"friendly_name": "Akwarium"})
+    _control_ollama(
+        aioclient_mock, {"intencja": "HassTurnOn", "domena": "switch", "nazwa": "akwarium"}
+    )
+
+    result = await _say(hass, "niech akwarium się świeci")
+
+    assert _speech(result) == (
+        "Urządzenie Akwarium nie odpowiada (jest niedostępne), więc nic nie zmieniłem."
+    )
+    assert not result.continue_conversation
+    assert not _called(dom)
+
+
+async def test_unavailable_room_says_so_and_does_nothing(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Every device of the named room and kind does not respond."""
+    hass.states.async_set("light.sypialnia_nocna", "unavailable", {"friendly_name": "Lampka nocna"})
+    _control_ollama(
+        aioclient_mock, {"intencja": "HassTurnOn", "domena": "light", "obszar": "Sypialnia"}
+    )
+
+    result = await _say(hass, "niech w sypialni będzie jasno")
+
+    assert _speech(result) == (
+        "Urządzenie Lampka nocna nie odpowiada (jest niedostępne), więc nic nie zmieniłem."
+    )
+    assert not _called(dom)
+
+
+async def test_partly_unavailable_room_runs_on_the_rest(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """One lamp on the floor does not respond - the command still works for the others."""
+    hass.states.async_set("light.salon_lampa", "unavailable", {"friendly_name": "Lampa stojąca"})
+    _control_ollama(
+        aioclient_mock, {"intencja": "HassTurnOff", "domena": "light", "pietro": "Parter"}
+    )
+
+    result = await _say(hass, "zgaś światła na parterze")
+
+    assert _speech(result).startswith("Wyłączono"), _speech(result)
+    assert "light.kuchnia_sufit" in _entities(dom["light.turn_off"])
+
+
+async def test_unavailable_device_after_confirmation(
+    hass: HomeAssistant, dom: dict, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """The plan was made while the device responded; it stopped before „tak”."""
+    _control_ollama(
+        aioclient_mock, {"intencja": "HassTurnOff", "domena": "switch", "nazwa": "lodówka"}
+    )
+    asked = await _say(hass, "wyłącz lodówkę")
+    assert asked.continue_conversation is True
+    hass.states.async_set("switch.lodowka", "unavailable", {"friendly_name": "Lodówka"})
+
+    answer = await _say(hass, "tak", asked.conversation_id)
+
+    assert _speech(answer) == (
+        "Urządzenie Lodówka nie odpowiada (jest niedostępne), więc nic nie zmieniłem."
+    )
+    assert not _called(dom)
+
+
+def _ha_response(
+    hass: HomeAssistant, kind: intent.IntentResponseType, speech: str, *entity_ids: str
+) -> intent.IntentResponse:
+    response = intent.IntentResponse(language="pl")
+    response.response_type = kind
+    response.async_set_speech(speech)
+    response.async_set_results(
+        success_results=[
+            intent.IntentResponseTarget(
+                type=intent.IntentResponseTargetType.ENTITY,
+                name=hass.states.get(e).name,
+                id=e,
+            )
+            for e in entity_ids
+        ]
+    )
+    return response
+
+
+async def test_ha_answer_about_unavailable_devices(hass: HomeAssistant, dom: dict) -> None:
+    """HA reads "unavailable" as a state or reports a command that changed nothing."""
+    hass.states.async_set("lock.drzwi", "unavailable", {"friendly_name": "Drzwi wejściowe"})
+    hass.states.async_set("switch.akwarium", "unavailable", {"friendly_name": "Akwarium"})
+    query, done = intent.IntentResponseType.QUERY_ANSWER, intent.IntentResponseType.ACTION_DONE
+
+    single = _ha_response(hass, query, "Nie, Drzwi wejściowe jest unavailable", "lock.drzwi")
+    agent_module.explain_unavailable(hass, single)
+    assert single.speech["plain"]["speech"] == (
+        "Urządzenie Drzwi wejściowe nie odpowiada (jest niedostępne), "
+        "więc nie wiem, jaki ma teraz stan."
+    )
+
+    both = _ha_response(hass, query, "Nie", "lock.drzwi", "switch.akwarium")
+    agent_module.explain_unavailable(hass, both)
+    assert both.speech["plain"]["speech"] == (
+        "Urządzenia nie odpowiadają (są niedostępne): Drzwi wejściowe, Akwarium, "
+        "więc nie znam ich stanu."
+    )
+
+    command = _ha_response(hass, done, "Włączono", "switch.akwarium")
+    agent_module.explain_unavailable(hass, command)
+    assert command.speech["plain"]["speech"] == (
+        "Urządzenie Akwarium nie odpowiada (jest niedostępne), więc nic nie zmieniłem."
+    )
+
+    some = _ha_response(
+        hass,
+        query,
+        "Lodówka jest on, Akwarium jest unavailable",
+        "switch.lodowka",
+        "switch.akwarium",
+    )
+    agent_module.explain_unavailable(hass, some)
+    assert some.speech["plain"]["speech"] == "Lodówka jest on, Akwarium jest niedostępne"
+
+    fine = _ha_response(hass, query, "Tak, Lodówka jest on", "switch.lodowka")
+    agent_module.explain_unavailable(hass, fine)
+    assert fine.speech["plain"]["speech"] == "Tak, Lodówka jest on"
+
+
+async def test_ha_query_about_an_unavailable_device(hass: HomeAssistant, dom: dict) -> None:
+    """End to end through the built-in HA agent: „czy … jest włączone?”."""
+    hass.states.async_set("switch.akwarium", "unavailable", {"friendly_name": "Akwarium"})
+
+    result = await _say(hass, "czy akwarium jest włączone")
+
+    assert "unavailable" not in _speech(result)
+    assert _speech(result).startswith("Urządzenie Akwarium nie odpowiada"), _speech(result)
+    assert not _called(dom)
