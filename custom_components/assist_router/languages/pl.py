@@ -130,6 +130,13 @@ DOMAIN_HINTS: dict[str, tuple[str, ...]] = {
     "fan": ("went", "oczyszcz", "wiatrak"),
     "todo": ("list", "dopisz", "zakup"),
 }  # fmt: skip
+# „wyłącz muzykę” - turning off music means pausing the players that play it
+MUSIC_WORDS = re.compile(r"\b(muzyk|muzycz|piosen|utw[óo]r|playlist|grani[ea])", re.IGNORECASE)
+# „puść muzykę”, „włącz coś” - no title: resume what the room's player played last
+GENERIC_MUSIC = re.compile(
+    r"^(jak[aąieś]+ )?(muzyk[aęi]|muzyczk[aęi]|coś|cokolwiek|coś do słuchania|piosenk[aęi])$",
+    re.IGNORECASE,
+)
 # "all", "whole house" - a large scope is then intended, no question
 WHOLE_HOUSE = re.compile(r"\b(wszystk|cał|każd)", re.IGNORECASE)
 # light color in the nominative (as the model answers) -> CSS name for HA (rgb_color)
@@ -297,12 +304,10 @@ ERROR_NO_WHITE = "To światło nie zmienia barwy."
 ERROR_NO_VALUE = "Nie wiem, na jaką wartość ustawić."
 ERROR_NO_VOLUME = "Nie wiem, jaką ustawić głośność."
 ERROR_NO_LIST_ITEM = "Nie wiem, co i gdzie dopisać."
-ERROR_WHAT_TO_PLAY = "Co mam puścić?"
 ERROR_NO_PLAYER_IN_AREA = (
     "W pomieszczeniu {area} nie ma teraz głośnika, na którym mogę puścić muzykę."
 )
 ERROR_WHERE_TO_PLAY = "W którym pomieszczeniu mam puścić?"
-PLAY_MUSIC = "puścić muzykę"
 
 # Answers to the assistant's questions ("Czy dobrze rozumiem…?", "Czy chodziło o…?",
 # "Czy …?") - one vocabulary for all questions. Phrases at the start of the utterance; the
@@ -411,6 +416,10 @@ def describe_routine(name: str) -> str:
 
 def describe_play(query: str, player: str) -> str:
     return f"puścić „{query}” na {player}"
+
+
+def describe_resume(player: str) -> str:
+    return f"wznowić muzykę na {player}"
 
 
 # Reply after execution
@@ -549,6 +558,39 @@ def guess_prompt(household: str, areas: str, actions: str) -> str:
         )
         if part
     )
+
+
+def _device_names(names: list[str]) -> str:
+    shown = ", ".join(names[:4])
+    return f"{shown} i {len(names) - 4} innych" if len(names) > 4 else shown
+
+
+def unavailable_command(names: list[str]) -> str:
+    """A command not executed: its devices do not respond (state "unavailable")."""
+    if len(names) == 1:
+        return f"Urządzenie {names[0]} nie odpowiada (jest niedostępne), więc nic nie zmieniłem."
+    return (
+        f"Urządzenia nie odpowiadają (są niedostępne): {_device_names(names)}, "
+        "więc nic nie zmieniłem."
+    )
+
+
+def unavailable_state(names: list[str]) -> str:
+    """A question about the state of devices that do not respond."""
+    if len(names) == 1:
+        return (
+            f"Urządzenie {names[0]} nie odpowiada (jest niedostępne), "
+            "więc nie wiem, jaki ma teraz stan."
+        )
+    return (
+        f"Urządzenia nie odpowiadają (są niedostępne): {_device_names(names)}, "
+        "więc nie znam ich stanu."
+    )
+
+
+def resumed(player: str | None) -> str:
+    """Reply after resuming music without a title („włącz muzykę”)."""
+    return f"Wznawiam muzykę na {player}." if player else "Wznawiam muzykę."
 
 
 def playing(title: str, player: str | None, radio: bool = False) -> str:

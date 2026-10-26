@@ -31,6 +31,7 @@ from typing import Any, Literal
 from homeassistant.components import conversation
 from homeassistant.components.conversation.agent_manager import async_get_agent
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
@@ -89,6 +90,7 @@ from .control import (
     plan_command,
     prepare_text,
     rephrased_command,
+    responds,
     routine_plan,
     twin_calls,
 )
@@ -216,6 +218,32 @@ def enrollment_reply(hass: HomeAssistant) -> tuple[str, bool] | None:
     return reply(hass)
 
 
+def explain_unavailable(hass: HomeAssistant, response: intent.IntentResponse) -> None:
+    """The HA agent answered about devices that do not respond: it reads "unavailable" as
+    a state („Nie, Drzwi jest unavailable”) or reports a command that changed nothing.
+
+    When every device of the answer is unavailable - a plain message instead (changes
+    ``response``); when only some are - the state word in the user's language.
+    """
+    entity_ids = [
+        target.id
+        for target in response.success_results
+        if target.type == intent.IntentResponseTargetType.ENTITY
+    ]
+    states = [state for e in entity_ids if (state := hass.states.get(e))]
+    if not states or all(responds(hass, state.entity_id) for state in states):
+        return
+    query = response.response_type == intent.IntentResponseType.QUERY_ANSWER
+    if any(responds(hass, state.entity_id) for state in states):
+        if query and (speech := response.speech.get("plain", {}).get("speech")):
+            response.async_set_speech(speech.replace(STATE_UNAVAILABLE, LANG.UNAVAILABLE))
+        return
+    names = list(dict.fromkeys(state.name for state in states))
+    response.async_set_speech(
+        LANG.unavailable_state(names) if query else LANG.unavailable_command(names)
+    )
+
+
 class AssistRouterAgent(conversation.ConversationEntity):
     """HA agent + router, fallback agent, repeat and logging of unrecognized commands."""
 
@@ -322,6 +350,7 @@ class AssistRouterAgent(conversation.ConversationEntity):
 
         response = result.response
         if response.response_type != intent.IntentResponseType.ERROR:
+            explain_unavailable(self.hass, response)
             return result
         kind = KINDS.get(response.error_code)
         if kind is None:
@@ -1022,6 +1051,8 @@ class AssistRouterAgent(conversation.ConversationEntity):
         usually have no area, so HA matching would not find them).
         """
         player = plan.slots["entity_id"]
+        if plan.slots.get("resume"):
+            return await self._resume(user_input, player)
         if (said := await self._play_music_assistant(user_input, plan)) is not None:
             return said
         search: dict[str, Any] = {"search_query": plan.slots["search_query"]}
@@ -1062,6 +1093,23 @@ class AssistRouterAgent(conversation.ConversationEntity):
         state = self.hass.states.get(player)
         title = item.get("title") or plan.slots["search_query"]
         return LANG.playing(title, state.name if state else None)
+
+    async def _resume(self, user_input: conversation.ConversationInput, player: str) -> str:
+        """„Włącz muzykę” without a title: play what the player has queued (Music Assistant
+        keeps the last queue of every player)."""
+        try:
+            await self.hass.services.async_call(
+                "media_player",
+                "media_play",
+                target={"entity_id": player},
+                blocking=True,
+                context=user_input.context,
+            )
+        except HomeAssistantError as err:
+            _LOGGER.warning("Resuming music on %s failed: %s", player, err)
+            return LANG.PLAY_FAILED
+        state = self.hass.states.get(player)
+        return LANG.resumed(state.name if state else None)
 
     async def _play_music_assistant(
         self, user_input: conversation.ConversationInput, plan: Plan
@@ -1151,6 +1199,11 @@ class AssistRouterAgent(conversation.ConversationEntity):
         """Execution via HA intents (target matching, exposure, satellite room)."""
         if plan.intent == "HassMediaSearchAndPlay":
             return await self._play(user_input, plan)
+        named = plan.twins or ((plan.entity_id,) if plan.entity_id and "name" in plan.slots else ())
+        if named and not any(responds(self.hass, entity_id) for entity_id in named):
+            # it stopped responding after the plan (e.g. while asking „czy dobrze rozumiem?”)
+            states = [s for e in named if (s := self.hass.states.get(e))]
+            return LANG.unavailable_command(list(dict.fromkeys(s.name for s in states)) or [*named])
         if plan.intent == "HassTurnOn" and plan.domain == "script" and plan.entity_id:
             return await self._run_script(user_input, plan)
         if plan.twins and (calls := twin_calls(plan)) is not None:

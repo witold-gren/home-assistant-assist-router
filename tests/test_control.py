@@ -22,6 +22,7 @@ from custom_components.assist_router.control import (
     build_control_schema,
     collect_home,
     may_be_several_commands,
+    music_intent,
     parse_command,
     plan_command,
     rephrased_command,
@@ -413,12 +414,23 @@ async def test_play_picks_player(hass: HomeAssistant, setup) -> None:
         plan_command(hass, home, Command("HassMediaSearchAndPlay", query="jazz"), "puść jazz").error
         == "W którym pomieszczeniu mam puścić?"
     )
-    assert (
-        plan_command(
-            hass, home, Command("HassMediaSearchAndPlay", area="Salon"), "puść coś w salonie"
-        ).error
-        == "Co mam puścić?"
+    # no title („puść coś”, „puść muzykę”) - resume on the room's player
+    plan = plan_command(
+        hass, home, Command("HassMediaSearchAndPlay", area="Salon"), "puść coś w salonie"
     )
+    assert plan.slots == {"entity_id": "media_player.salon_voice", "resume": True}
+    plan = plan_command(
+        hass, home, Command("HassMediaSearchAndPlay", area="Salon", query="muzykę"),
+        "puść muzykę w salonie",
+    )  # fmt: skip
+    assert plan.slots == {"entity_id": "media_player.salon_voice", "resume": True}
+    # a named player outside music_players (a satellite's speaker) is not used
+    named = Command("HassMediaSearchAndPlay", area="Salon", name="salon voice", query="jazz")
+    plan = plan_command(
+        hass, home, named, "puść jazz w salonie",
+        music_players={"pokój dzienny": ("media_player.salon_homepod_2",)},
+    )  # fmt: skip
+    assert plan.slots.get("entity_id") != "media_player.salon_voice"
     # list with only the HomePod, which is unavailable - no other speaker, just a message
     plan = plan_command(
         hass, home, play, "puść Dawida Podsiadło w salonie",
@@ -759,3 +771,21 @@ def test_rephrased_command(text: str, expected: str | None) -> None:
 )
 def test_may_be_several_commands(text: str, expected: bool) -> None:
     assert may_be_several_commands(text) is expected
+
+
+@pytest.mark.parametrize(
+    ("command", "text", "intent", "domain"),
+    [
+        (Command("HassTurnOff"), "Wyłącz muzykę w łazience", "HassMediaPause", "media_player"),
+        (Command("HassTurnOn", query="muzykę"), "Włącz muzykę", "HassMediaSearchAndPlay", None),
+        (Command("HassMediaUnpause"), "Wznów muzykę", "HassMediaSearchAndPlay", None),
+        # without music words, or another domain - unchanged
+        (Command("HassTurnOff", domain="media_player"), "Wyłącz TV", "HassTurnOff", "media_player"),
+        (Command("HassTurnOff", domain="light"), "Wyłącz światło i muzykę", "HassTurnOff", "light"),
+    ],
+)  # fmt: skip
+def test_music_intent(command: Command, text: str, intent: str, domain: str | None) -> None:
+    music_intent(command, text)
+    assert (command.intent, command.domain) == (intent, domain)
+    if intent == "HassMediaSearchAndPlay":
+        assert command.query is None  # resume, not a search for „muzykę”

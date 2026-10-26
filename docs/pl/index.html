@@ -1336,6 +1336,12 @@ i automatyzacje zawsze mają pierwszeństwo.</p>
       <li><strong>Zgadnięty rodzaj urządzenia.</strong> Gdy model wybrał np. światło, a w
         poleceniu nie ma ani nazwy urządzenia, ani słowa, które na światło wskazuje
         („wyłącz kalafiora w kuchni”) - pytanie „Czy dobrze rozumiem…?”.</li>
+      <li><strong>Urządzenie nie odpowiada.</strong> Gdy nazwane urządzenie (albo wszystko
+        w nazwanym pokoju) jest niedostępne, nic nie jest wykonywane, a odpowiedź mówi dlaczego:
+        „Urządzenie Skrzynka pocztowa nie odpowiada (jest niedostępne), więc nic nie zmieniłem.”
+        Tak samo przy pytaniu o stan, na które odpowiada HA: zamiast „Nie, … jest unavailable” -
+        „…nie odpowiada (jest niedostępne), więc nie wiem, jaki ma teraz stan.” Gdy nie odpowiada
+        tylko część urządzeń, polecenie działa na pozostałych.</li>
       <li><strong>Samo „tak” bez pytania</strong> („tak, zrób to”, „nie rób”) nie jest poleceniem
         i niczego nie uruchamia; „zrób jaśniej w salonie” jest poleceniem, choć zaczyna się od
         „zrób”.</li>
@@ -1356,6 +1362,15 @@ i automatyzacje zawsze mają pierwszeństwo.</p>
     z <code>music_players</code> (pierwszy dostępny), bez wpisu odtwarzacz z wyszukiwaniem w
     tym obszarze albo z nazwą pokoju w nazwie, a bez pokoju w poleceniu pokój satelity.
     Światło bez obsługi koloru lub barwy dostaje komunikat zamiast błędu.</li>
+  <li><strong>Muzyka bez tytułu</strong> („włącz muzykę”, „puść coś w kuchni”, „wznów muzykę”)
+    wznawia kolejkę odtwarzacza pokoju z <code>music_players</code> (albo pokoju satelity). Gdy
+    <code>music_players</code> jest ustawione, muzyka gra tylko na tych odtwarzaczach - głośnik
+    satelity wskazany w poleceniu jest pomijany.</li>
+  <li><strong>„Wyłącz muzykę [w …]”</strong> wstrzymuje odtwarzacze, które grają w tym pokoju
+    (<code>HassMediaPause</code>), zamiast wyłączać urządzenia: odtwarzacza Music Assistanta nie da
+    się wyłączyć, a wyłączenie HomePoda (integracja Apple TV) albo głośnika satelity nie zatrzymuje
+    muzyki. „Wyłącz telewizor” nadal wyłącza. Słowa o muzyce to <code>MUSIC_WORDS</code> w pakiecie
+    językowym.</li>
 </ol>
 <div class="note"><strong>Zakres.</strong> Router steruje wszystkim, co jest udostępnione
 Assistowi. Urządzenia, których nie chcesz przełączać bez pytania (serwery, lodówka), wpisz do
@@ -1396,8 +1411,11 @@ działają natychmiast.</p>
 <p>W katalogu <code>tools/</code> jest pięć narzędzi (Python, uruchamiane z dowolnego
 komputera z dostępem do Ollamy):</p>
 <ul>
-  <li><code>snapshot_data.py</code> zapisuje migawkę prawdziwych danych: odpowiedzi HA na
-    wzorcowe pytania i artykuły z Wikipedii. Oczekiwane fakty w teście się wtedy nie zmieniają.</li>
+  <li><code>snapshot_data.py</code> zapisuje migawkę prawdziwych danych: artykuły z Wikipedii
+    i, dla przypadków z tematem (<code>topic</code>, pytanie, mówca), dane tematu dokładnie
+    tak, jak buduje je integracja: encje, <code>details</code> i <code>fetch</code>, z osobą i
+    dniem z pytania (potrzebuje <code>--router-config</code>). Zapisuje też chwilę migawki,
+    którą model dostaje jako „teraz”, więc oczekiwane fakty w teście się nie zmieniają.</li>
   <li><code>model_benchmark.py</code> testuje modele po kolei:
     <ul>
       <li>router, z tym samym promptem co integracja;</li>
@@ -1412,7 +1430,14 @@ komputera z dostępem do Ollamy):</p>
     <code>snapshot_data.py --only-home</code> odświeża sam obraz domu, np. po zmianie opisów
     albo aliasów. Same testy kodu (<code>pytest</code>) sprawdzają sterowanie od zdania do
     wywołanej usługi na sztucznym domu (<code>tests/test_actions.py</code>). Opcja
-    <code>--rescore</code> ocenia zapisane odpowiedzi ponownie po poprawkach testu.</li>
+    <code>--rescore</code> ocenia zapisane odpowiedzi ponownie po poprawkach testu.
+    Sekcja bez własnego <code>system</code> używa promptów integracji: odpowiedzi z danymi
+    tematu z mówcą i podpowiedzią, a streszczenia (<code>prompt: summary</code>) promptem
+    streszczenia. W routerze dwuznaczne pytanie może mieć listę równie dobrych tematów.
+    Przy dłuższym teście wielu modeli: <code>--pull</code> pobiera brakujące modele (następny
+    już w tle), <code>--delete-after</code> usuwa je po teście (nigdy modeli zainstalowanych
+    przed startem; <code>--keep</code> chroni kolejne), a <code>--resume</code> pomija modele,
+    które mają już komplet wyników, więc przerwany test można wznowić.</li>
   <li><code>model_report.py</code> tworzy raport HTML i dopisuje historię do CSV, więc nowe
     modele można porównać ze starymi.</li>
   <li><code>compare_sources.py</code> to test zgodności przy zmianie źródła danych tematu.
