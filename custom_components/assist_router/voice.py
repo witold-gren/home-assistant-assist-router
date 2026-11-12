@@ -13,7 +13,7 @@ from typing import Any
 from .languages import LANG
 
 # replies of the language pack available as voice.ANNOUNCED etc.
-_PACK_NAMES = frozenset({"ANNOUNCED", "NO_VOICE", "TOO_SHORT", "NO_PRINTS"})
+_PACK_NAMES = frozenset({"ANNOUNCED", "NOBODY_HEARD", "NO_VOICE", "TOO_SHORT", "NO_PRINTS"})
 
 # threshold the best voice missed, from the Assist Speaker ID reason "<id> below threshold 0.78"
 _THRESHOLD = re.compile(r"below threshold (\d+(?:\.\d+)?)")
@@ -27,6 +27,11 @@ def __getattr__(name: str) -> Any:
 
 def is_announcement(text: str) -> bool:
     return bool(LANG.ANNOUNCEMENT.search(text))
+
+
+def announcement_message(text: str) -> str:
+    """The message of an announcement, without its opening word: „Ogłoszenie, obiad!” → „obiad!”."""
+    return LANG.ANNOUNCEMENT.sub("", text, count=1).lstrip(" ,.:;!-–—").strip()
 
 
 def is_who_speaks(text: str) -> bool:

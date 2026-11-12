@@ -159,7 +159,8 @@ The author uses the same model for the router and the answers, on a Jetson AGX O
    - `family`: parents, children, who is male (for “my brother”, “my daughter”);
    - `topics`: question topics. Each has a description and examples (for the router, in the
      language you speak) and a data source: `entities` (entity states), `details` (entity
-     attributes), `fetch` (services, e.g. `calendar.get_events`).
+     attributes), `fetch` (services, e.g. `calendar.get_events`), `frigate` (who the
+     Frigate cameras saw, by face recognition).
    - optionally `language`: the language pack (default: HA's language if there is a pack for
      it, otherwise `pl`).
 
@@ -254,6 +255,11 @@ recordings.
    recording on the other speakers instead of synthesized speech.
    Additional players: `announce_players` in `router.yaml` (with Assist Speaker ID 0.1.1+ one
    speaker per room: an available player, e.g. a HomePod, instead of the satellite there).
+   With the [Intercom](https://github.com/witold-gren/home-assistant-intercom) integration added,
+   announcements go through it instead: “Announcement to the kitchen, dinner is ready” plays only in
+   the rooms named (inflected names and area aliases count), otherwise in every room but yours;
+   HomePods get a whole file; typed text is read by text to speech. `announce_players` is then not
+   needed.
 7. **Check:** ask “Tell me who is talking to you now”. The assistant gives the name, the similarity in percent and the runner-up.
 
 What Assist Router does with the speaker (first person, `owns`, `room`, `family`, fallback

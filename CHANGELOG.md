@@ -2,6 +2,39 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions: [SemVer](https://semver.org/).
 
+## [0.1.5] - 2026-11-12
+
+### Added
+- Announcements through the [Intercom](https://github.com/witold-gren/home-assistant-intercom)
+  integration when it is added: „Komunikat do kuchni, obiad gotowy” plays only in the rooms named
+  (inflected names and area aliases), otherwise in every room but the one spoken in; the speaker's
+  own recording (Assist Speaker ID 0.2.1+), or the message read by text to speech for typed text;
+  HomePods get a whole file. Reply when no speaker answered: `NOBODY_HEARD` in the language pack.
+- Personas: who the assistant is in an Assist pipeline - a character with its own voice and wake
+  word (e.g. Jarvis, a fairy-tale princess, a robot). `personas:` in `router.yaml` gives each one
+  1-2 sentences (`prompt`) for the answer model, the Wikipedia summaries and the fallback agent,
+  and optionally `gender: female`, which turns the fixed replies to female forms („Przepraszam,
+  źle zrozumiałam”). A pipeline is matched by its TTS voice (`voices`), else by a fragment of its
+  name or its id (`pipelines`); the pipeline is found from the run that handed over the sentence.
+  Without the section nothing changes. Language pack: `PERSONA`, `FEMININE_FORMS`, `gendered()`.
+- Frigate as topic data (`frigate:` in a topic): who the cameras saw, where and when, from
+  Frigate's face recognition („Czy Kasia była wczoraj w salonie?”, „Kto był dziś w kuchni?”).
+  The people from the question filter the Frigate API by face name (`sub_label`), the day is read
+  backwards (a weekday is the last one, „wczoraj” from the question, otherwise `days` back);
+  consecutive events of one person on one camera become one visit with local times, and GenAI
+  review summaries of the same people are added. No tool calling - a small model answers
+  reliably and nothing in Frigate can be switched by voice. Language pack: `FRIGATE_*`,
+  `PAST_DAYS`.
+
+- `past:` of a `fetch` source: items whose time is already over (the `end`, else the `start`;
+  all-day items never) are left out (`drop`) or kept marked `już_było: true` (`mark`). A daily
+  summary at 4 pm no longer mentions the noon meeting or the morning appointment, while „how
+  many meetings did I have today” still counts them. Language pack: `PAST_KEY`.
+
+### Fixed
+- Speech recognition fix: „ruchom” (Whisper's cut „uruchom”) is read as „uruchom”, so
+  „Ruchom podcast …” is a command. Language pack: `WHISPER_FIXES`.
+
 ## [0.1.4] - 2026-10-26
 
 ### Added

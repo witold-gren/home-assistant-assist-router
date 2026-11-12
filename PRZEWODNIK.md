@@ -155,7 +155,7 @@ U autora router i odpowiedzi to ten sam model na Jetsonie AGX Orin 64 GB.
    - `family`: rodzice, dzieci, kto jest mężczyzną (do „mój brat”, „moja córka”);
    - `topics`: tematy pytań. Każdy ma opis i przykłady (dla routera) oraz źródło danych:
      `entities` (stany encji), `details` (atrybuty encji), `fetch` (usługi, np.
-     `calendar.get_events`);
+     `calendar.get_events`), `frigate` (kogo widziały kamery Frigate, z rozpoznawania twarzy);
    - opcjonalnie `language`: pakiet językowy (domyślnie język HA, jeśli jest dla niego
      pakiet, inaczej `pl`);
    - w starszym polu `command` (szablon) zmienne nazywają się teraz `who`, `person`, `people`,
@@ -251,6 +251,10 @@ domowników. Nie dodaje opóźnienia i nie zapisuje nagrań.
    głośnikach zamiast syntezy. Dodatkowe odtwarzacze: `announce_players` w `router.yaml`
    (z Assist Speaker ID 0.1.1+ jeden głośnik w pokoju: dostępny odtwarzacz, np. HomePod,
    zamiast satelity w tym pokoju).
+   Gdy dodana jest integracja [Intercom](https://github.com/witold-gren/home-assistant-intercom),
+   ogłoszenia idą przez nią: „Komunikat do kuchni, obiad gotowy” zagra tylko w wymienionych pokojach
+   (liczą się odmienione nazwy i aliasy obszarów), a bez nazwy we wszystkich poza Twoim. HomePody
+   dostają cały plik, a wpisany tekst czyta synteza mowy. `announce_players` nie jest wtedy potrzebne.
 7. **Sprawdzenie:** zapytaj „Powiedz mi, kto teraz do ciebie mówi”. Asystent poda imię,
    podobieństwo w procentach i następną osobę w kolejce.
 

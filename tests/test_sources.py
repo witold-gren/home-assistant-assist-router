@@ -116,3 +116,59 @@ def test_merge_sorts_by_start() -> None:
         ("Rodzina", "Szkoła"),
         ("Praca", "Standup"),
     ]
+
+
+def test_past_events_dropped_or_marked() -> None:
+    """At 16:00 a 12:00 meeting is over: a day summary leaves it out, a calendar question
+    keeps it marked; a meeting going on, a later one and an all-day item stay."""
+    from datetime import datetime, timedelta, timezone
+
+    from custom_components.assist_router.sources import PAST_DROP, PAST_MARK, past
+
+    warsaw = timezone(timedelta(hours=1))
+    now = datetime(2026, 11, 10, 16, 0, tzinfo=warsaw)
+    data = {
+        "events": [
+            {
+                "start": "2026-11-10T09:30:00+01:00",
+                "end": "2026-11-10T10:30:00+01:00",
+                "summary": "Ortodonta",
+            },
+            {"start": "2026-11-10T11:00:00Z", "end": "2026-11-10T11:15:00Z", "summary": "Standup"},
+            {
+                "start": "2026-11-10T15:30:00+01:00",
+                "end": "2026-11-10T16:30:00+01:00",
+                "summary": "Trwa",
+            },
+            {"start": "2026-11-10T18:45", "end": "2026-11-10T19:45", "summary": "Zumba"},
+            {"start": "2026-11-10", "end": "2026-11-11", "summary": "Święto"},
+            {"start": "2026-11-10T15:00", "summary": "Bez końca"},
+        ],
+        "note": "x",
+    }
+    kept = past(data, now, PAST_DROP)
+    assert [e["summary"] for e in kept["events"]] == ["Trwa", "Zumba", "Święto"]
+    assert kept["note"] == "x"
+    marked = past(data, now, PAST_MARK)["events"]
+    assert [e["summary"] for e in marked if e.get(LANG.PAST_KEY)] == [
+        "Ortodonta",
+        "Standup",
+        "Bez końca",
+    ]
+    assert len(marked) == 6
+    assert "już_było: true" in render("Wydarzenia", compact({"events": marked[:1]}, tz=warsaw))
+
+
+def test_past_leaves_other_data_alone() -> None:
+    from datetime import datetime
+
+    from custom_components.assist_router.sources import PAST_DROP, past
+
+    now = datetime(2026, 11, 10, 16, 0)
+    assert past(["a"], now, PAST_DROP) == ["a"]
+    assert past({"events": ["tekst", {"start": "jutro"}]}, now, PAST_DROP) == {
+        "events": ["tekst", {"start": "jutro"}]
+    }
+    # naive now, zoned event (tools without HA)
+    ended = {"events": [{"end": "2000-01-01T10:00:00+00:00"}]}
+    assert past(ended, now, PAST_DROP) == {"events": []}

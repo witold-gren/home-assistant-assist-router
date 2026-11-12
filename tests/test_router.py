@@ -83,6 +83,10 @@ def test_parse_config_requires_topics() -> None:
         parse_config({"topics": {"x": {"search": "google"}}})
     with pytest.raises(ValueError, match="bad match"):
         parse_config({"topics": {"x": {}}, "people": {"a": {"match": "("}}})
+    with pytest.raises(ValueError, match="fetch past must be one of drop, mark"):
+        parse_config(
+            {"topics": {"x": {"fetch": [{"action": "calendar.get_events", "past": "hide"}]}}}
+        )
 
 
 def test_prompt_and_schema() -> None:
@@ -837,6 +841,7 @@ def test_example_config_is_valid(file_name: str, calendar: str, control: str) ->
     path = Path(__file__).resolve().parents[1] / file_name
     config = parse_config(yaml.safe_load(path.read_text(encoding="utf-8")))
     assert config.topics[calendar].fetch[0].merge == "events"
+    assert config.topics[calendar].fetch[0].past == "mark"
     assert config.topics[control].control
     assert not any(topic.command for topic in config.topics.values())
 

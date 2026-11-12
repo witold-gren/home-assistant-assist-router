@@ -45,15 +45,18 @@ from homeassistant.util import dt as dt_util
 import yaml
 
 from .control import text_aliases
+from .frigate import FrigateSource, async_frigate_sources, parse_frigate
 from .languages import LANG, available_languages, set_language
 from .sources import (
     DAY_CODES,
     MAX_ITEMS,
+    PAST_MODES,
     WEEK,
     compact,
     day_range,
     fill,
     merge,
+    past,
     range_bounds,
     render,
 )
@@ -78,6 +81,8 @@ class Fetch:
     title: str | None = None  # header for the model, e.g. „Prognoza godzinowa”
     limit: int = MAX_ITEMS  # most list items (e.g. 24 hours of forecast)
     merge: str | None = None  # list to merge from all entities, e.g. events
+    # items already over (sources.PAST_MODES): drop - left out, mark - LANG.PAST_KEY
+    past: str | None = None
 
 
 @dataclass(frozen=True)
@@ -97,6 +102,7 @@ class Topic:
     unclear: bool = False
     details: tuple[str, ...] = ()  # entity patterns whose attributes go to the model
     fetch: tuple[Fetch, ...] = ()  # services with a response
+    frigate: FrigateSource | None = None  # who the cameras saw (Frigate face recognition)
     days: str | None = None  # day code when the question gives none (date filter), e.g. today
     drop: frozenset[str] = frozenset()  # attribute keys skipped in this topic
     # speaker data also without „mam”/„moje” („Dzień dobry”); a parent - theirs and children's
@@ -145,6 +151,22 @@ class Family:
     men: frozenset[str] = frozenset()
 
 
+GENDERS = ("male", "female")
+
+
+@dataclass(frozen=True)
+class Persona:
+    """Who the assistant is in some Assist pipelines (a character with its own voice and wake
+    word, e.g. Jarvis): a few sentences for the LLM and the grammatical gender of fixed replies."""
+
+    name: str
+    prompt: str
+    gender: str | None = None  # male / female; None - the language pack's default forms
+    # fragments of the pipeline name or pipeline ids („Hej Jarvis”)
+    pipelines: tuple[str, ...] = ()
+    voices: tuple[str, ...] = ()  # TTS voices of the pipeline („pl_PL-jarvis-medium”)
+
+
 @dataclass(frozen=True)
 class RouterConfig:
     """From the router.yaml file."""
@@ -165,6 +187,30 @@ class RouterConfig:
     family: Family = field(default_factory=Family)
     # announcements (intercom): players other than satellites, e.g. HomePods
     announce_players: tuple[str, ...] = ()
+    # characters of the assistant per Assist pipeline (none - the plain assistant)
+    personas: tuple[Persona, ...] = ()
+
+
+def find_persona(
+    config: RouterConfig, pipeline_id: str | None, pipeline_name: str | None, voice: str | None
+) -> Persona | None:
+    """The persona of an Assist pipeline: its TTS voice first (the character goes with the
+    voice), then its name or id."""
+    if voice:
+        for persona in config.personas:
+            if voice.casefold() in persona.voices:
+                return persona
+    name = (pipeline_name or "").casefold()
+    for persona in config.personas:
+        for pattern in persona.pipelines:
+            if pattern == (pipeline_id or "").casefold() or (name and pattern in name):
+                return persona
+    return None
+
+
+def persona_prompt(persona: Persona | None) -> str:
+    """The persona's sentences for a system prompt ("" without a persona)."""
+    return LANG.PERSONA.format(persona=persona.prompt) if persona else ""
 
 
 def polish_now(now: datetime) -> str:
@@ -179,6 +225,7 @@ def answer_messages(
     question: str,
     speaker: str | None = None,
     hint: str = "",
+    persona: Persona | None = None,
 ) -> list[dict[str, str]]:
     """Messages for the answer model: data from HA + the user's question.
 
@@ -191,18 +238,24 @@ def answer_messages(
         system += "\n" + LANG.ASKED_BY.format(speaker=speaker)
     if hint:
         system += f"\n{hint}"
+    if persona:
+        system += "\n" + persona_prompt(persona)
     return [
         {"role": "system", "content": f"{system}\n{LANG.DATA_HEADER}\n{data}"},
         {"role": "user", "content": question},
     ]
 
 
-def summary_messages(config: RouterConfig, article: str, question: str) -> list[dict[str, str]]:
+def summary_messages(
+    config: RouterConfig, article: str, question: str, persona: Persona | None = None
+) -> list[dict[str, str]]:
     """Messages for the answer model: article fragment + the user's question."""
     sentences = LANG.format_sentences(config.sentences)
     system = (config.summary_prompt or LANG.SUMMARY_PROMPT).format(
         household=config.household, now="", sentences=sentences
     )
+    if persona:
+        system += "\n" + persona_prompt(persona)
     return [
         {"role": "system", "content": f"{system}\n{LANG.ARTICLE_HEADER}\n{article}"},
         {"role": "user", "content": question},
@@ -222,6 +275,10 @@ def _parse_fetch(topic: str, raw: Any) -> Fetch:
     if not isinstance(raw, dict) or "." not in str(raw.get("action", "")):
         raise ValueError(f"router.yaml: topic '{topic}': fetch needs 'action: domain.service'")
     entities = raw.get("entities") or ()
+    if raw.get("past") and raw["past"] not in PAST_MODES:
+        raise ValueError(
+            f"router.yaml: topic '{topic}': fetch past must be one of {', '.join(PAST_MODES)}"
+        )
     return Fetch(
         action=str(raw["action"]),
         entities=tuple(str(e) for e in ([entities] if isinstance(entities, str) else entities)),
@@ -229,6 +286,7 @@ def _parse_fetch(topic: str, raw: Any) -> Fetch:
         title=str(raw["title"]) if raw.get("title") else None,
         limit=int(raw.get("limit") or MAX_ITEMS),
         merge=str(raw["merge"]) if raw.get("merge") else None,
+        past=str(raw["past"]) if raw.get("past") else None,
     )
 
 
@@ -263,6 +321,7 @@ def parse_config(data: Any) -> RouterConfig:
             unclear=bool(raw.get("unclear", False)),
             details=tuple(str(e) for e in raw.get("details") or ()),
             fetch=tuple(_parse_fetch(name, f) for f in raw.get("fetch") or ()),
+            frigate=parse_frigate(name, raw["frigate"]) if raw.get("frigate") else None,
             days=_day_code(name, raw.get("days")),
             drop=frozenset(str(k) for k in raw.get("drop") or ()),
             personal=bool(raw.get("personal", False)),
@@ -323,7 +382,33 @@ def parse_config(data: Any) -> RouterConfig:
         },
         family=_parse_family(data.get("family") or {}, people),
         announce_players=tuple(str(p) for p in data.get("announce_players") or ()),
+        personas=_parse_personas(data.get("personas") or {}),
     )
+
+
+def _strings(value: Any) -> tuple[str, ...]:
+    """A text or a list of texts, compared without case."""
+    items = [value] if isinstance(value, str) else value or ()
+    return tuple(str(v).strip().casefold() for v in items if str(v).strip())
+
+
+def _parse_personas(raw: Any) -> tuple[Persona, ...]:
+    if not isinstance(raw, dict):
+        raise ValueError("router.yaml: personas: a map of names, e.g. jarvis: {prompt: …}")
+    personas = []
+    for name, spec in raw.items():
+        spec = spec if isinstance(spec, dict) else {}
+        prompt = " ".join(str(spec.get("prompt") or "").split())
+        if not prompt:
+            raise ValueError(f"router.yaml: personas.{name}: prompt is missing")
+        gender = spec.get("gender")
+        if gender is not None and gender not in GENDERS:
+            raise ValueError(f"router.yaml: personas.{name}: gender is male or female")
+        pipelines, voices = _strings(spec.get("pipelines")), _strings(spec.get("voices"))
+        if not pipelines and not voices:
+            raise ValueError(f"router.yaml: personas.{name}: give pipelines or voices")
+        personas.append(Persona(str(name), prompt, gender, pipelines, voices))
+    return tuple(personas)
 
 
 def _day_code(topic: str, value: Any) -> str | None:
@@ -877,10 +962,16 @@ def _line_name(line: str) -> str:
 
 
 async def async_topic_sources(
-    hass: HomeAssistant, config: RouterConfig, topic: Topic, route: Route, now: datetime
+    hass: HomeAssistant,
+    config: RouterConfig,
+    topic: Topic,
+    route: Route,
+    now: datetime,
+    text: str = "",
 ) -> list[str]:
-    """Entity attributes (``details``) and service responses (``fetch``) trimmed to the
-    person and day from the question - data for the answer model without Assist automations."""
+    """Entity attributes (``details``), service responses (``fetch``) and Frigate visits
+    (``frigate``) trimmed to the person and day from the question - data for the answer
+    model without Assist automations."""
     people = [config.people[key].pattern for key in route.people] or None
     days = day_range(route.when or topic.days, now.date())
     out = []
@@ -924,6 +1015,11 @@ async def async_topic_sources(
             continue
         names = {e: (s.name if (s := hass.states.get(e)) else e) for e in response or {}}
         out.extend(fetch_sources(item, response or {}, names, people, days, topic.drop, now))
+    if topic.frigate:
+        # Frigate face names are the people's names from router.yaml
+        names = [config.people[key].name for key in route.people]
+        when = route.when or topic.days
+        out.extend(await async_frigate_sources(hass, topic.frigate, names, when, text, now))
     return out
 
 
@@ -955,6 +1051,8 @@ def fetch_sources(
     parts = {"": merge(response, item.merge, names)} if item.merge else response
     out = []
     for entity_id, data in parts.items():
+        if item.past:
+            data = past(data, now, item.past)
         value = compact(data, people, days, drop, now.tzinfo, item.limit)
         name = item.title or names.get(entity_id, entity_id)
         if item.title and not item.merge and len(parts) > 1:

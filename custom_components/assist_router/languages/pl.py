@@ -185,6 +185,7 @@ WHISPER_FIXES: dict[str, tuple[str, bool]] = {
     "jaś": ("zgaś", False),
     "zgaj": ("zgaś", False),
     "włóż": ("włącz", False),
+    "ruchom": ("uruchom", True),
 }
 # Stems of command verbs - a command without any of them means asking first.
 COMMAND_VERBS = (
@@ -672,6 +673,34 @@ SUMMARY_PROMPT = (
 ASKED_BY = "Pyta: {speaker}."
 DATA_HEADER = "Dane:"
 ARTICLE_HEADER = "Artykuł:"
+# a persona of the pipeline (router.yaml personas): who the assistant is, after the prompt
+PERSONA = (
+    "Kim jesteś: {persona} Odpowiadaj jako ta postać - jej stylem i w jej rodzaju gramatycznym "
+    "(np. zrozumiałam / zrozumiałem) - ale fakty podawaj tylko z danych i nie wydłużaj odpowiedzi."
+)
+# fixed replies of a female persona: the first-person forms of the replies above
+FEMININE_FORMS = {
+    "zrozumiałem": "zrozumiałam",
+    "usłyszałem": "usłyszałam",
+    "znalazłem": "znalazłam",
+    "zmieniłem": "zmieniłam",
+    "pewien": "pewna",
+}
+_FEMININE = re.compile(r"\b(" + "|".join(FEMININE_FORMS) + r")\b", re.IGNORECASE)
+
+
+def gendered(text: str, gender: str | None) -> str:
+    """A reply in the persona's grammatical gender (the replies are written as male)."""
+    if gender != "female":
+        return text
+
+    def swap(match: re.Match[str]) -> str:
+        word = FEMININE_FORMS[match.group(0).lower()]
+        return word.capitalize() if match.group(0)[0].isupper() else word
+
+    return _FEMININE.sub(swap, text)
+
+
 WEEKDAY_NAMES = ("poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela")
 MONTHS_GENITIVE = (
     "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia",
@@ -826,7 +855,21 @@ def scene_description(members: list[str]) -> str:
 EMPTY = "brak"
 MORE_ITEMS = "… i {count} więcej"
 SOURCE_KEY = "źródło"  # merged service responses: which entity an item comes from
+PAST_KEY = "już_było"  # fetch `past: mark`: the item's time is over („już_było: true”)
 OTHER_ARTICLES = "Inne artykuły:"
+
+# frigate.py: who the cameras saw (topic option `frigate`)
+FRIGATE_VISITS = "Kamery - kto, gdzie i kiedy był widziany (od najstarszych)"
+FRIGATE_SUMMARIES = "Kamery - opisy zdarzeń"
+FRIGATE_UNKNOWN = "osoba nierozpoznana"
+FRIGATE_NOW = "teraz"  # a visit still going on
+FRIGATE_UNAVAILABLE = "Frigate nie odpowiada"
+# days back named in the question - the classifier's day codes only look ahead;
+# „przedwczoraj” before „wczoraj”, which it contains
+PAST_DAYS = (
+    (re.compile(r"\bprzedwczoraj", re.IGNORECASE), 2),
+    (re.compile(r"\bwczoraj", re.IGNORECASE), 1),
+)
 
 
 # =====================================================================================
@@ -848,6 +891,7 @@ ANNOUNCEMENT = re.compile(
     r"^\W*(?:ogłoszenie|komunikat|do\s+wszystkich|intercom|interkom)\b", re.IGNORECASE
 )
 ANNOUNCED = "Ogłoszenie wysłane."
+NOBODY_HEARD = "Żaden głośnik nie odpowiedział."
 NO_VOICE = (
     "Nie wiem - głos rozpoznaję tylko w poleceniach mówionych do głośnika z rozpoznawaniem mówcy."
 )

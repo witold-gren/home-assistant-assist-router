@@ -369,6 +369,8 @@ confirm_entities:         # zawsze dopytaj (wzorce entity_id albo nazwy)
   - switch.*_enabled
 music_players:            # „puść …”: pokój -> odtwarzacze, pierwszy dostępny
   Salon: [media_player.salon_homepod, media_player.salon_home_assistant_voice]
+# personas:               # kim jest asystent w potoku - <a href="#postacie">postacie</a>
+#   jarvis: {pipelines: [Hej Jarvis], gender: male, prompt: "Jesteś Jarvisem z Iron Mana."}
 
 topics:
   lekcje:
@@ -433,8 +435,21 @@ topics:
 <tr><td><code>fetch</code></td><td>Usługi z odpowiedzią: <code>action</code>,
   <code>entities</code>, <code>data</code> (<code>{start}</code> i <code>{end}</code> = zakres
   dni z pytania), opcjonalnie <code>merge</code> (lista do połączenia z wszystkich encji),
+  <code>past</code> (pozycje, których czas już minął: <code>drop</code> je pomija, więc
+  podsumowanie dnia o 16:00 nie wspomni spotkania z południa; <code>mark</code> zostawia je z
+  dopiskiem <code>już_było: true</code>, więc „ile miałem dziś spotkań” dalej się zgadza),
   <code>title</code> i <code>limit</code> (najwięcej pozycji, domyślnie 40). Np. kalendarze
   (<code>calendar.get_events</code>) albo prognoza (<code>weather.get_forecasts</code>).</td></tr>
+<tr><td><code>frigate</code></td><td>Kogo, gdzie i kiedy widziały kamery <strong>Frigate</strong>:
+  <code>url</code> (adres Frigate, port 5000 bez logowania), opcjonalnie <code>cameras</code>
+  (kamera &rarr; nazwa do mówienia, np. <code>salon: Salon</code>; pytane są tylko te),
+  <code>labels</code> (domyślnie <code>person</code>), <code>days</code> (ile dni wstecz, gdy pytanie
+  nie podaje dnia, domyślnie 7), <code>limit</code> (najwięcej pobytów, 30), <code>summaries</code>
+  (najwięcej opisów GenAI z przeglądów, 10; 0 = bez) i <code>gap</code> (sekundy, które jeszcze łączą
+  zdarzenia w jeden pobyt, 120). Osoby z pytania to imiona twarzy we Frigate (<code>sub_label</code>),
+  więc twarze w Face Library nazwij tak jak w <code>people</code>. Dni liczone są wstecz: dzień
+  tygodnia to ostatni taki dzień, a „wczoraj” jest czytane z pytania. Bez wywoływania narzędzi -
+  głosem nic we Frigate się nie przełączy.</td></tr>
 <tr><td><code>days</code></td><td>Dzień, gdy pytanie go nie podaje, jako kod dnia. Kody są
   angielskie i takie same w każdym języku: <code>today</code>, <code>tomorrow</code>,
   <code>day_after_tomorrow</code>, <code>weekend</code>, <code>week</code> (ten tydzień),
@@ -772,6 +787,37 @@ którego ta osoba potrzebuje (jej progiem), i następną osobą - np. „Najbli�
 rozpoznania potrzeba 78 procent. Następna osoba: Kasia, 50 procent.” Wysoki próg zwykle oznacza, że
 ktoś inny w domu ma podobny głos. Krótkie pytanie (poniżej 1 s mowy) daje prośbę o dłuższe
 zdanie, np. „Powiedz mi, kto teraz do ciebie mówi”.</p>
+
+<h3 id="postacie">Postać asystenta w potoku (personas)</h3>
+<p>Każdy potok Assist może mieć własny głos i słowo wybudzające: „Hej Jarvis” z głosem Jarvisa,
+Elza w pokoju córek, Optimus Prime u syna. Sekcja <code>personas</code> mówi modelom, kim jest
+asystent w danym potoku. Bez niej, i w potokach, których nie wymienia, wszystko działa jak dotąd.</p>
+<pre><code>personas:
+  jarvis:
+    pipelines: [Hej Jarvis]          # fragment nazwy potoku albo jego identyfikator
+    gender: male
+    prompt: >-
+      Jesteś Jarvisem, superinteligentnym systemem Tony'ego Starka z Iron Mana. Mówisz jako
+      mężczyzna, uprzejmie i z lekką ironią.
+  elza:
+    voices: [pl_PL-elza-medium]      # głos TTS potoku - postać idzie za głosem
+    gender: female
+    prompt: Jesteś Elzą, królową z bajki Kraina lodu. Mówisz jako dziewczyna, ciepło i spokojnie.</code></pre>
+<ul>
+  <li><code>prompt</code> - 1-2 zdania: kim jest postać i jak mówi. Trafia na koniec promptu modelu
+    odpowiedzi (dane z HA), streszczeń Wikipedii i agenta zapasowego, ze wskazówką, by mówić stylem
+    i w rodzaju gramatycznym postaci, ale fakty brać tylko z danych. Router tematów i rozbiór poleceń
+    jej nie dostają, więc rozumienie poleceń się nie zmienia.</li>
+  <li><code>gender</code> (<code>male</code> / <code>female</code>, opcjonalnie) - stałe odpowiedzi
+    asystenta w formie postaci: „Przepraszam, źle zrozumiałam”, „Nie znalazłam…”, „Nie jestem
+    pewna…”.</li>
+  <li><code>voices</code> i <code>pipelines</code> - jak znaleźć potok (wystarczy jedno). Najpierw
+    liczy się głos TTS potoku, potem fragment nazwy potoku albo jego identyfikator (bez znaczenia
+    wielkość liter). Pierwsza pasująca postać wygrywa.</li>
+</ul>
+<p>Potok jest rozpoznawany po przebiegu, który przekazał zdanie (satelity i okno Assist w
+przeglądarce). Akcja <code>conversation.process</code> nie ma potoku, więc odpowiada zwykły asystent.
+Zmiana działa od razu po zapisaniu pliku.</p>
 
 <h2 id="przyklad">8. Przykładowy router.yaml</h2>
 <p>Plik <code>router.example.pl.yaml</code> w repozytorium opisuje zmyślony dom: Tomek, Ania i
@@ -1516,6 +1562,8 @@ wbudowany pakiet polski, <code>pl.py</code>. Są w nim:</p>
     i alarmu, poprawki Whispera, początki pytań o wiedzę;</li>
   <li>prompty dla modeli (router, odpowiedź, streszczenie, sterowanie, zgadywanie, przykładowe
     zdania) i nazwy kluczy JSON, o które proszą (<code>TOPIC_KEY</code>, <code>CONTROL_KEYS</code>…);</li>
+  <li>zdanie o postaci asystenta (<code>PERSONA</code>) i formy żeńskie stałych odpowiedzi
+    (<code>FEMININE_FORMS</code>, <code>gendered()</code>; język bez rodzaju zwraca tekst bez zmian);</li>
   <li>etykiety dziennika, nazwy stanów i kilka funkcji składających zdania (zależą od gramatyki)
     oraz <code>CODE</code> i domyślny <code>WIKIPEDIA_LANGUAGE</code>.</li>
 </ul>

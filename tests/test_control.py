@@ -276,6 +276,7 @@ def test_prepare_text() -> None:
     from custom_components.assist_router.control import prepare_text
 
     assert prepare_text("Otwórz czystkę rolety") == ("Otwórz wszystkie rolety", [])
+    assert prepare_text("Ruchom podcast w pokoju Jana") == ("uruchom podcast w pokoju Jana", [])
     text, doubts = prepare_text("Jaś światło w kuchni")
     assert text == "zgaś światło w kuchni" and doubts == ["„jaś” rozumiem jako „zgaś”"]
     assert prepare_text("Lodówka w kuchni")[1] == ["brak znanego czasownika"]

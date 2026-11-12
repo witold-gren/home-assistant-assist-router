@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import OrderedDict
+from contextvars import ContextVar
 import dataclasses
 import inspect
 import json
@@ -32,7 +33,7 @@ from homeassistant.components import conversation
 from homeassistant.components.conversation.agent_manager import async_get_agent
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
     area_registry as ar,
@@ -97,6 +98,7 @@ from .control import (
 from .languages import LANG, available_languages
 from .router import (
     OllamaSettings,
+    Persona,
     Route,
     RouterConfig,
     answer_messages,
@@ -113,8 +115,10 @@ from .router import (
     clean_extract,
     entity_labels,
     entity_lines,
+    find_persona,
     hint_for,
     owned_by_others,
+    persona_prompt,
     speaker_person,
     summary_messages,
     template_variables,
@@ -178,6 +182,34 @@ def probable_speaker(hass: HomeAssistant) -> tuple[str | None, str | None]:
     return probable, getattr(result, "probable_name", None)
 
 
+# the persona of the utterance being handled (set in async_process, read by the answers)
+PERSONA: ContextVar[Persona | None] = ContextVar("assist_router_persona", default=None)
+
+
+def current_pipeline(hass: HomeAssistant, context: Context) -> tuple[str, str, str | None] | None:
+    """The Assist pipeline that sent this utterance: (id, name, TTS voice), or None.
+
+    The agent is not told the pipeline; the pipeline run that hands the text over passes its own
+    context, so the running pipeline with this context id is the one (satellites and the
+    Assist dialog alike; not the conversation.process action).
+    """
+    try:
+        from homeassistant.components.assist_pipeline.pipeline import (
+            KEY_ASSIST_PIPELINE,
+        )
+    except ImportError:
+        return None
+    data = hass.data.get(KEY_ASSIST_PIPELINE)
+    # PipelineRuns keeps no public lookup; read defensively, a change in HA means no persona
+    runs = getattr(getattr(data, "pipeline_runs", None), "_pipeline_runs", None) or {}
+    for pipeline_runs in list(runs.values()):
+        for run in list(pipeline_runs.values()):
+            if getattr(getattr(run, "context", None), "id", None) == context.id:
+                pipeline = run.pipeline
+                return pipeline.id, pipeline.name, pipeline.tts_voice
+    return None
+
+
 def speaker_result(hass: HomeAssistant) -> Any | None:
     """Full Assist Speaker ID result of this utterance (also "unknown" with scores) or None."""
     try:
@@ -203,6 +235,42 @@ async def announce_last(
     if "prefer_players" in inspect.signature(async_announce_last).parameters:
         extra["prefer_players"] = True  # Speaker ID 0.1.0 does not know this option
     return await async_announce_last(hass, exclude=exclude, media_players=media_players, **extra)
+
+
+async def intercom_announce(
+    hass: HomeAssistant, text: str, satellite_id: str | None
+) -> list[str] | None:
+    """The announcement through the Intercom integration, when it is set up; None otherwise.
+
+    The rooms named in the sentence („Komunikat do kuchni, obiad”), or every room but the one
+    it was said in. The speaker's own recording (Assist Speaker ID) plays there, or - for typed
+    text - the message read by text to speech; HomePods get it as a whole file. Returns the
+    speakers that played it."""
+    try:
+        from custom_components.intercom import api as intercom
+    except ImportError:
+        return None
+    if not intercom.is_set_up(hass):
+        return None
+    audio = None
+    try:
+        from custom_components.speaker_id.api import async_last_recording
+    except ImportError:
+        pass
+    else:
+        audio = await async_last_recording(hass)
+    message = voice.announcement_message(text)
+    if audio is None and not message:
+        return None
+    areas = intercom.areas_in_text(hass, text) or None
+    try:
+        result = await intercom.async_announce(
+            hass, areas, message=message, audio=audio, exclude=satellite_id
+        )
+    except HomeAssistantError as err:
+        _LOGGER.warning("Intercom announcement failed: %s", err)
+        return None
+    return None if result is None else [p["speaker"] for p in result["played"]]
 
 
 def enrollment_reply(hass: HomeAssistant) -> tuple[str, bool] | None:
@@ -287,13 +355,47 @@ class AssistRouterAgent(conversation.ConversationEntity):
     async def async_process(
         self, user_input: conversation.ConversationInput
     ) -> conversation.ConversationResult:
+        persona = await self._persona(user_input)
+        token = PERSONA.set(persona)
+        try:
+            result = await self._process(user_input)
+        finally:
+            PERSONA.reset(token)
+        if persona and persona.gender:
+            # fixed replies in the persona's grammatical gender („nie zrozumiałam”)
+            speech = result.response.speech.get("plain", {})
+            if speech.get("speech"):
+                speech["speech"] = LANG.gendered(speech["speech"], persona.gender)
+        return result
+
+    async def _persona(self, user_input: conversation.ConversationInput) -> Persona | None:
+        """Who the assistant is for this utterance (router.yaml personas, by pipeline)."""
+        config = await self._router.async_get()
+        if not config or not config.personas:
+            return None
+        pipeline = current_pipeline(self.hass, user_input.context)
+        if pipeline is None:
+            return None
+        persona = find_persona(config, *pipeline)
+        _LOGGER.debug("Pipeline %s: persona %s", pipeline[1], persona.name if persona else None)
+        return persona
+
+    async def _process(
+        self, user_input: conversation.ConversationInput
+    ) -> conversation.ConversationResult:
         if (reply := enrollment_reply(self.hass)) is not None:
             result = self._speak(user_input, user_input.conversation_id, reply[0])
             result.continue_conversation = reply[1]
             return result
         if voice.is_announcement(user_input.text):
             # „Ogłoszenie, dzieci, obiad!” - the speaker's recording (unchanged) on the other
-            # speakers; without a recording (typed text) - the usual path (HA reads it with TTS)
+            # speakers: through the Intercom integration when it is set up (rooms named in the
+            # sentence, typed text read by TTS), otherwise Assist Speaker ID; without a
+            # recording - the usual path (HA reads it with TTS)
+            played = await intercom_announce(self.hass, user_input.text, user_input.satellite_id)
+            if played is not None:
+                speech = voice.ANNOUNCED if played else voice.NOBODY_HEARD
+                return self._speak(user_input, user_input.conversation_id, speech)
             config = await self._router.async_get()
             players = list(config.announce_players) if config else []
             if await announce_last(self.hass, user_input.satellite_id, players) is not None:
@@ -606,7 +708,12 @@ class AssistRouterAgent(conversation.ConversationEntity):
         if topic.control:
             answer, label = await self._control(user_input, text, conversation_id, config, ollama)
         elif only_data and not (
-            topic.command or topic.search or topic.entities or topic.details or topic.fetch
+            topic.command
+            or topic.search
+            or topic.entities
+            or topic.details
+            or topic.fetch
+            or topic.frigate
         ):
             return None, route.topic
         else:
@@ -679,8 +786,10 @@ class AssistRouterAgent(conversation.ConversationEntity):
             # topic entity states (e.g. all car sensors) - the answer model will pick
             data_parts.append(f"{LANG.DEVICE_STATES}\n" + "\n".join(lines))
             label += LANG.LOG_ENTITIES.format(count=len(lines))
-        if topic.details or topic.fetch:
-            sources = await async_topic_sources(self.hass, config, topic, route, dt_util.now())
+        if topic.details or topic.fetch or topic.frigate:
+            sources = await async_topic_sources(
+                self.hass, config, topic, route, dt_util.now(), text
+            )
             if sources:
                 data_parts.extend(sources)
                 label += LANG.LOG_SOURCES.format(count=len(sources))
@@ -695,7 +804,7 @@ class AssistRouterAgent(conversation.ConversationEntity):
                     # data (e.g. from the work calendar) - we say plainly that it is not known
                     hint = f"{LANG.UNKNOWN_SPEAKER_HINT} {hint}"
                 messages = answer_messages(
-                    config, dt_util.now(), data, text, speaker_name, hint.strip()
+                    config, dt_util.now(), data, text, speaker_name, hint.strip(), PERSONA.get()
                 )
                 tokens = topic.answer_tokens or ANSWER_TOKENS
                 answer = await async_generate(self.hass, answer_model, messages, tokens)
@@ -725,7 +834,7 @@ class AssistRouterAgent(conversation.ConversationEntity):
                 speech = await async_generate(
                     self.hass,
                     answer_model,
-                    summary_messages(config, article, text),
+                    summary_messages(config, article, text, PERSONA.get()),
                     SUMMARY_TOKENS_PER_SENTENCE * config.sentences,
                 )
                 if speech:
@@ -1326,6 +1435,8 @@ class AssistRouterAgent(conversation.ConversationEntity):
         if speaker:
             # recognized speaker (Assist Speaker ID) - the agent knows who is asking („moje”, „mam”)
             prompt = f"{prompt}\nPyta: {speaker}." if prompt else f"Pyta: {speaker}."
+        if persona := PERSONA.get():
+            prompt = "\n".join(filter(None, (prompt, persona_prompt(persona))))
         inner = dataclasses.replace(
             user_input,
             agent_id=agent_id,

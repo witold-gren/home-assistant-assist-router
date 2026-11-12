@@ -197,3 +197,108 @@ async def test_announce_players_from_router_yaml(hass: HomeAssistant) -> None:
         {"topics": {"inne": {"description": "x"}}, "announce_players": ["media_player.homepod"]}
     )
     assert config.announce_players == ("media_player.homepod",)
+
+
+# --- announcement through the Intercom integration ---
+
+
+def _fake_modules(monkeypatch: pytest.MonkeyPatch, *, set_up=True, rooms=(), audio=None, played=1):
+    """Intercom and Assist Speaker ID as they answer the router; their calls are recorded."""
+    import sys
+    import types
+
+    calls: list[dict] = []
+    intercom = types.ModuleType("custom_components.intercom.api")
+    intercom.is_set_up = lambda hass: set_up
+    intercom.areas_in_text = lambda hass, text: list(rooms)
+
+    async def announce(hass, areas=None, **kwargs):
+        calls.append({"areas": areas, **kwargs})
+        return {"played": [{"speaker": f"media_player.{i}"} for i in range(played)], "missing": []}
+
+    intercom.async_announce = announce
+    speaker = types.ModuleType("custom_components.speaker_id.api")
+
+    async def last_recording(hass, max_age=None):
+        return audio
+
+    speaker.async_last_recording = last_recording
+    monkeypatch.setitem(sys.modules, "custom_components.intercom", types.ModuleType("x"))
+    monkeypatch.setitem(sys.modules, "custom_components.intercom.api", intercom)
+    sys.modules["custom_components.intercom"].api = intercom
+    monkeypatch.setitem(sys.modules, "custom_components.speaker_id.api", speaker)
+    return calls
+
+
+def test_announcement_message() -> None:
+    assert voice.announcement_message("Ogłoszenie, dzieci proszę przyjść na obiad.") == (
+        "dzieci proszę przyjść na obiad."
+    )
+    assert voice.announcement_message("Komunikat: wychodzimy") == "wychodzimy"
+    assert voice.announcement_message("Interkom") == ""
+
+
+async def test_announcement_through_intercom_plays_the_recording_in_named_rooms(
+    hass: HomeAssistant,
+    router: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _fake_modules(monkeypatch, rooms=["kuchnia"], audio=b"RIFF voice")
+    aioclient_mock.mock_calls.clear()
+
+    result = await _ask(hass, "Komunikat do kuchni, obiad gotowy")
+
+    assert _speech(result) == voice.ANNOUNCED
+    assert calls == [
+        {
+            "areas": ["kuchnia"],
+            "message": "do kuchni, obiad gotowy",
+            "audio": b"RIFF voice",
+            "exclude": None,
+        }
+    ]
+    assert not aioclient_mock.mock_calls  # no model asked
+
+
+async def test_typed_announcement_through_intercom_everywhere(
+    hass: HomeAssistant, router: MockConfigEntry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _fake_modules(monkeypatch)
+
+    result = await _ask(hass, "Do wszystkich: kolacja gotowa")
+
+    assert _speech(result) == voice.ANNOUNCED
+    # No room named: every room (but the one it was said in), the text read by TTS
+    assert calls[0]["areas"] is None and calls[0]["audio"] is None
+    assert calls[0]["message"] == "kolacja gotowa"
+
+
+async def test_intercom_with_no_speaker_answering(
+    hass: HomeAssistant, router: MockConfigEntry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_modules(monkeypatch, played=0)
+
+    result = await _ask(hass, "Ogłoszenie, obiad")
+
+    assert _speech(result) == voice.NOBODY_HEARD
+
+
+async def test_intercom_installed_but_not_added_leaves_speaker_id(
+    hass: HomeAssistant, router: MockConfigEntry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from custom_components.assist_router import conversation as agent_module
+
+    calls = _fake_modules(monkeypatch, set_up=False)
+    old = []
+
+    async def fake_announce(hass, exclude, media_players):
+        old.append(exclude)
+        return ["assist_satellite.salon"]
+
+    monkeypatch.setattr(agent_module, "announce_last", fake_announce)
+
+    result = await _ask(hass, "Ogłoszenie, obiad")
+
+    assert _speech(result) == voice.ANNOUNCED
+    assert calls == [] and old == [None]

@@ -85,6 +85,27 @@ music_players:
   Sypialnia: [media_player.sypialnia_glosnik]
   Kuchnia: [media_player.kuchnia_glosnik]
 
+# Postacie (opcjonalnie): kim jest asystent w niektórych potokach Assist - postać z własnym
+# głosem i słowem wybudzającym. prompt (1-2 zdania) trafia do modelu odpowiedzi, streszczeń
+# Wikipedii i agenta zapasowego; gender: female zmienia stałe odpowiedzi na formy żeńskie
+# („nie zrozumiałam”). Potok jest dopasowany po głosie TTS (voices), inaczej po fragmencie nazwy
+# albo identyfikatorze (pipelines). Pozostałe potoki - zwykły asystent, jak bez tej sekcji.
+# personas:
+#   jarvis:
+#     pipelines: [Hej Jarvis]
+#     gender: male
+#     prompt: >-
+#       Jesteś Jarvisem, superinteligentnym systemem Tony'ego Starka z Iron Mana. Mówisz jako
+#       mężczyzna, uprzejmie i z lekką ironią.
+#   elza:
+#     voices: [pl_PL-elza-medium]
+#     gender: female
+#     prompt: Jesteś Elzą, królową z bajki Kraina lodu. Mówisz jako dziewczyna, ciepło i spokojnie.
+#   optimus:
+#     voices: [pl_PL-optimus-medium]
+#     gender: male
+#     prompt: Jesteś Optimusem Prime, przywódcą Autobotów. Jesteś robotem i mówisz jako mężczyzna.
+
 # --- Tematy ---------------------------------------------------------------------------
 #
 # Źródła danych tematu (można łączyć):
@@ -94,6 +115,10 @@ music_players:
 #   details   - wzorce encji, których ATRYBUTY idą do modelu (listy, plany, salda).
 #   fetch     - usługi, które zwracają dane (calendar.get_events, weather.get_forecasts…).
 #               `{start}` i `{end}` = zakres dni z pytania.
+#               `past: drop` pomija to, co już minęło (podsumowanie dnia o 16:00 nie wspomni
+#               spotkania z południa), `past: mark` zostawia z dopiskiem „już było” (liczenie działa).
+#   frigate   - kogo, gdzie i kiedy widziały kamery Frigate: `url` (+ opcjonalnie `cameras`,
+#               `days` wstecz, `limit`, `summaries`). Imiona twarzy we Frigate = imiona z `people`.
 #   days      - dzień, gdy pytanie go nie podaje. Kody dni (angielskie, te same w każdym języku):
 #               today, tomorrow, day_after_tomorrow, weekend, week (ten tydzień), monday … sunday
 #               albo liczba dni ("14" = dziś i 13 kolejnych). Działają też polskie nazwy (aliasy):
@@ -122,6 +147,7 @@ topics:
         entities: [calendar.rodzina, calendar.praca_tomka]
         data: {start_date_time: "{start}", end_date_time: "{end}"}
         merge: events
+        past: drop                # tylko to, co dziś jeszcze przed nami
       - action: weather.get_forecasts
         entities: [weather.dom]
         data: {type: daily}
@@ -168,6 +194,7 @@ topics:
         entities: [calendar.rodzina, calendar.praca_tomka, calendar.urodziny, calendar.swieta_w_polsce]
         data: {start_date_time: "{start}", end_date_time: "{end}"}
         merge: events             # jedna lista ze wszystkich kalendarzy, posortowana po godzinie
+        past: mark                # dzisiejsze minione spotkania z dopiskiem „już było”
         title: Wydarzenia w kalendarzach (po kolei)
         limit: 60
 

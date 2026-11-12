@@ -95,6 +95,23 @@ music_players:
 # Announcements (intercom) also play on these players (optional):
 # announce_players: [media_player.living_room_homepod]
 
+# Personas (optional): who the assistant is in some Assist pipelines - a character with its own
+# voice and wake word. The prompt (1-2 sentences) goes to the answer model, the Wikipedia
+# summaries and the fallback agent; gender: female turns the fixed replies to female forms.
+# A pipeline is matched by its TTS voice (voices), else by a fragment of its name or its id
+# (pipelines). Other pipelines - the plain assistant, as without this section.
+# personas:
+#   jarvis:
+#     pipelines: [Hey Jarvis]
+#     gender: male
+#     prompt: >-
+#       You are Jarvis, Tony Stark's super-intelligent system from Iron Man. You speak as a man,
+#       politely and with a touch of irony.
+#   elsa:
+#     voices: [pl_PL-elsa-medium]
+#     gender: female
+#     prompt: You are Elsa, the queen from Frozen. You speak as a girl, warmly and calmly.
+
 # --- Topics ---------------------------------------------------------------------------
 #
 # Topic keys (calendar, school…) are your own names; they only have to be unique.
@@ -106,6 +123,10 @@ music_players:
 #   details   - patterns of entities whose ATTRIBUTES go to the model (lists, timetables, balances).
 #   fetch     - services that return data (calendar.get_events, weather.get_forecasts…).
 #               `{start}` and `{end}` = the day range from the question.
+#               `past: drop` leaves out items already over (a day summary at 4 pm skips the
+#               noon meeting), `past: mark` keeps them marked as over (counting still works).
+#   frigate   - who the Frigate cameras saw, where and when: `url` (+ optional `cameras`,
+#               `days` back, `limit`, `summaries`). Face names in Frigate = names in `people`.
 #   days      - the day when the question gives none. Day codes, the same in every language:
 #               today, tomorrow, day_after_tomorrow, weekend, week (this week),
 #               monday … sunday, or a number of days ("14" = today and the next 13 days).
@@ -134,6 +155,7 @@ topics:
         entities: [calendar.family, calendar.tom_work]
         data: {start_date_time: "{start}", end_date_time: "{end}"}
         merge: events
+        past: drop                # only what is still ahead today
       - action: weather.get_forecasts
         entities: [weather.home]
         data: {type: daily}
@@ -180,6 +202,7 @@ topics:
         entities: [calendar.family, calendar.tom_work, calendar.birthdays, calendar.holidays]
         data: {start_date_time: "{start}", end_date_time: "{end}"}
         merge: events             # one list from all calendars, sorted by time
+        past: mark                # today's past meetings marked as over
         title: Calendar events (in order)
         limit: 60
 

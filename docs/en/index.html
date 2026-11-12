@@ -377,6 +377,8 @@ confirm_entities:         # always ask for confirmation (entity_id patterns or n
   - switch.*_enabled
 music_players:            # "play …": room -> players, first available wins
   Living room: [media_player.living_room_homepod, media_player.living_room_voice]
+# personas:               # who the assistant is in a pipeline - <a href="#personas">personas</a>
+#   jarvis: {pipelines: [Hey Jarvis], gender: male, prompt: "You are Jarvis from Iron Man."}
 
 topics:
   school:
@@ -445,8 +447,21 @@ compares them with the question. With the bundled Polish pack that means Polish 
 <tr><td><code>fetch</code></td><td>Services with a response: <code>action</code>,
   <code>entities</code>, <code>data</code> (<code>{start}</code> and <code>{end}</code> = the day range
   from the question), optionally <code>merge</code> (a list to combine across all entities),
+  <code>past</code> (items whose time is already over: <code>drop</code> leaves them out, so a
+  daily summary at 4 pm skips the noon meeting; <code>mark</code> keeps them marked
+  <code>już_było: true</code>, so “how many meetings did I have today” still adds up),
   <code>title</code> and <code>limit</code> (maximum number of items, default 40). E.g. calendars
   (<code>calendar.get_events</code>) or the forecast (<code>weather.get_forecasts</code>).</td></tr>
+<tr><td><code>frigate</code></td><td>Who the <strong>Frigate</strong> cameras saw, where and when:
+  <code>url</code> (Frigate address, port 5000 without login), optionally <code>cameras</code>
+  (camera &rarr; spoken name, e.g. <code>salon: Living room</code>; only these are asked),
+  <code>labels</code> (default <code>person</code>), <code>days</code> (days back when the question
+  gives no day, default 7), <code>limit</code> (most visits, 30), <code>summaries</code> (most GenAI
+  review summaries, 10; 0 = none) and <code>gap</code> (seconds that still join events into one
+  visit, 120). The people in the question are Frigate face names (<code>sub_label</code>), so name
+  faces in Frigate's Face Library exactly like <code>people</code>. Days look back: a weekday is the
+  last one, and "yesterday" is read from the question. No tool calling - nothing in Frigate can
+  be switched by voice.</td></tr>
 <tr><td><code>days</code></td><td>The day used when the question does not give one, as a day code:
   <code>today</code>, <code>tomorrow</code>, <code>day_after_tomorrow</code>, <code>weekend</code>,
   <code>week</code> (this week), <code>monday</code> … <code>sunday</code> or a number of days
@@ -790,6 +805,39 @@ person needs (their threshold) and the next person - e.g. “Closest: Jack, 53 p
 needs 78 percent. Next person: Olivia, 50 percent.” A high threshold usually means somebody else in
 the household has a similar voice. A short question (under 1 s of speech)
 gets a request for a longer sentence, e.g. “Tell me who is talking to you now”.</p>
+
+<h3 id="personas">The assistant's character per pipeline (personas)</h3>
+<p>Each Assist pipeline can have its own voice and wake word: „Hey Jarvis” with Jarvis's voice, Elsa in
+the daughters' room, Optimus Prime for the son. The <code>personas</code> section tells the models who
+the assistant is in a pipeline. Without it, and in pipelines it does not name, everything works as
+before.</p>
+<pre><code>personas:
+  jarvis:
+    pipelines: [Hey Jarvis]          # a fragment of the pipeline name, or its id
+    gender: male
+    prompt: >-
+      You are Jarvis, Tony Stark's super-intelligent system from Iron Man. You speak as a man,
+      politely and with a touch of irony.
+  elsa:
+    voices: [pl_PL-elsa-medium]      # the pipeline's TTS voice - the character goes with the voice
+    gender: female
+    prompt: You are Elsa, the queen from Frozen. You speak as a girl, warmly and calmly.</code></pre>
+<ul>
+  <li><code>prompt</code> - 1-2 sentences: who the character is and how it speaks. It is added at the
+    end of the prompt of the answer model (HA data), the Wikipedia summaries and the fallback agent,
+    with a note to speak in the character's style and grammatical gender but take facts only from the
+    data. The topic router and the command parser do not get it, so understanding commands does not
+    change.</li>
+  <li><code>gender</code> (<code>male</code> / <code>female</code>, optional) - the assistant's fixed
+    replies in the character's form (in Polish: „źle zrozumiałam”, „nie znalazłam”, „nie jestem
+    pewna”).</li>
+  <li><code>voices</code> and <code>pipelines</code> - how to find the pipeline (one is enough). The
+    pipeline's TTS voice comes first, then a fragment of the pipeline name or its id (case does not
+    matter). The first matching persona wins.</li>
+</ul>
+<p>The pipeline is found from the run that handed over the sentence (satellites and the Assist dialog
+in the browser). The <code>conversation.process</code> action has no pipeline, so the plain assistant
+answers. Changes work as soon as the file is saved.</p>
 
 <h2 id="example">8. Example router.yaml</h2>
 <p>The <code>router.example.yaml</code> file in the repository describes a made-up home: Tom, Anna
@@ -1573,6 +1621,9 @@ ships the Polish pack, <code>pl.py</code>. It holds:</p>
     alarm keywords, Whisper corrections, the beginnings of knowledge questions;</li>
   <li>the LLM prompts (router, answer, summary, control, guessing, example sentences) and the JSON key
     names they ask for (<code>TOPIC_KEY</code>, <code>CONTROL_KEYS</code>…);</li>
+  <li>the sentence about the assistant's character (<code>PERSONA</code>) and the female forms of the
+    fixed replies (<code>FEMININE_FORMS</code>, <code>gendered()</code>; a language without grammatical
+    gender returns the text unchanged);</li>
   <li>log labels, state names and a few functions that build sentences (they depend on grammar),
     plus <code>CODE</code> and the default <code>WIKIPEDIA_LANGUAGE</code>.</li>
 </ul>

@@ -38,6 +38,10 @@ WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", 
 DAY_CODES = (TODAY, TOMORROW, DAY_AFTER_TOMORROW, WEEKEND, WEEK, *WEEKDAYS)
 MAX_ITEMS = 40  # most items in one list
 SOURCE_CHARS = 6000  # most characters of one source
+# `past:` of a fetch - items whose time is already over (a 12:00 meeting asked about at 16:00)
+PAST_DROP = "drop"  # left out (a day summary speaks only of what is ahead)
+PAST_MARK = "mark"  # kept with LANG.PAST_KEY (counting today's meetings still works)
+PAST_MODES = (PAST_DROP, PAST_MARK)
 
 
 def day_range(when: str | None, today: date) -> tuple[date, date] | None:
@@ -209,6 +213,43 @@ def merge(responses: dict[str, Any], key: str, names: dict[str, str]) -> dict[st
                 items.append({LANG.SOURCE_KEY: names.get(entity_id, entity_id), **item})
     items.sort(key=lambda i: str(i.get("start") or i.get("datetime") or i.get("date") or ""))
     return {key: items}
+
+
+def _ended(item: dict, now: datetime) -> bool:
+    """The item has a time (``end``, else ``start``) and it is over. All-day items (a date
+    without a time) last the whole day - never over on their day."""
+    value = item.get("end") or item.get("start")
+    if not isinstance(value, str) or not re.match(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}", value):
+        return False
+    try:
+        moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if moment.tzinfo is None and now.tzinfo is not None:
+        moment = moment.replace(tzinfo=now.tzinfo)  # a naive time is local
+    elif moment.tzinfo is not None and now.tzinfo is None:
+        moment = moment.astimezone().replace(tzinfo=None)
+    return moment <= now
+
+
+def past(data: Any, now: datetime, mode: str) -> Any:
+    """Items of the response's lists (e.g. ``events``) that are already over: left out
+    (``drop``) or marked with LANG.PAST_KEY (``mark``)."""
+    if not isinstance(data, dict):
+        return data
+    out: dict[str, Any] = {}
+    for key, value in data.items():
+        if isinstance(value, list):
+            kept = []
+            for item in value:
+                if isinstance(item, dict) and _ended(item, now):
+                    if mode == PAST_DROP:
+                        continue
+                    item = {**item, LANG.PAST_KEY: True}
+                kept.append(item)
+            value = kept
+        out[key] = value
+    return out
 
 
 def render(title: str, value: Any, limit: int = SOURCE_CHARS) -> str:
