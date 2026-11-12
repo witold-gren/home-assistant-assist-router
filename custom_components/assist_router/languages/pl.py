@@ -830,9 +830,8 @@ def attribute_parts(domain: str, state: str, a: dict[str, Any]) -> list[str]:
         parts.append(f"otwarcie {a['current_position']}%")
     elif domain == "light" and state == "on" and a.get("brightness") is not None:
         parts.append(f"jasność {round(a['brightness'] / 255 * 100)}%")
-    elif domain == "vacuum":
-        if a.get("battery_level") is not None:
-            parts.append(f"bateria {a['battery_level']}%")
+    elif domain == "vacuum" and a.get("battery_level") is not None:
+        parts.append(f"bateria {a['battery_level']}%")
     return parts
 
 
