@@ -15,6 +15,13 @@ po polsku, a nie tylko wyuczone zdania.
 **Nowy zestaw głosowy od zera** (satelity, Whisper, Piper, Ollama, rozpoznawanie mówcy)?
 Zacznij od **[PRZEWODNIK.md](PRZEWODNIK.md)**.
 
+**Edycja `router.yaml` w edytorze.** Od wersji 0.1.6 panel **Edytor Assist Routera** (administratorzy) edytuje
+plik routera na komputerze: formularze albo YAML każdego tematu z zachowanymi komentarzami, szkic, tester zdań, zestaw
+testów i historia zapisów, więc nie trzeba już ręcznie edytować pliku YAML. Krok po kroku:
+[przewodnik po edytorze](https://witold-gren.github.io/home-assistant-assist-router/pl/przewodnik-edytora.html).
+
+![Edytor Assist Routera: drzewo router.yaml, formularz tematu i tester](docs/assets/editor/pl/01-screen.png)
+
 ## Co robi
 
 Każde zdanie trafia najpierw do wbudowanego agenta HA. Intencje, `custom_sentences`

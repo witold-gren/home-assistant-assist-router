@@ -18,6 +18,13 @@ not just memorized sentences.
 recognition)? Start with **[GUIDE.md](GUIDE.md)** (Polish version:
 [PRZEWODNIK.md](PRZEWODNIK.md)).
 
+**Edit `router.yaml` in the editor.** From 0.1.6 the **Assist Router editor** panel (administrators) edits the
+router's file on a computer: forms or YAML for each topic with its comments kept, a draft, a tester of sentences, a
+test set and a history of saves, so there is no need to edit the YAML file by hand. Step by step:
+[the editor guide](https://witold-gren.github.io/home-assistant-assist-router/en/editor-guide.html).
+
+![The Assist Router editor: the tree of router.yaml, the form of a topic and the tester](docs/assets/editor/en/01-screen.png)
+
 ## What it does
 
 Every sentence goes to the built-in HA agent first. Intents, `custom_sentences`
