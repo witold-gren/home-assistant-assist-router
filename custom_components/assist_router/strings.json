@@ -37,13 +37,15 @@
           "log_unrecognized": "Log unrecognized commands",
           "fallback_agent": "Fallback conversation agent",
           "fallback_timeout": "Fallback answer timeout",
-          "ollama_url": "Ollama URL (question router)"
+          "ollama_url": "Ollama URL (question router)",
+          "editor_in_sidebar": "Show the editor in the sidebar"
         },
         "data_description": {
           "log_unrecognized": "Append each unrecognized command to /config/assist/unrecognized_commands.csv and fire the assist_router_unrecognized event.",
           "fallback_agent": "Answers questions the router could not handle (e.g. Bielik 11B). Leave empty to keep the “Powiedziałeś: …” message.",
           "fallback_timeout": "If the agent does not answer in time, the “Powiedziałeś: …” message is spoken.",
-          "ollama_url": "E.g. http://localhost:11434. Leave empty to disable the router. Topics are defined in /config/assist/router.yaml."
+          "ollama_url": "E.g. http://localhost:11434. Leave empty to disable the router. Topics are defined in /config/assist/router.yaml.",
+          "editor_in_sidebar": "The Assist Router editor panel (administrators only). Hidden, it still opens at /assist-router-editor."
         }
       },
       "init": {

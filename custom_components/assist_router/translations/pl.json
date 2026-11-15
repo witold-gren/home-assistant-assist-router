@@ -37,13 +37,15 @@
           "log_unrecognized": "Zapisuj nierozpoznane komendy",
           "fallback_agent": "Agent zapasowy",
           "fallback_timeout": "Czas na odpowiedź agenta zapasowego",
-          "ollama_url": "Adres Ollamy (router pytań)"
+          "ollama_url": "Adres Ollamy (router pytań)",
+          "editor_in_sidebar": "Pokazuj edytor w pasku bocznym"
         },
         "data_description": {
           "log_unrecognized": "Dopisuje każdą nierozpoznaną komendę do /config/assist/unrecognized_commands.csv i wysyła zdarzenie assist_router_unrecognized.",
           "fallback_agent": "Odpowiada na pytania, z którymi router sobie nie poradził (np. Bielik 11B). Puste = komunikat „Powiedziałeś: …”.",
           "fallback_timeout": "Gdy agent nie odpowie w tym czasie, słychać „Powiedziałeś: …”.",
-          "ollama_url": "Np. http://localhost:11434. Puste = router wyłączony. Tematy są w pliku /config/assist/router.yaml."
+          "ollama_url": "Np. http://localhost:11434. Puste = router wyłączony. Tematy są w pliku /config/assist/router.yaml.",
+          "editor_in_sidebar": "Panel Edytor Assist Routera (tylko dla administratorów). Ukryty nadal otwiera się pod adresem /assist-router-editor."
         }
       },
       "init": {

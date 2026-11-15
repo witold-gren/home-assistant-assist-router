@@ -2,7 +2,10 @@
   "domain": "assist_router",
   "name": "Assist Router",
   "after_dependencies": [
-    "assist_pipeline"
+    "assist_pipeline",
+    "frontend",
+    "http",
+    "panel_custom"
   ],
   "codeowners": [
     "@witold-gren"
@@ -17,5 +20,5 @@
   "issue_tracker": "https://github.com/witold-gren/home-assistant-assist-router/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.1.5"
+  "version": "0.1.6"
 }

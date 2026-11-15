@@ -29,6 +29,9 @@ DEFAULT_FALLBACK_TIMEOUT: Final = 30
 # Writing unrecognized commands to CSV (and an event) - integration options.
 CONF_LOG_UNRECOGNIZED: Final = "log_unrecognized"
 DEFAULT_LOG_UNRECOGNIZED: Final = True
+# The editor's panel in the sidebar; hidden, it still opens at /assist-router-editor.
+CONF_EDITOR_IN_SIDEBAR: Final = "editor_in_sidebar"
+DEFAULT_EDITOR_IN_SIDEBAR: Final = True
 
 # Question router (Ollama) - integration options; topics in the ROUTER_FILE file.
 CONF_OLLAMA_URL: Final = "ollama_url"

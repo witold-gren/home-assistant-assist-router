@@ -167,8 +167,13 @@ U autora router i odpowiedzi to ten sam model na Jetsonie AGX Orin 64 GB.
      `pojutrze`, `tydzien`, `poniedzialek` … `niedziela`) działają dalej jako aliasy. Nieznana
      wartość wyłącza router z błędem w logu.
 
-   Plik edytujesz też w samym HA: opcje integracji → **Plik routera**. Przed zapisem plik
-   jest sprawdzany, a poprzednia wersja zostaje jako `.bak`. Działa od razu, bez restartu.
+   Plik edytujesz też w samym HA, w panelu **Edytor Assist Routera** w pasku bocznym
+   (administratorzy): drzewo tematów, YAML jednego tematu z jego komentarzami, szkic, który
+   niczego nie zmienia przed zapisem, sprawdzenie przez router i historia zapisów
+   ([dokumentacja, rozdział 5](https://witold-gren.github.io/home-assistant-assist-router/pl/#edytor)).
+   Opcje integracji → **Plik routera** edytują cały plik naraz. W obu miejscach plik jest
+   sprawdzany przed zapisem, poprzednia wersja zostaje jako `.bak`, a zmiany działają od razu,
+   bez restartu.
    Opis pól i przykłady: [dokumentacja, rozdziały 6–9](https://witold-gren.github.io/home-assistant-assist-router/pl/#router).
 4. **Sprawdzenie, co działa w Twoim domu:** opcje integracji → **Przykładowe komendy** →
    „Wygeneruj” (kilka minut). Model układa zdania z nazwami Twoich encji, a każde

@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Assist Router editor - demo</title>
+    <style>body { margin: 0 }</style>
+  </head>
+  <body>
+    <!-- The editor on the example router.yaml with a server kept in memory and a made-up home (dev/demo-home.js):
+         nothing is written anywhere.
+         ?lang=en opens the English example. -->
+    <script type="module">
+      import { createEditorServer } from "/tests/js/mock-editor.js";
+      import { mountEditor } from "/custom_components/assist_router/www/editor/editor-app.js";
+      import { demoHome } from "/dev/demo-home.js";
+
+      // The icons of Home Assistant, drawn as SVG from the paths of Material Design Icons (@mdi/js), inside the
+      // icon's own shadow root: a font's classes would not reach into the editor's shadow DOM.
+      const icons = await import("https://cdn.jsdelivr.net/npm/@mdi/js@7.4.47/mdi.js");
+      const pathOf = (name) => {
+        const key = String(name ?? "").replace(/^mdi:/, "").replace(/(^|-)([a-z0-9])/g, (_, __, letter) => letter.toUpperCase());
+        return icons[`mdi${key}`] ?? "";
+      };
+      customElements.define(
+        "ha-icon",
+        class extends HTMLElement {
+          static observedAttributes = ["icon"];
+          constructor() {
+            super();
+            this.attachShadow({ mode: "open" });
+          }
+          set icon(value) {
+            this._icon = value;
+            this.shadowRoot.innerHTML = `<style>:host{display:inline-flex;width:var(--mdc-icon-size,24px);height:var(--mdc-icon-size,24px);vertical-align:middle}svg{width:100%;height:100%;fill:currentColor}</style><svg viewBox="0 0 24 24"><path d="${pathOf(value)}"></path></svg>`;
+          }
+          get icon() {
+            return this._icon;
+          }
+          attributeChangedCallback(name, old, value) {
+            this.icon = value;
+          }
+        },
+      );
+      const language = new URLSearchParams(location.search).get("lang") === "en" ? "en" : "pl";
+      const file = await (await fetch(language === "en" ? "/router.example.yaml" : "/router.example.pl.yaml")).text();
+      const home = demoHome(language);
+      const server = createEditorServer({ file, ...home });
+      window.server = server;
+      mountEditor(document.body, {
+        language,
+        user: { id: "admin-id", is_admin: true },
+        callWS: server.handle,
+        states: home.states,
+        areas: home.areas,
+      });
+    </script>
+  </body>
+</html>

@@ -17,7 +17,9 @@ jobs:
       - run: pip install -r requirements_test.txt
       - run: ruff check .
       - run: ruff format --check .
-      - run: pytest -q
+      - run: pytest -q --ignore=tests/browser
+      # the editor in Google Chrome, which the runner has
+      - run: pytest -q tests/browser -p no:homeassistant
 
   hassfest:
     runs-on: ubuntu-latest

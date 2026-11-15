@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+  <head><meta charset="utf-8" /><title>Assist Router editor harness</title><style>body { margin: 0 }</style></head>
+  <body>
+    <script type="module">
+      import { createEditorServer, checkText, textHash } from "/tests/js/mock-editor.js";
+      import { mountEditor, renameBlock, topicTemplate } from "/custom_components/assist_router/www/editor/editor-app.js";
+      import * as source from "/custom_components/assist_router/www/editor/source.js";
+      import * as outline from "/custom_components/assist_router/www/editor/outline.js";
+      import * as changes from "/custom_components/assist_router/www/editor/changes.js";
+      import * as i18n from "/custom_components/assist_router/www/editor/i18n.js";
+      import * as fields from "/custom_components/assist_router/www/editor/fields.js";
+      import * as forms from "/custom_components/assist_router/www/editor/forms.js";
+
+      customElements.define("ha-icon", class extends HTMLElement {});
+      const fixture = async (name) => (await fetch(`/${name}`)).text();
+      window.editor = {
+        source,
+        outline,
+        changes,
+        i18n,
+        fields,
+        forms,
+        renameBlock,
+        topicTemplate,
+        checkText,
+        textHash,
+        fixture,
+        events: [],
+        // Opens the editor on a file (and a draft or a history); the server is kept for the test to look at.
+        async open(options = {}) {
+          const server = createEditorServer(options);
+          const hass = {
+            language: options.language ?? "pl",
+            user: { id: "admin-id", is_admin: true },
+            callWS: server.handle,
+            states: options.states ?? {},
+            areas: options.areas ?? {},
+          };
+          document.body.replaceChildren();
+          const host = document.createElement("div");
+          host.addEventListener("hass-toggle-menu", () => window.editor.events.push("hass-toggle-menu"));
+          document.body.appendChild(host);
+          const app = mountEditor(host, hass);
+          window.editor.server = server;
+          window.editor.app = app;
+          await app.updateComplete;
+          while (!app._loaded) await new Promise((resolve) => setTimeout(resolve, 10));
+          await app.updateComplete;
+          return true;
+        },
+      };
+      window.editorReady = true;
+    </script>
+  </body>
+</html>

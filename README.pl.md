@@ -33,7 +33,7 @@ i automatyzacje ze zdaniami działają bez zmian. Gdy HA nie rozpozna zdania:
 | **Agent zapasowy** | Gdy router nie ma danych, pytanie przejmuje wybrany agent LLM. |
 | **Dziennik** | Nierozpoznane zdania trafiają do `/config/assist/unrecognized_commands.csv`, z podglądem w opcjach, sensorem i akcją czyszczenia. |
 | **Przykładowe komendy** | Akcja `assist_router.generate_examples` układa zdania z Twoich encji i sprawdza je prawdziwym routerem. Wynik ląduje w `assist/router_examples.yaml`. |
-| **Edycja router.yaml w HA** | Opcje integracji → „Plik routera”, ze sprawdzeniem przed zapisem i kopią `.bak`. |
+| **Edytor na komputerze** | Panel **Edytor Assist Routera** (administratorzy): drzewo `router.yaml`, YAML jednego tematu z jego komentarzami (pozostałe linie zostają bez zmian), szkic, sprawdzenie przez router, zapis z kopią `.bak` i historią 30 wersji. Także opcje integracji → „Plik routera”. Krok po kroku ze zrzutami: [przewodnik po edytorze](https://witold-gren.github.io/home-assistant-assist-router/pl/przewodnik-edytora.html). |
 
 **Sprawdzone w praktyce:** u autora wszystko działa na co dzień na **NVIDIA Jetson AGX Orin 64 GB**
 (Ollama z Gemma 4 26B, faster-whisper, Assist Speaker ID) i działa bardzo dobrze: router odpowiada
@@ -186,9 +186,11 @@ starcie Ollamy czeka na załadowanie modelu.
 ## Rozwój
 
 ```bash
-python3.13 -m venv .venv && .venv/bin/pip install -r requirements_test.txt
-.venv/bin/pytest -q && .venv/bin/ruff check . && .venv/bin/ruff format --check .
-scripts/deploy.sh            # kopiuje integrację do udziału z konfiguracją HA (custom_components)
+make help         # wszystkie cele po polsku albo angielsku (HELP_LANG=pl|en)
+make test         # testy integracji (środowisko tworzy pierwszy cel)
+make test-browser # testy edytora w Google Chrome
+make ui           # edytor na router.example.pl.yaml w przeglądarce, nic się nie zapisuje
+make deploy       # kopiuje integrację do udziału z konfiguracją HA (custom_components)
 ```
 
 Wersja jest w `manifest.json`, zmiany opisuje `CHANGELOG.md`, a wydanie to tag `vX.Y.Z`.

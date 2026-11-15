@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-import shutil
 from typing import Any
 
 import aiohttp
@@ -19,6 +18,7 @@ from . import examples
 from .const import (
     CONF_ANSWER_MODEL,
     CONF_ANSWER_TIMEOUT,
+    CONF_EDITOR_IN_SIDEBAR,
     CONF_FALLBACK_AGENT,
     CONF_FALLBACK_TIMEOUT,
     CONF_LOG_UNRECOGNIZED,
@@ -27,6 +27,7 @@ from .const import (
     CONF_ROUTER_MODEL,
     CONF_ROUTER_TIMEOUT,
     DEFAULT_ANSWER_TIMEOUT,
+    DEFAULT_EDITOR_IN_SIDEBAR,
     DEFAULT_FALLBACK_TIMEOUT,
     DEFAULT_LOG_UNRECOGNIZED,
     DEFAULT_ROUTER_KEEP_ALIVE,
@@ -34,6 +35,7 @@ from .const import (
     DOMAIN,
     TITLE,
 )
+from .files import read_text, write_with_backup
 from .log_file import markdown_table
 from .router import async_list_models, parse_config
 
@@ -67,21 +69,6 @@ class AssistRouterConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         return AssistRouterOptionsFlow()
-
-
-def _read(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return ""
-
-
-def _write_with_backup(path: Path, text: str) -> None:
-    """New file content; the previous one is kept alongside as .bak."""
-    if path.exists():
-        shutil.copy2(path, path.with_name(path.name + ".bak"))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
 
 
 def _preview(data: dict[str, Any]) -> str:
@@ -134,13 +121,13 @@ class AssistRouterOptionsFlow(OptionsFlow):
                 errors["base"] = "invalid_router"
                 placeholders["error"] = str(err)
             else:
-                await self.hass.async_add_executor_job(_write_with_backup, path, text)
+                await self.hass.async_add_executor_job(write_with_backup, path, text)
                 return self.async_abort(
                     reason="router_saved", description_placeholders=placeholders
                 )
             content = text
         else:
-            content = await self.hass.async_add_executor_job(_read, path)
+            content = await self.hass.async_add_executor_job(read_text, path)
         schema = vol.Schema(
             {
                 vol.Required("content", default=content): selector.TextSelector(
@@ -299,6 +286,10 @@ class AssistRouterOptionsFlow(OptionsFlow):
                     CONF_FALLBACK_TIMEOUT,
                     default=options.get(CONF_FALLBACK_TIMEOUT, DEFAULT_FALLBACK_TIMEOUT),
                 ): _seconds(5, 120),
+                vol.Required(
+                    CONF_EDITOR_IN_SIDEBAR,
+                    default=options.get(CONF_EDITOR_IN_SIDEBAR, DEFAULT_EDITOR_IN_SIDEBAR),
+                ): selector.BooleanSelector(),
                 vol.Optional(
                     CONF_OLLAMA_URL,
                     description={"suggested_value": options.get(CONF_OLLAMA_URL)},

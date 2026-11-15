@@ -36,7 +36,7 @@ and sentence-triggered automations keep working unchanged. When HA does not reco
 | **Fallback agent** | When the router has no data, the chosen LLM agent takes over the question. |
 | **Log** | Unrecognized sentences go to `/config/assist/unrecognized_commands.csv`, with a preview in the options, a sensor and a clear action. |
 | **Example commands** | The `assist_router.generate_examples` action writes sentences from your entities and checks them with the real router. The result lands in `assist/router_examples.yaml`. |
-| **Editing router.yaml in HA** | Integration options → “Router file”, with validation before saving and a `.bak` copy. |
+| **Editor on a computer** | The **Assist Router editor** panel (administrators): the tree of `router.yaml`, the YAML of one topic with its comments (every other line stays as it was), a draft, the router's check, saving with a `.bak` copy and a history of 30 versions. Also integration options → “Router file”. Step by step with pictures: [the editor guide](https://witold-gren.github.io/home-assistant-assist-router/en/editor-guide.html). |
 
 **Proven in practice:** the author runs everything daily on an **NVIDIA Jetson AGX Orin 64 GB**
 (Ollama with Gemma 4 26B, faster-whisper, Assist Speaker ID) and it works very well: the router
@@ -191,9 +191,11 @@ after Ollama starts waits for the model to load.
 ## Development
 
 ```bash
-python3.13 -m venv .venv && .venv/bin/pip install -r requirements_test.txt
-.venv/bin/pytest -q && .venv/bin/ruff check . && .venv/bin/ruff format --check .
-scripts/deploy.sh            # copies the integration to HA's config share (custom_components)
+make help         # every target, in English or Polish (HELP_LANG=en|pl)
+make test         # tests of the integration (the environment is made by the first target)
+make test-browser # tests of the editor in Google Chrome
+make ui           # the editor on router.example.pl.yaml in the browser, nothing saved
+make deploy       # copies the integration to HA's config share (custom_components)
 ```
 
 The version lives in `manifest.json`, `CHANGELOG.md` describes the changes, and a release is a

@@ -1,4 +1,6 @@
 pytest-homeassistant-custom-component==0.13.316
+# The version required by the Home Assistant that the line above pins (the editor's panel)
+home-assistant-frontend==20260128.6
 hassil==3.5.0
 home-assistant-intents==2026.1.28
 ruff
@@ -8,3 +10,6 @@ mutagen==1.48.1
 ha-ffmpeg==3.2.2
 pymicro-vad==2.1.0
 pyspeex-noise==2.0.1
+# Tests of the editor in Google Chrome
+playwright
+pytest-xdist

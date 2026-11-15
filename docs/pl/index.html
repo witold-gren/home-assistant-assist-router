@@ -285,6 +285,175 @@ ustaw mu też kontekst 8192. Inaczej Ollama będzie przeładowywać model przy k
   <code>unrecognized_commands.csv.bak</code>.</td></tr>
 </table></div>
 
+<h3 id="edytor">Edytor na komputerze</h3>
+<p class="tip"><strong>Krok po kroku ze zrzutami ekranu:</strong> <a href="przewodnik-edytora.html">Edytor Assist Routera
+krok po kroku</a> pokazuje na przykładzie, jak zbudować nową funkcję: od nierozpoznanego zdania, przez nowy temat z
+danymi, tester i zapis, do komendy Home Assistant. Niżej jest opis wszystkich części edytora.</p>
+<p>Integracja dodaje do paska bocznego Home Assistant panel dla administratorów:
+<strong>Edytor Assist Routera</strong>. Opcja <em>Pokazuj edytor w pasku bocznym</em> (Konfiguruj → Ustawienia)
+chowa go z paska; wtedy otwiera się pod adresem <code>/assist-router-editor</code>. Edytor ma jasny i ciemny wygląd:
+domyślnie taki jak Home Assistant, a przycisk w górnym pasku przełącza Auto, Jasny i Ciemny (przeglądarka to
+pamięta). Edytuje <code>router.yaml</code> w
+trzech kolumnach:</p>
+<ul>
+  <li><strong>drzewo</strong> pliku: dom (domownicy, osoby, rodzina, persony, muzyka, ogłoszenia,
+    potwierdzanie, ustawienia; części, których plik jeszcze nie ma, są wyszarzone i można je wypełnić),
+    tematy pytań i tematy specjalne (sterowanie, wiedza, niezrozumiałe zdania, bez
+    danych). Temat bez opisu albo bez przykładów jest oznaczony. Wyszukiwarka zawęża drzewo, a całe
+    drzewo można zwinąć i rozwinąć (grupy zostają otwarte). Strzałka przy nazwie grupy zwija samą grupę, a ikona po
+    jej prawej zwija albo rozwija wszystko w środku tej grupy;</li>
+  <li><strong>formularz</strong> zaznaczonego elementu (opis niżej), jego <strong>YAML</strong> razem z komentarzami tuż nad jego kluczem albo cały
+    plik. Zmieniają się tylko linie tego elementu: wszystkie inne linie, komentarze i układ zostają
+    bez zmian. Nowy klucz zmienia nazwę elementu. Tekst, który nie jest jeszcze poprawnym YAML,
+    czeka, a edytor pokazuje powód;</li>
+  <li><strong>sprawdzenie</strong>: czy router czyta tekst i ile znajduje tematów oraz jakiego rodzaju
+    jest zaznaczony temat, a pod nim <strong>tester</strong> (opis niżej).</li>
+</ul>
+<p>Każda zmiana trafia do <strong>szkicu</strong> zapisanego w HA (<code>.storage/assist_router.editor</code>).
+Szkic niczego nie zmienia, dopóki go nie zapiszesz, i czeka po zamknięciu strony. Cofanie i ponawianie
+obejmuje całą sesję (Ctrl+Z i Ctrl+Shift+Z poza polem tekstowym; Ctrl+S otwiera zapis).
+<strong>Zapisz…</strong> pokazuje, co się zmienia (elementy dodane, usunięte i zmienione oraz różne
+linie), nie zapisze tekstu, którego router nie przeczyta, i zatrzymuje się, gdy plik zmienił się poza
+edytorem od początku szkicu; <em>Zapisz mimo to</em> nadpisuje tamte zmiany. Poprzedni plik zostaje
+jako <code>router.yaml.bak</code> i w <strong>historii</strong> ostatnich 30 zapisów. Każdą wersję można
+przywrócić jako szkic. Router czyta zapisany plik od razu, bez restartu.</p>
+<p>Temat dodaje <strong>+</strong> przy „Tematy pytań”; zaczyna się od opisu i przykładu do uzupełnienia.
+Element można zduplikować (razem z komentarzami) i usunąć.</p>
+<p><strong>Formularze.</strong> Element otwiera się w formularzu. Zakładka <em>YAML</em> pokazuje to samo
+jako tekst, a edytor pamięta, którą zakładkę wybrałeś. Formularz zmienia tylko linie jednego pola, w stylu,
+którego plik już używa: lista w nawiasach zostaje w nawiasach, lista w liniach zostaje w liniach razem z
+komentarzami przy elementach, a komentarz na końcu linii zostaje na swoim miejscu. Długi tekst jest zawijany
+(<code>&gt;-</code>). Wartości są zapisywane tak, jak czyta je router: „tak”, „yes” albo „08” trafiają w
+cudzysłowie, więc zostają tekstem. Tekst ze znakiem <code>?</code> albo <code>:</code> w liście w nawiasach
+też dostaje cudzysłów: router czyta <code>[Czy będzie padać?]</code> jako błąd („expected ',' or ']', but got
+'?'”), a <code>["Czy będzie padać?"]</code> poprawnie. Puste pole znika z pliku po wyjściu z niego.</p>
+<ul>
+  <li><strong>Temat:</strong> nazwa, opis dla modelu routera, przykładowe pytania i rodzaj (odpowiedź,
+    sterowanie, wiedza, niezrozumiałe). Temat z odpowiedzią ma też wskazówkę dla modelu odpowiedzi,
+    wskazówki dla rodzica, dziecka, dziewczynki, chłopca, nierozpoznanego mówcy i pojedynczych osób,
+    długość odpowiedzi, „o pytającym” (<code>personal</code>), dzień domyślny (<code>days</code>), pomijane
+    stany i atrybuty, niedostępne encje i <code>only_exposed</code>.</li>
+  <li><strong>Źródła danych tematu z podglądem na żywo.</strong> Przy każdym wzorcu encji
+    (<code>entities</code>, <code>details</code>, encje usług) liczba mówi, ile encji znajduje teraz
+    (najechanie pokazuje pierwsze z nich, a zero jest oznaczone). Pod wzorcami: ile encji pasuje, ile linii
+    dostanie model i same te linie, policzone tym samym kodem co przy pytaniu (bez osoby i dnia), oraz
+    ostrzeżenie, gdy pasuje więcej niż 80 encji. Atrybuty z <code>details</code> są pokazane tak, jak idą do
+    modelu. Usługi z odpowiedzią (<code>fetch</code>) mają własne karty: usługa (podpowiedzi to tylko usługi,
+    które wyłącznie zwracają dane), encje, nagłówek, łączenie listy, limit, to, co już minęło, i dane usługi
+    w YAML. Usługi nie są wywoływane podczas pisania: robi to dopiero przycisk <em>Pobierz dane teraz</em>, i
+    to wyłącznie usługi, które tylko zwracają dane. Usługę, która może coś zmienić, edytor oznacza, a router
+    i tak nigdy jej nie wywoła. Zdanie z <code>command</code> nie jest wysyłane do HA. Frigate i komendę
+    edytuje się w zakładce YAML.</li>
+  <li><strong>Osoby:</strong> lista z dodawaniem po imieniu (klucz powstaje z imienia, np. „Łucja” →
+    <code>lucja</code>). Osoba: imię, wzorzec <code>match</code> z próbą na zdaniu, głos w Assist Speaker ID,
+    pokój (podpowiedzi z obszarów HA), jej encje i etykiety. Osoba zapisana samym imieniem
+    (<code>ola: Ola</code>) dostaje pola w osobnych liniach.</li>
+  <li><strong>Rodzina:</strong> rodzice, dzieci oraz mężczyźni i chłopcy do zaznaczenia spośród osób.</li>
+  <li><strong>Persony:</strong> nazwa, prompt, forma (męska, żeńska), potoki i głosy TTS (podpowiedzi z potoków
+    Assist). Brak promptu albo potoku i głosu jest oznaczony, bo wtedy router nie czyta pliku.</li>
+  <li><strong>Muzyka w pokojach, ogłoszenia, potwierdzanie:</strong> listy odtwarzaczy i encji z
+    podpowiedziami z HA. Pusta lista odtwarzaczy pokoju zostaje w pliku (w tym pokoju nie ma muzyki).</li>
+  <li><strong>Ustawienia:</strong> język, zdania streszczenia z Wikipedii, język Wikipedii,
+    <code>only_exposed</code>, model sterowania oraz prompty odpowiedzi i streszczeń. Słowo w klamrach inne
+    niż <code>{household}</code>, <code>{now}</code> i <code>{sentences}</code> jest oznaczone, bo router
+    nie umie go wypełnić.</li>
+</ul>
+
+<p><strong>Tester.</strong> Wpisane zdanie przechodzi drogę wypowiedzianego, <strong>na szkicu</strong>, czyli
+bez zapisu. Kolejne kroki to:</p>
+<ol>
+  <li><strong>Home Assistant</strong>: czy wbudowany agent albo <code>custom_sentences</code> rozpoznaje zdanie
+    (debugowanie zdań HA, które niczego nie wykonuje). Zdanie rozpoznane przez HA kończy drogę;</li>
+  <li><strong>router</strong>: wybrany temat (kliknięcie otwiera go w formularzu), model i czas. Z opcją
+    porównania także temat, który wybrałby zapisany plik;</li>
+  <li><strong>osoba i dzień</strong> wyciągnięte ze zdania;</li>
+  <li><strong>dane</strong> (linie stanów, atrybuty, usługi) albo <strong>plan sterowania</strong> (intencja,
+    sloty, czy by wykonał, czy najpierw zapytał);</li>
+  <li><strong>odpowiedź</strong> modelu z czasem; prompt można rozwinąć.</li>
+</ol>
+<p>Zdanie z kilkoma poleceniami jest rozbite, a każde polecenie ma swoją drogę. Opcje: kto mówi, persona, pokój
+mówcy, porównanie z zapisanym plikiem, pominięcie HA i odpowiedź bez modelu odpowiedzi. Ostatnie 10 zdań
+podpowiada pole testera. <strong>Tester niczego nie robi:</strong> sterowanie jest tylko planowane, zdanie z
+<code>command</code> jest tylko rozpoznawane (wysłane mogłoby uruchomić automatyzację), agent zapasowy nie jest
+pytany, nic nie jest mówione ani ogłaszane i nic nie trafia do dziennika nierozpoznanych. Naprawdę pytane są
+modele Ollamy oraz usługi, które tylko zwracają dane, tak jak przy prawdziwym pytaniu.</p>
+
+<p><strong>Nauka</strong> (grupa w drzewie) ma dwa widoki.</p>
+<ul>
+  <li><strong>Nierozpoznane zdania</strong> z <code>assist/unrecognized_commands.csv</code>, zgrupowane po zdaniu
+    (wielkość liter i znak na końcu nie mają znaczenia): ile razy padło, kiedy ostatnio, kto i gdzie mówił, jak
+    poszło wtedy. <em>Sprawdź na szkicu</em> pokazuje, dokąd każde zdanie trafiłoby teraz (HA albo temat
+    routera). Zdanie można dodać jako przykład do tematu, zrobić z niego nowy temat (opis i pierwszy przykład),
+    przetestować w testerze, dodać do testów albo ukryć. Ukrycie działa tylko w edytorze: dziennik zostaje bez
+    zmian.</li>
+  <li><strong>Zestaw testów</strong> w <code>assist/router_tests.yaml</code>: zdanie i to, dokąd ma trafić,
+    czyli temat routera albo intencja, którą HA rozpozna sam. Zestaw zapisuje się od razu (z kopią
+    <code>.bak</code>), bo nie jest częścią <code>router.yaml</code>. <em>Uruchom na szkicu</em> sprawdza każde
+    zdanie na szkicu i na zapisanym pliku i pokazuje, ile testów przeszło, a ile zmiana naprawiła albo popsuła.
+    Test dodaje też przycisk <em>Dodaj do testów</em> w testerze.</li>
+</ul>
+
+<p><strong>Komendy Home Assistanta</strong> (grupa w drzewie) to pliki <code>custom_sentences/&lt;język&gt;/*.yaml</code>:
+zdania, które Home Assistant rozpoznaje sam, zanim zdanie trafi do routera. Plik otwiera się w formularzu
+(intencje, ich zdania i odpowiedź) albo jako YAML. Zdanie pisze się jak w HA: <code>{name}</code> to nazwa urządzenia
+albo obszaru, <code>(a|b)</code> jedno ze słów, <code>[a]</code> słowo opcjonalne. Intencja, której HA nie umie
+wykonać (nie jest wbudowana ani nie ma <code>intent_script</code>), jest oznaczona: zdanie zostanie rozpoznane, ale nic
+się nie stanie. <em>Zapisz i przeładuj</em> sprawdza każde zdanie tak jak HA (zła składnia nie trafi do pliku),
+zapisuje plik z kopią <code>.bak</code> i przeładowuje zdania usługą <code>conversation.reload</code>, więc nowa komenda
+działa od razu, bez restartu. Plik zapisuje się osobno, nie ze szkicem <code>router.yaml</code>. <em>Co rozpozna Home
+Assistant</em> sprawdza wpisane zdania na zapisanych plikach i niczego nie wykonuje. <strong>+</strong> przy grupie
+zakłada nowy plik, a <em>Usuń plik</em> odkłada go jako <code>.bak</code>.</p>
+
+<p><strong>Przed zapisem</strong> okno <em>Zapisz…</em> pokazuje oprócz zmian i różnic:</p>
+<ul>
+  <li><strong>Warto spojrzeć</strong>: wzorce encji, które nic nie znajdują, usługi, które mogą coś zmienić albo
+    których nie ma, tematy bez opisu lub przykładów oraz słowa w klamrach promptu, których router nie wypełni.
+    Ostrzeżenia nie blokują zapisu;</li>
+  <li><strong>Zestaw testów</strong>: przycisk uruchamia testy na szkicu i porównuje je z zapisanym plikiem. Okno
+    mówi, ile testów zmiana popsuła, i wymienia niezaliczone. Ostrzega też, gdy testy oczekują tematu, którego
+    szkic już nie ma. Zapisać można mimo to.</li>
+</ul>
+
+<h3 id="edytor-faq">Edytor: gdy coś nie działa</h3>
+<div class="table"><table>
+<tr><th>Komunikat albo objaw</th><th>Przyczyna i co zrobić</th></tr>
+<tr><td>Nie ma „Edytor Assist Routera” w pasku bocznym</td><td>Panel pojawia się po restarcie HA po instalacji albo
+aktualizacji integracji i tylko dla administratorów. Po restarcie odśwież stronę (Ctrl+Shift+R).</td></tr>
+<tr><td>„Router nie przeczyta tego tekstu: …”</td><td>Szkic ma błąd, który wyłączyłby router; okno podaje powód
+(np. persona bez promptu). Popraw go w formularzu albo w YAML; zapis czeka.</td></tr>
+<tr><td><code>expected ',' or ']', but got '?'</code></td><td>Tekst ze znakiem <code>?</code> albo <code>:</code> w
+liście w nawiasach bez cudzysłowu: <code>[Czy będzie padać?]</code>. Napisz <code>["Czy będzie padać?"]</code>.
+Formularz robi to sam.</td></tr>
+<tr><td>„W międzyczasie router.yaml zmienił się poza edytorem”</td><td>Ktoś zmienił plik (inny edytor, File editor,
+Samba) od początku szkicu. Różnice pokazuje okno zapisu; <em>Zapisz mimo to</em> nadpisze tamtą zmianę, a
+<em>Odrzuć szkic</em> wczyta plik od nowa.</td></tr>
+<tr><td>„Podgląd czeka, aż router przeczyta tekst: …”</td><td>Podgląd źródeł liczy się na tekście, który router umie
+przeczytać. Popraw błąd podany po dwukropku.</td></tr>
+<tr><td>„Tej zmiany nie wprowadzono: Tu nie da się nic dodać: rodzic nie jest mapą kluczy”</td><td>Sekcja, do której
+formularz dopisuje, jest tekstem albo listą (np. <code>people: brak</code>). Popraw ją w zakładce YAML na mapę
+(<code>people:</code> z osobami pod spodem).</td></tr>
+<tr><td>„Ta usługa może coś zmienić: router nigdy nie wywoła jej z tematu”</td><td>W <code>fetch</code> działają tylko
+usługi, które wyłącznie zwracają dane (np. <code>calendar.get_events</code>). Wybierz taką z podpowiedzi.</td></tr>
+<tr><td>„Usługa nic nie zwróciła (albo wystąpił błąd…)”</td><td>Usługa odpowiedziała pustą listą albo błędem; szczegóły
+są w logu HA (<code>Router fetch … failed</code>). Sprawdź jej encje i dane.</td></tr>
+<tr><td>„router nie wypełni {who}”</td><td>Prompt w ustawieniach ma słowo w klamrach, którego router nie zna. Dozwolone
+są <code>{household}</code>, <code>{now}</code> i <code>{sentences}</code>; zwykłą klamrę zapisz podwójnie:
+<code>{{</code>, <code>}}</code>.</td></tr>
+<tr><td>„Błąd: The Assist Router agent is not running”</td><td>Tester, nierozpoznane zdania i testy potrzebują
+działającej integracji. Sprawdź, czy Assist Router jest załadowany (Ustawienia → Urządzenia i usługi).</td></tr>
+<tr><td>„Router nie ma ustawionego modelu”</td><td>W opcjach integracji brakuje adresu Ollamy albo modelu routera.</td></tr>
+<tr><td>„Brak tematu (model nie odpowiedział albo odpowiedział źle)”</td><td>Ollama jest wyłączona, model nie zmieścił
+się w pamięci albo odpowiedział nie po swojemu. Spróbuj jeszcze raz; szczegóły są w logu HA.</td></tr>
+<tr><td>„Home Assistant nie ma obsługi intencji …”</td><td>Zdanie trafia do intencji, której HA nie umie
+wykonać. Wybierz znaną intencję (np. <code>HassTurnOn</code>) albo dodaj <code>intent_script</code> o tej nazwie w
+<code>configuration.yaml</code>.</td></tr>
+<tr><td>„Unable to find end of group”, „Unable to find end of optional”</td><td>W zdaniu brakuje zamknięcia
+<code>)</code> albo <code>]</code>. Plik nie zapisze się, dopóki zdanie jest błędne.</td></tr>
+<tr><td>„router_tests.yaml nie jest zestawem testów: …”</td><td>Plik testów ma inny układ. Oczekiwany:
+<code>tests:</code> z listą, każdy element z <code>sentence</code> i <code>topic</code> albo
+<code>intent</code>. Popraw plik albo usuń go; edytor zrobi nowy.</td></tr>
+</table></div>
+
 <h3 id="przyklady">Przykładowe komendy dla Twojego domu</h3>
 <p>Akcja <code>assist_router.generate_examples</code> albo pozycja menu „Przykładowe
 komendy” działa tak:</p>

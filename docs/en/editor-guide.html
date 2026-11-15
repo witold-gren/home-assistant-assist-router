@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Assist Router editor step by step</title>
+<style>
+:root {
+  --bg: #fafaf9; --fg: #1c1917; --muted: #6b6560; --line: #e7e5e4; --card: #ffffff;
+  --accent: #0f766e; --accent-soft: #ccfbf1; --code: #f3f1ef; --ok: #166534; --ok-soft: #dcfce7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171514; --fg: #f3f1ef; --muted: #a8a29e; --line: #3a3532; --card: #221f1d;
+    --accent: #2dd4bf; --accent-soft: #12332f; --code: #2b2724; --ok: #86efac; --ok-soft: #14361f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171514; --fg: #f3f1ef; --muted: #a8a29e; --line: #3a3532; --card: #221f1d;
+  --accent: #2dd4bf; --accent-soft: #12332f; --code: #2b2724; --ok: #86efac; --ok-soft: #14361f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; }
+header { display: flex; gap: 20px; align-items: center; margin-bottom: 8px; }
+header img { width: 72px; height: 72px; flex: none; }
+h1 { font-size: 2.1rem; margin: 0; letter-spacing: -0.01em; }
+.lead { color: var(--muted); margin: 4px 0 0; }
+h2 { font-size: 1.45rem; margin: 48px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+p, li { max-width: 72ch; }
+a { color: var(--accent); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .92em; }
+pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+  font-size: .88em; line-height: 1.5; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: .95em; }
+th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: var(--card); }
+.table { overflow-x: auto; }
+nav { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 18px; margin: 24px 0; }
+nav ol { margin: 6px 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+nav li { break-inside: avoid; }
+@media (max-width: 640px) { nav ol { columns: 1; } h1 { font-size: 1.7rem; } }
+.lang { margin: 4px 0 0; font-size: 0.9em; color: var(--muted); }
+.note { background: var(--accent-soft); border-left: 4px solid var(--accent); padding: 10px 14px;
+  border-radius: 6px; margin: 16px 0; }
+.tip { background: var(--ok-soft); border-left: 4px solid var(--ok); padding: 10px 14px;
+  border-radius: 6px; margin: 16px 0; }
+.flow { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin: 16px 0; overflow-x: auto; }
+.flow svg { display: block; min-width: 640px; width: 100%; height: auto; }
+.flow .box { fill: var(--bg); stroke: var(--line); stroke-width: 1.5; }
+.flow .hot { fill: var(--accent-soft); stroke: var(--accent); }
+.flow text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+.flow .small { fill: var(--muted); font-size: 11px; }
+.flow .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.flow marker path { fill: var(--muted); }
+footer { margin-top: 56px; color: var(--muted); font-size: .9em; }
+figure { margin: 20px 0 28px; }
+figure img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; }
+figcaption { color: var(--muted); font-size: .9em; margin-top: 6px; }
+.ui { font-weight: 600; }
+ol.steps > li { margin: 6px 0; }
+kbd { background: var(--code); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: .9em; }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <img src="../assets/icon.png" alt="">
+  <div>
+    <h1>The Assist Router editor step by step</h1>
+    <p class="lead">How to build a new feature of the assistant without writing YAML: from a sentence the assistant did not understand, through a new topic with data, a test and saving, to a command of Home Assistant. The names of buttons and fields are those of the editor, and the pictures come from the demo with a made-up home.</p>
+    <p class="lang"><a href="./">← Assist Router documentation</a> · <a href="../pl/przewodnik-edytora.html" hreflang="pl">Polski</a> · <strong>English</strong> · <a href="https://github.com/witold-gren/home-assistant-assist-router">GitHub</a></p>
+  </div>
+</header>
+
+<nav>
+<ol>
+  <li><a href="#before">Before you start</a></li>
+  <li><a href="#screen">The screen of the editor</a></li>
+  <li><a href="#learning">Where ideas come from: unrecognized sentences</a></li>
+  <li><a href="#topic">A new topic</a></li>
+  <li><a href="#data">The data of a topic</a></li>
+  <li><a href="#tester">The tester</a></li>
+  <li><a href="#tests">The test set</a></li>
+  <li><a href="#save">Saving</a></li>
+  <li><a href="#history">History and undo</a></li>
+  <li><a href="#command">A command of Home Assistant</a></li>
+  <li><a href="#problems">When something does not work</a></li>
+</ol>
+</nav>
+
+<h2 id="before">1. Before you start</h2>
+<p>The editor is a panel in Home Assistant where you build what the assistant can do: topics of questions with the
+data of your home, and commands that Home Assistant recognizes by itself. No YAML is needed: every element has a
+form, and <code>router.yaml</code> changes only when you save.</p>
+<ul>
+  <li><strong>Where:</strong> the sidebar → <span class="ui">Assist Router editor</span>. Only administrators see it. When it is hidden
+    (the option <span class="ui">Show the editor in the sidebar</span> in Settings → Devices &amp; services → Assist Router → Configure),
+    it opens at <code>/assist-router-editor</code>.</li>
+  <li><strong>Without Home Assistant:</strong> <code>make ui</code> in the repository opens the editor on the example
+    file with a made-up home. Nothing is saved there. All the pictures below come from it.</li>
+  <li><strong>Draft:</strong> every change goes to a draft kept in Home Assistant. A draft changes nothing and waits,
+    also after the page is closed. Undo: <kbd>Ctrl</kbd>+<kbd>Z</kbd>, redo: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>,
+    save: <kbd>Ctrl</kbd>+<kbd>S</kbd>.</li>
+</ul>
+<p class="note">The example that runs through the whole guide: people at home ask "When do the bins go out?" and the
+assistant does not understand. In a few steps a topic <code>bins</code> answers from the bin collection sensor, and a
+command "light up {name}" is added to Home Assistant.</p>
+
+<h2 id="screen">2. The screen of the editor</h2>
+<p>The screen has three columns. Drag a border to change a width; a double click gives the first one back.</p>
+<figure><a href="../assets/editor/en/01-screen.png"><img src="../assets/editor/en/01-screen.png" alt="The editor with the topic daily_summary open" loading="lazy" width="1440" height="900"></a>
+<figcaption>The topic <code>daily_summary</code> open in its form.</figcaption></figure>
+<ul>
+  <li><strong>Left, the tree of the file:</strong>
+    <ul>
+      <li><span class="ui">Home</span>: the household, <span class="ui">People</span>, <span class="ui">Family</span>, <span class="ui">Personas</span>, music, announcements, confirmation and
+        <span class="ui">Settings</span> (greyed parts are not in the file yet and can be filled in);</li>
+      <li><span class="ui">Topics of questions</span> with a <span class="ui">+</span> button, and <span class="ui">Special</span> (control, knowledge, unclear, other);</li>
+      <li><span class="ui">Learning</span>: <span class="ui">Unrecognized sentences</span> and <span class="ui">Test set</span>;</li>
+      <li><span class="ui">Commands of Home Assistant</span>: the files of <code>custom_sentences</code>, with a <span class="ui">+</span> button.</li>
+    </ul>
+    The number beside a topic is its number of example questions. <span class="ui">Search</span> narrows the tree.</li>
+  <li><strong>Middle:</strong> the tabs <span class="ui">Form</span>, <span class="ui">YAML</span> (this element only, with its comments) and
+    <span class="ui">Whole file</span>; on the right <span class="ui">Duplicate</span> and <span class="ui">Delete</span>.</li>
+  <li><strong>Right:</strong> <span class="ui">Check</span> (whether the router reads the text and how many topics it has), <span class="ui">File</span>
+    (the state of the draft), <span class="ui">Kind of topic</span> and the <span class="ui">Tester</span>.</li>
+  <li><strong>Top bar:</strong> the state (<span class="ui">No changes</span> or <span class="ui">Draft saved</span>), undo and redo, <span class="ui">Discard draft</span>,
+    light or dark look, <span class="ui">History</span> and <span class="ui">Save…</span>.</li>
+</ul>
+
+<h2 id="learning">3. Where ideas come from: unrecognized sentences</h2>
+<p>The best new features are the ones people at home already asked for. Click <span class="ui">Learning</span> →
+<span class="ui">Unrecognized sentences</span>.</p>
+<figure><a href="../assets/editor/en/02-unrecognized.png"><img src="../assets/editor/en/02-unrecognized.png" alt="The list of unrecognized sentences" loading="lazy" width="1440" height="900"></a>
+<figcaption>Sentences of the log, grouped: how often they were said, when last, and where they went then.</figcaption></figure>
+<ul>
+  <li><span class="ui">Check on the draft</span> shows where each sentence would go now.</li>
+  <li>Beside each sentence: <span class="ui">As an example of…</span> (adds it to an existing topic), <span class="ui">New topic</span>, <span class="ui">Test</span>
+    (puts it into the tester), <span class="ui">To the tests</span> and <span class="ui">Hide</span>. Hiding works in the editor only; the log stays
+    as it is.</li>
+</ul>
+<p>In the example, "When do the bins go out?" went to "not understood". Click <span class="ui">New topic</span> beside it.</p>
+
+<h2 id="topic">4. A new topic</h2>
+<p><span class="ui">New topic</span> makes a topic with this sentence as its description and first example and opens its form at
+once. An empty topic is also added with <span class="ui">+</span> beside <span class="ui">Topics of questions</span>.</p>
+<ol class="steps">
+  <li><span class="ui">Name of the topic</span>: a short key of lowercase letters, digits and <code>_</code>, e.g. <code>bins</code>.
+    The router model answers with this name. Renaming changes the key in the file.</li>
+  <li><span class="ui">What it answers (for the router model)</span>: words and phrases of the questions, separated by commas, e.g.
+    "bins, bin lorry, rubbish collection, recycling, plastic, garden waste". The model chooses the topic by them, so
+    write the different ways people talk about the same thing.</li>
+  <li><span class="ui">Example questions</span>: type a question in <span class="ui">Add a question and press Enter…</span> and press <kbd>Enter</kbd>.
+    Add a few real questions, the way they are asked at home: they teach the model most.</li>
+</ol>
+<figure><a href="../assets/editor/en/03-new-topic.png"><img src="../assets/editor/en/03-new-topic.png" alt="The form of the new topic bins" loading="lazy" width="1440" height="900"></a>
+<figcaption>The new topic with its name, description and three examples. Without data its <span class="ui">Kind of topic</span> is still <span class="ui">No data (conversation)</span>.</figcaption></figure>
+<p>The <span class="ui">Kind of topic</span> is set with <span class="ui">Answer</span>, <span class="ui">Control</span>, <span class="ui">Knowledge</span> and <span class="ui">Unclear</span>. A question
+about the data of the home is an <span class="ui">Answer</span>. The right column shows how the router sees the topic: once data is
+added, it changes to <span class="ui">Data of the home</span>.</p>
+<p>Below, under <span class="ui">Answer</span>, are <span class="ui">Hint for the answer model</span> (e.g. "say the day of the week and the kind of
+bin"), <span class="ui">Hints for who asks (0)</span> (the number says how many there are), <span class="ui">Longest answer (tokens)</span> and <span class="ui">About who asks</span>.</p>
+
+<h2 id="data">5. The data of a topic</h2>
+<p>A topic answers from the data you point it to. Scroll to <span class="ui">Data</span>.</p>
+<ol class="steps">
+  <li><span class="ui">Entities</span> → <span class="ui">Entity patterns</span>: type a pattern in <span class="ui">Add…</span> and press <kbd>Enter</kbd>, e.g.
+    <code>sensor.bin_collection*</code>. The star is any text. The green number beside it says how many entities the
+    pattern finds now; zero is marked in orange.</li>
+  <li>Under the patterns: <span class="ui">Matching entities: 1; lines for the model: 1.</span> Open <span class="ui">What the model gets (lines: 1)</span>
+    to see exactly the lines that go to the model.</li>
+  <li><span class="ui">Attributes</span> → <span class="ui">Entities whose attributes go to the model</span>: patterns of entities (not names of
+    attributes) whose attributes go to the model, e.g. the same <code>sensor.bin_collection*</code>, so the model knows
+    the kind of bin.</li>
+  <li><span class="ui">Services</span> → <span class="ui">Add a service</span>: data from a service that returns it, e.g. <code>calendar.get_events</code>.
+    Services are not called while you type; only <span class="ui">Fetch the data now</span> calls them, and only services that just
+    return data.</li>
+</ol>
+<figure><a href="../assets/editor/en/04-data.png"><img src="../assets/editor/en/04-data.png" alt="The Data part with an entity pattern and its preview" loading="lazy" width="1440" height="900"></a>
+<figcaption>The pattern finds 1 entity and the preview shows the line for the model. The kind of topic is now <span class="ui">Data of the home</span>.</figcaption></figure>
+<p class="tip">A 0 beside a pattern is the most common mistake: the pattern fits no entity (a typo, another domain),
+or a name of an attribute was typed in <span class="ui">Entities whose attributes go to the model</span> instead of a pattern of
+entities.</p>
+
+<h2 id="tester">6. The tester</h2>
+<p>The tester sends a sentence along the way of a spoken one, on the draft, without saving. Type a sentence in the
+right column (<span class="ui">Tester</span>) and click <span class="ui">Test</span>.</p>
+<figure><a href="../assets/editor/en/05-tester.png"><img src="../assets/editor/en/05-tester.png" alt="The tester's result for the bins question" loading="lazy" width="1440" height="900"></a>
+<figcaption><span class="ui">The router answers</span>: the topic <code>bins</code> and the model's answer; the steps of the way below.</figcaption></figure>
+<ol>
+  <li><span class="ui">1. Home Assistant</span>: whether HA recognizes the sentence itself. A recognized one ends there.</li>
+  <li><span class="ui">2. Router</span>: the topic chosen (a click opens it in the form), the model and the time.</li>
+  <li><span class="ui">3. Person and day</span> taken from the sentence.</li>
+  <li><span class="ui">4. Data</span>: the states, attributes and services the model got.</li>
+  <li><span class="ui">5. Answer</span> of the model with its time; the <span class="ui">Prompt</span> can be opened.</li>
+</ol>
+<p><span class="ui">Who says it and where</span> sets the speaker, persona, room and a comparison with the saved file. The tester does
+nothing in the home: control is only planned, nothing is said or logged. The models and the services that only read
+are asked for real.</p>
+<p>When the router chooses the wrong topic, improve <span class="ui">What it answers (for the router model)</span> or add an example,
+and test again.</p>
+
+<h2 id="tests">7. The test set</h2>
+<p>A sentence that works is worth keeping, so the next change does not break it. In the tester click
+<span class="ui">Add to the tests</span>. The set is in <span class="ui">Learning</span> → <span class="ui">Test set</span> (the file
+<code>assist/router_tests.yaml</code>, saved at once with a <code>.bak</code> copy).</p>
+<figure><a href="../assets/editor/en/06-tests.png"><img src="../assets/editor/en/06-tests.png" alt="The test set" loading="lazy" width="1440" height="900"></a>
+<figcaption>Each test is a sentence and where it should go: a topic of the router or an intent Home Assistant recognizes by itself.</figcaption></figure>
+<ul>
+  <li><span class="ui">Run on the draft</span> checks every sentence on the draft and on the saved file.</li>
+  <li>A new test: <span class="ui">A new test sentence</span>, the target from the list (a topic or <span class="ui">Home Assistant itself (intent)</span>)
+    and <span class="ui">Add</span>.</li>
+  <li><span class="ui">Test</span> puts the sentence into the tester, <span class="ui">Delete</span> removes the test.</li>
+</ul>
+
+<h2 id="save">8. Saving</h2>
+<p>Click <span class="ui">Save…</span> at the top. The <span class="ui">Save router.yaml</span> window shows everything before the file changes:</p>
+<figure><a href="../assets/editor/en/07-save.png"><img src="../assets/editor/en/07-save.png" alt="The save window" loading="lazy" width="1440" height="900"></a>
+<figcaption>Changes, differences, warnings and the result of the tests on the draft.</figcaption></figure>
+<ul>
+  <li><span class="ui">Changes</span>: elements added, removed and changed; <span class="ui">Differences</span>: the changed lines of the file.</li>
+  <li><span class="ui">Worth a look</span>: patterns that find nothing, services that may change something or do not exist, topics
+    without a description or examples. Warnings do not stop saving. The example file has warnings for entities the
+    made-up home does not have.</li>
+  <li><span class="ui">Test set</span>: <span class="ui">Run the tests on the draft (2)</span> shows how many tests passed and how many the change fixed
+    or broke.</li>
+  <li><span class="ui">What changed (optional)</span>: a note for the history. Then <span class="ui">Save</span>.</li>
+</ul>
+<p>The editor does not save a text the router cannot read. The router reads the saved file at once, without a
+restart, and the previous one stays as <code>router.yaml.bak</code>.</p>
+
+<h2 id="history">9. History and undo</h2>
+<p><span class="ui">History</span> at the top opens <span class="ui">History of saves</span>: the last 30 saves with their date, note and author. A
+chosen version shows its differences from the current file.</p>
+<figure><a href="../assets/editor/en/08-history.png"><img src="../assets/editor/en/08-history.png" alt="History of saves" loading="lazy" width="1440" height="900"></a>
+<figcaption>The version before the save: restoring it would remove the topic <code>bins</code> (lines in red).</figcaption></figure>
+<p><span class="ui">Restore as a draft</span> loads that version into the draft; the file changes only when you save. Before saving,
+<span class="ui">Discard draft</span> throws all changes away.</p>
+
+<h2 id="command">10. A command of Home Assistant</h2>
+<p>Not every sentence needs the router. Home Assistant recognizes simple commands by itself, faster and without a
+model, when they are added to <code>custom_sentences</code>. Those files are in <span class="ui">Commands of Home Assistant</span>.</p>
+<ol class="steps">
+  <li><span class="ui">+</span> beside <span class="ui">Commands of Home Assistant</span>. The browser asks for the name of the file ("Name of the new file
+    in custom_sentences (letters, digits, _ and -):"), e.g. <code>lamps.yaml</code>.</li>
+  <li>Type an intent in <span class="ui">Intent, e.g. HassTurnOn</span> and click <span class="ui">Add an intent</span>. The built-in intents of Home
+    Assistant (e.g. <code>HassTurnOn</code>, <code>HassTurnOff</code>) work at once.</li>
+  <li>Under <span class="ui">Sentences 1</span>, type a sentence in <span class="ui">Add a sentence, e.g. wake up {name}</span> and press <kbd>Enter</kbd>,
+    e.g. <code>light up {name}</code>. <code>{name}</code> is the name of a device or an area, <code>(a|b)</code>
+    one of the words, <code>[a]</code> an optional word. <span class="ui">Add a group of sentences</span> starts another group.</li>
+  <li><span class="ui">Answer (responses → default)</span>: what Home Assistant says, e.g. "It is on.". Empty = the answer of Home
+    Assistant.</li>
+  <li><span class="ui">Save and reload</span>: checks every sentence as Home Assistant does, saves the file with a <code>.bak</code> copy
+    and reloads the sentences, so the command works at once, without a restart.</li>
+  <li><span class="ui">What Home Assistant recognizes</span>: type a sentence, e.g. "light up the living room", and click <span class="ui">Test</span>.
+    Nothing is done: Home Assistant only says what it would recognize.</li>
+</ol>
+<figure><a href="../assets/editor/en/09-command.png"><img src="../assets/editor/en/09-command.png" alt="The new file of commands lamps.yaml" loading="lazy" width="1440" height="900"></a>
+<figcaption>The file <code>en/lamps.yaml</code> saved and reloaded; “light up the living room” → <span class="ui">Recognized: HassTurnOn</span> with <code>name</code> = the living room.</figcaption></figure>
+<p class="tip">An intent Home Assistant cannot run (not built in and without an <code>intent_script</code>) is
+marked: the sentence is recognized, but nothing happens.</p>
+<p>A file of commands is saved on its own, not with the draft of <code>router.yaml</code>. <span class="ui">Delete the file</span>
+keeps it as <code>.bak</code>.</p>
+
+<h2 id="problems">11. When something does not work</h2>
+<div class="table"><table>
+<tr><th>What you see</th><th>Why</th><th>What to do</th></tr>
+<tr><td><strong>0</strong> beside an entity pattern</td><td>The pattern fits no entity.</td>
+  <td>Check the entity id in Home Assistant; <span class="ui">Entities whose attributes go to the model</span> takes patterns of entities, not names of attributes.</td></tr>
+<tr><td><span class="ui">Kind of topic</span>: <span class="ui">No data (conversation)</span></td><td>The topic has no source of data.</td>
+  <td>Add <span class="ui">Entity patterns</span> or a service under <span class="ui">Data</span>.</td></tr>
+<tr><td>The tester chooses another topic</td><td>The description or examples are close to another topic.</td>
+  <td>Add words to <span class="ui">What it answers (for the router model)</span> and real questions to <span class="ui">Example questions</span>.</td></tr>
+<tr><td><span class="ui">Check</span>: "The router will not read this text:"</td><td>The text in the YAML tab is not valid YAML.</td>
+  <td>Fix the line of the message or undo (<kbd>Ctrl</kbd>+<kbd>Z</kbd>).</td></tr>
+<tr><td>"router.yaml was changed outside the editor meanwhile."</td><td>The file was changed elsewhere after the draft began.</td>
+  <td><span class="ui">Save anyway</span> overwrites those changes; the save window shows the differences.</td></tr>
+<tr><td>"Home Assistant has no handler of …"</td><td>The intent is not built in and has no <code>intent_script</code>.</td>
+  <td>Choose a known intent or add an <code>intent_script</code>.</td></tr>
+<tr><td>No panel in the sidebar</td><td>The account is not an administrator, or the panel is hidden.</td>
+  <td>Open <code>/assist-router-editor</code> or turn on <span class="ui">Show the editor in the sidebar</span>.</td></tr>
+</table></div>
+<p>Every field and option is described in <a href="./#editor">chapter 5 of the documentation</a>.</p>
+
+<footer>Assist Router. The pictures are made by <code>make screenshots</code> (dev/screenshots.py) on the demo of the editor, so they can be refreshed after any change of its look.</footer>
+</div>
+</body>
+</html>

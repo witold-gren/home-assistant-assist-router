@@ -16,6 +16,8 @@ from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
 from .const import (
+    CONF_EDITOR_IN_SIDEBAR,
+    DEFAULT_EDITOR_IN_SIDEBAR,
     DOMAIN,
     ENTITY_IDS,
     LEGACY_OBJECT_IDS,
@@ -24,6 +26,7 @@ from .const import (
     ROUTER_FILE,
     TITLE,
 )
+from .editor import async_setup_editor, async_unload_editor
 from .languages import LANG, set_language
 from .log_file import CsvLog
 from .router import RouterConfigFile
@@ -98,6 +101,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[RuntimeData]
     )
     _migrate_entity_ids(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await async_setup_editor(
+        hass, entry.options.get(CONF_EDITOR_IN_SIDEBAR, DEFAULT_EDITOR_IN_SIDEBAR)
+    )
     # new options (e.g. another model) = reload, so the models are loaded right away
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
@@ -123,4 +129,5 @@ async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry[Runtime
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry[RuntimeData]) -> bool:
+    async_unload_editor(hass)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

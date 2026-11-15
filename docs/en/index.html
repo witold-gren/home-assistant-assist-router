@@ -294,6 +294,174 @@ set its context to 8192 as well. Otherwise Ollama will reload the model on every
   <code>unrecognized_commands.csv.bak</code>.</td></tr>
 </table></div>
 
+<h3 id="editor">The editor on a computer</h3>
+<p class="tip"><strong>Step by step with pictures:</strong> <a href="editor-guide.html">The Assist Router editor step by
+step</a> shows on an example how to build a new feature: from an unrecognized sentence, through a new topic with data,
+the tester and saving, to a command of Home Assistant. Every part of the editor is described below.</p>
+<p>The integration adds a panel for administrators to the sidebar of Home Assistant:
+<strong>Assist Router editor</strong>. The option <em>Show the editor in the sidebar</em> (Configure → Settings) takes it
+out of the sidebar; it then opens at <code>/assist-router-editor</code>. The editor has a light and a dark look: as
+Home Assistant by default, and a button in the top bar switches Auto, Light and Dark (the browser remembers it). It edits <code>router.yaml</code> in three
+columns:</p>
+<ul>
+  <li><strong>the tree</strong> of the file: the home (household, people, family, personas, music,
+    announcements, ask before, settings; the parts the file has none of yet are greyed out and can be
+    filled in), the topics of questions and the special topics (control, knowledge,
+    unclear sentences, no data). A topic without a description or examples is marked. A search
+    narrows the tree, and the whole tree folds and unfolds (the groups stay open). The arrow by a group's name folds
+    the group itself, and the icon on its right folds or unfolds everything inside that group;</li>
+  <li><strong>the form</strong> of the chosen item (see below), its <strong>YAML</strong> with the comments
+    right above its key, or the whole file. Only the lines of the item change: every other line, the comments and the layout stay as
+    they were. A new key renames the item; text that is not valid YAML yet waits, with the reason
+    shown;</li>
+  <li><strong>the check</strong>: whether the router reads the text and how many topics it finds, and
+    what kind of topic the chosen one is, and under it <strong>the tester</strong> (see below).</li>
+</ul>
+<p>Every change goes to a <strong>draft</strong> kept in HA (<code>.storage/assist_router.editor</code>).
+A draft changes nothing until it is saved and waits there when the page is closed. Undo and redo
+cover the whole session (Ctrl+Z and Ctrl+Shift+Z outside a text field; Ctrl+S opens saving).
+<strong>Save…</strong> lists what changes (items added, removed and changed, the lines that differ),
+refuses a text the router cannot read, and stops when the file was changed outside the editor since
+the draft began; <em>Save anyway</em> overwrites those changes. The previous file is kept as
+<code>router.yaml.bak</code> and in the <strong>history</strong> of the last 30 saves, and any version
+can be restored as a draft. The router reads the saved file at once, without a restart.</p>
+<p>A topic is added with <strong>+</strong> next to “Topics of questions”; it starts with a description
+and an example to fill in. An item can be duplicated (with its comments) and deleted.</p>
+<p><strong>Forms.</strong> An item opens in its form. The <em>YAML</em> tab shows the same as text, and the
+editor remembers which tab you chose. A form changes only the lines of one field, in the style the file
+already uses: a list in brackets stays in brackets, a list on lines stays on lines with the comments beside
+its items, and a comment at the end of a line stays where it is. A long text is folded (<code>&gt;-</code>).
+Values are written the way the router reads them: “yes” or “08” go in quotes, so they stay text. An empty
+field leaves the file once you leave it. A text with <code>?</code> or <code>:</code> in a list in brackets
+goes in quotes too: the router reads <code>[Will it rain?]</code> as an error (“expected ',' or ']', but got
+'?'”), and <code>["Will it rain?"]</code> correctly.</p>
+<ul>
+  <li><strong>Topic:</strong> name, description for the router model, example questions and kind (answer,
+    control, knowledge, unclear). A topic that answers also has the hint for the answer model, hints for a
+    parent, a child, a girl, a boy, an unrecognized speaker and single people, the length of the answer,
+    “about who asks” (<code>personal</code>), the default day (<code>days</code>), states and attributes left
+    out, unavailable entities and <code>only_exposed</code>.</li>
+  <li><strong>The data sources of a topic with a live preview.</strong> Next to each entity pattern
+    (<code>entities</code>, <code>details</code>, the entities of services) a number says how many entities it
+    finds now (hovering shows the first of them; zero is marked). Under the patterns: how many entities
+    match, how many lines the model gets and the lines themselves, made by the same code as for a question
+    (without a person or a day), with a warning when more than 80 entities match. The attributes of
+    <code>details</code> are shown as they go to the model. Services with a response (<code>fetch</code>)
+    have cards of their own: service (only services that just return data are suggested), entities, header,
+    merging, limit, what is over already, and the data of the service as YAML. Services are not called while
+    you type: only the <em>Fetch the data now</em> button calls them, and only services that just return
+    data. A service that may change something is marked, and the router never calls it anyway. The sentence
+    of <code>command</code> is not sent to HA. Frigate and the command are edited in the YAML tab.</li>
+  <li><strong>People:</strong> a list with adding by name (the key is made of the name, e.g. “Łucja” →
+    <code>lucja</code>). A person: name, the <code>match</code> pattern tried on a sentence, the voice in
+    Assist Speaker ID, the room (suggested from the areas of HA), their entities and labels. A person
+    written as a name only (<code>ola: Ola</code>) gets the fields on lines of their own.</li>
+  <li><strong>Family:</strong> parents, children, and men and boys, ticked among the people.</li>
+  <li><strong>Personas:</strong> name, prompt, gender, pipelines and TTS voices (suggested from the
+    pipelines of Assist). A missing prompt, or no pipeline and no voice, is marked, as the router does not
+    read the file then.</li>
+  <li><strong>Music in rooms, announcements, ask before:</strong> lists of players and entities suggested
+    from HA. An empty list of a room's players stays in the file (no music in that room).</li>
+  <li><strong>Settings:</strong> language, sentences of a Wikipedia summary, Wikipedia language,
+    <code>only_exposed</code>, control model, and the prompts of answers and summaries. A word in braces
+    other than <code>{household}</code>, <code>{now}</code> and <code>{sentences}</code> is marked, as the
+    router cannot fill it.</li>
+</ul>
+
+<p><strong>The tester.</strong> A typed sentence goes the way of a spoken one, <strong>on the draft</strong>, without
+saving. The steps are:</p>
+<ol>
+  <li><strong>Home Assistant</strong>: whether the built-in agent or <code>custom_sentences</code> recognizes the
+    sentence (HA's debug of sentences, which does nothing). A sentence HA recognizes ends the way there;</li>
+  <li><strong>the router</strong>: the chosen topic (a click opens it in the form), the model and the time. With
+    the comparison, also the topic the saved file would choose;</li>
+  <li><strong>the person and the day</strong> taken from the sentence;</li>
+  <li><strong>the data</strong> (lines of states, attributes, services) or <strong>the plan of control</strong>
+    (intent, slots, whether it would do it at once or ask first);</li>
+  <li><strong>the answer</strong> of the model with its time; the prompt can be unfolded.</li>
+</ol>
+<p>A sentence with several commands is split, and each command has its own way. Options: who speaks, the persona,
+the room of the speaker, the comparison with the saved file, skipping HA, and no answer model. The field of the
+tester suggests the last 10 sentences. <strong>The tester does nothing:</strong> control is only planned, the
+sentence of <code>command</code> is only recognized (sent, it could run an automation), the fallback agent is not
+asked, nothing is said or announced and nothing goes to the log of unrecognized commands. The Ollama models and
+the services that only return data are asked for real, as for a real question.</p>
+
+<p><strong>Learning</strong> (a group of the tree) has two views.</p>
+<ul>
+  <li><strong>Unrecognized sentences</strong> of <code>assist/unrecognized_commands.csv</code>, grouped by sentence
+    (case and the final mark aside): how often, when last, who spoke where, and how it went then. <em>Check on the
+    draft</em> shows where each sentence would go now (HA or a topic of the router). A sentence can become an
+    example of a topic or a new topic (its description and first example), be tested in the tester, go to the
+    tests or be hidden. Hiding works in the editor only: the log stays as it is.</li>
+  <li><strong>The test set</strong> in <code>assist/router_tests.yaml</code>: a sentence and where it should go,
+    the router's topic or an intent HA recognizes itself. The set is saved at once (with a <code>.bak</code>), as it
+    is not a part of <code>router.yaml</code>. <em>Run on the draft</em> checks each sentence on the draft and on the
+    saved file and shows how many tests passed and how many the change fixed or broke. The <em>Add to the
+    tests</em> button of the tester adds a test too.</li>
+</ul>
+
+<p><strong>Commands of Home Assistant</strong> (a group of the tree) are the files <code>custom_sentences/&lt;language&gt;/*.yaml</code>:
+sentences Home Assistant recognizes itself, before a sentence goes to the router. A file opens in a form (intents,
+their sentences and the answer) or as YAML. A sentence is written as in HA: <code>{name}</code> is the name of a device
+or an area, <code>(a|b)</code> one of the words, <code>[a]</code> an optional word. An intent HA cannot carry out (not
+built in and with no <code>intent_script</code>) is marked: the sentence is recognized, but nothing happens. <em>Save
+and reload</em> checks every sentence as HA does (a wrong one does not reach the file), writes the file with a
+<code>.bak</code> and reloads the sentences with <code>conversation.reload</code>, so a new command works at once,
+without a restart. The file is saved by itself, not with the draft of <code>router.yaml</code>. <em>What Home Assistant
+recognizes</em> checks typed sentences on the saved files and does nothing. <strong>+</strong> by the group makes a new
+file, and <em>Delete the file</em> puts it aside as <code>.bak</code>.</p>
+
+<p><strong>Before saving</strong> the <em>Save…</em> window shows, besides the changes and the differences:</p>
+<ul>
+  <li><strong>Worth a look</strong>: entity patterns that find nothing, services that may change something or do not
+    exist, topics without a description or examples, and words in braces of a prompt the router cannot fill.
+    Warnings do not stop saving;</li>
+  <li><strong>The test set</strong>: a button runs the tests on the draft and compares them with the saved file. The
+    window says how many tests the change breaks and lists those that fail. It also warns when tests expect a topic
+    the draft has no more. It can be saved anyway.</li>
+</ul>
+
+<h3 id="editor-faq">The editor: when something does not work</h3>
+<div class="table"><table>
+<tr><th>Message or symptom</th><th>Cause and what to do</th></tr>
+<tr><td>No “Assist Router editor” in the sidebar</td><td>The panel appears after restarting HA once the integration is
+installed or updated, and only for administrators. After the restart reload the page (Ctrl+Shift+R).</td></tr>
+<tr><td>“The router will not read this text: …”</td><td>The draft has an error that would turn the router off; the
+window says why (e.g. a persona without a prompt). Fix it in the form or in YAML; saving waits.</td></tr>
+<tr><td><code>expected ',' or ']', but got '?'</code></td><td>A text with <code>?</code> or <code>:</code> in a list in
+brackets without quotes: <code>[Will it rain?]</code>. Write <code>["Will it rain?"]</code>. The form does it
+itself.</td></tr>
+<tr><td>“router.yaml was changed outside the editor meanwhile”</td><td>Someone changed the file (another editor, File
+editor, Samba) since the draft began. The window of saving shows the differences; <em>Save anyway</em> overwrites
+that change, and <em>Discard draft</em> reads the file again.</td></tr>
+<tr><td>“The preview waits until the router reads the text: …”</td><td>The preview of sources is made on a text the
+router can read. Fix the error after the colon.</td></tr>
+<tr><td>“This change was not made: Nothing can be added here…”</td><td>The part the form adds to is a text or a list
+(e.g. <code>people: none</code>). Make it a mapping in the YAML tab (<code>people:</code> with people under
+it).</td></tr>
+<tr><td>“This service may change something: the router never calls it from a topic”</td><td>Only services that just
+return data (e.g. <code>calendar.get_events</code>) work in <code>fetch</code>. Pick one of the suggested.</td></tr>
+<tr><td>“The service returned nothing (or failed…)”</td><td>The service answered with an empty list or an error; the
+details are in the HA log (<code>Router fetch … failed</code>). Check its entities and data.</td></tr>
+<tr><td>“the router cannot fill {who}”</td><td>A prompt of the settings has a word in braces the router does not
+know. <code>{household}</code>, <code>{now}</code> and <code>{sentences}</code> are allowed; write a plain brace
+twice: <code>{{</code>, <code>}}</code>.</td></tr>
+<tr><td>“Error: The Assist Router agent is not running”</td><td>The tester, the unrecognized sentences and the tests need
+the integration running. Check that Assist Router is loaded (Settings → Devices &amp; services).</td></tr>
+<tr><td>“The router has no model set”</td><td>The integration's options have no Ollama URL or router model.</td></tr>
+<tr><td>“No topic (the model did not answer or answered wrong)”</td><td>Ollama is off, the model did not fit in memory,
+or it answered out of format. Try again; the details are in the HA log.</td></tr>
+<tr><td>“Home Assistant has no handler of …”</td><td>The sentence goes to an intent HA cannot carry out. Choose a
+known intent (e.g. <code>HassTurnOn</code>) or add an <code>intent_script</code> of that name in
+<code>configuration.yaml</code>.</td></tr>
+<tr><td>“Unable to find end of group”, “Unable to find end of optional”</td><td>A sentence misses its closing
+<code>)</code> or <code>]</code>. The file is not saved while the sentence is wrong.</td></tr>
+<tr><td>“router_tests.yaml is not a test set: …”</td><td>The test file has another layout. Expected: <code>tests:</code>
+with a list, each item with <code>sentence</code> and <code>topic</code> or <code>intent</code>. Fix the file or
+delete it; the editor makes a new one.</td></tr>
+</table></div>
+
 <h3 id="examples">Example commands for your home</h3>
 <p>The <code>assist_router.generate_examples</code> action, or the “Example commands” menu item,
 works like this:</p>

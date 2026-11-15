@@ -164,9 +164,13 @@ The author uses the same model for the router and the answers, on a Jetson AGX O
    - optionally `language`: the language pack (default: HA's language if there is a pack for
      it, otherwise `pl`).
 
-   You can also edit the file in HA itself: integration options → **Router file**. The file
-   is validated before saving, and the previous version is kept as `.bak`. Changes take
-   effect immediately, without a restart.
+   You can also edit the file in HA itself, in the **Assist Router editor** panel in the
+   sidebar (administrators): a tree of the topics, the YAML of one topic with its comments, a
+   draft that changes nothing until it is saved, the router's check and a history of saves
+   ([documentation, chapter 5](https://witold-gren.github.io/home-assistant-assist-router/en/#editor)).
+   Integration options → **Router file** edits the whole file at once. Either way the file is
+   validated before saving, the previous version is kept as `.bak`, and changes take effect
+   immediately, without a restart.
    Field descriptions and examples: [documentation, chapters 6–9](https://witold-gren.github.io/home-assistant-assist-router/en/#router).
 4. **Checking what works in your home:** integration options → **Example commands** →
    “Generate” (a few minutes). The model writes sentences with the names of your entities,

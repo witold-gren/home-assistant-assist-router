@@ -170,6 +170,7 @@ async def test_options_flow(hass: HomeAssistant, setup: MockConfigEntry) -> None
         CONF_FALLBACK_AGENT: "conversation.bielik",
         CONF_FALLBACK_TIMEOUT: 20,
         CONF_LOG_UNRECOGNIZED: True,
+        "editor_in_sidebar": True,
     }
 
 

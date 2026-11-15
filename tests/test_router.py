@@ -292,7 +292,12 @@ async def test_options_flow_router(
     )
     result = await hass.config_entries.options.async_configure(
         flow["flow_id"],
-        {CONF_LOG_UNRECOGNIZED: False, "fallback_timeout": 30, CONF_OLLAMA_URL: OLLAMA + "/"},
+        {
+            CONF_LOG_UNRECOGNIZED: False,
+            "fallback_timeout": 30,
+            "editor_in_sidebar": False,
+            CONF_OLLAMA_URL: OLLAMA + "/",
+        },
     )
     assert result["type"] == "form" and result["step_id"] == "router"
     aioclient_mock.post(f"{OLLAMA}/api/generate", json={"done": True})
@@ -305,6 +310,7 @@ async def test_options_flow_router(
     assert setup.options[CONF_OLLAMA_URL] == OLLAMA
     assert setup.options[CONF_ROUTER_MODEL] == "bielik-1.5b"
     assert setup.options[CONF_LOG_UNRECOGNIZED] is False
+    assert setup.options["editor_in_sidebar"] is False
 
 
 async def test_options_flow_cannot_connect(

@@ -543,10 +543,11 @@ class AssistRouterAgent(conversation.ConversationEntity):
             )
         self.hass.bus.async_fire(EVENT_UNRECOGNIZED, row)
 
-    async def _split_commands(self, text: str) -> list[str]:
+    async def _split_commands(self, text: str, config: RouterConfig | None = None) -> list[str]:
         """Separate, complete commands of a sentence (model of control); ``[text]`` when it is
-        one command, the model is not set up or its answer is unusable."""
-        config = await self._router.async_get()
+        one command, the model is not set up or its answer is unusable. ``config`` - another
+        router.yaml than the file (the editor's tester)."""
+        config = config or await self._router.async_get()
         ollama = self._ollama()
         if config is None or ollama is None:
             return [text]
@@ -882,8 +883,11 @@ class AssistRouterAgent(conversation.ConversationEntity):
         config: RouterConfig,
         ollama: OllamaSettings,
         device_id: str | None,
+        here: str | None = None,
     ) -> tuple[Plan | None, str | None]:
-        """Parsing (model) and plan (Python) of a command, without execution; None + reason."""
+        """Parsing (model) and plan (Python) of a command, without execution; None + reason.
+
+        ``here`` - the room the command is said in, when there is no device (the tester)."""
         home = collect_home(self.hass)
         text, doubts = prepare_text(text)
         routine = named_routine(home, text)
@@ -920,7 +924,7 @@ class AssistRouterAgent(conversation.ConversationEntity):
             doubts,
             confirm_entities=config.confirm_entities,
             music_players=config.music_players,
-            here=self._device_area(device_id),
+            here=here or self._device_area(device_id),
         )
         if not plan.slots and "brak znanego czasownika" in doubts:
             # neither a verb nor a target - we do not guess what to do
