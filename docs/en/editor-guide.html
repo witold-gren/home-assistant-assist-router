@@ -133,7 +133,7 @@ command "light up {name}" is added to Home Assistant.</p>
   <li><strong>Right:</strong> <span class="ui">Check</span> (whether the router reads the text and how many topics it has), <span class="ui">File</span>
     (the state of the draft), <span class="ui">Kind of topic</span> and the <span class="ui">Tester</span>.</li>
   <li><strong>Top bar:</strong> the state (<span class="ui">No changes</span> or <span class="ui">Draft saved</span>), undo and redo, <span class="ui">Discard draft</span>,
-    light or dark look, <span class="ui">History</span> and <span class="ui">Save…</span>.</li>
+    light or dark look, <strong>?</strong> (this guide, in a new tab), <span class="ui">History</span> and <span class="ui">Save…</span>.</li>
 </ul>
 
 <h2 id="learning">3. Where ideas come from: unrecognized sentences</h2>
@@ -285,6 +285,8 @@ keeps it as <code>.bak</code>.</p>
   <td><span class="ui">Save anyway</span> overwrites those changes; the save window shows the differences.</td></tr>
 <tr><td>"Home Assistant has no handler of …"</td><td>The intent is not built in and has no <code>intent_script</code>.</td>
   <td>Choose a known intent or add an <code>intent_script</code>.</td></tr>
+<tr><td>The browser warns that the tab uses a lot of energy or memory</td><td>Up to 0.1.6 the editor read <code>router.yaml</code> again on every change of a state in the home.</td>
+  <td>Update to 0.1.7 or later and load the tab again.</td></tr>
 <tr><td>No panel in the sidebar</td><td>The account is not an administrator, or the panel is hidden.</td>
   <td>Open <code>/assist-router-editor</code> or turn on <span class="ui">Show the editor in the sidebar</span>.</td></tr>
 </table></div>

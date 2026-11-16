@@ -20,5 +20,5 @@
   "issue_tracker": "https://github.com/witold-gren/home-assistant-assist-router/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.1.6"
+  "version": "0.1.7"
 }

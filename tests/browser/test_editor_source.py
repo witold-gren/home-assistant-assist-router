@@ -359,3 +359,26 @@ def test_a_copy_of_a_block_gets_the_new_key_after_its_comments(page) -> None:
     assert copy == "# rain\nweather_copy:\n  description: x"
     quoted = run(page, "return e.renameBlock(arg, 'b');", '"a b":\n  x: 1')
     assert quoted == "b:\n  x: 1"
+
+
+def test_a_text_read_again_is_not_parsed_again(page) -> None:
+    """The editor draws itself on every change of a state in the home; the same text is read once."""
+    same = run(
+        page, "return e.source.readDocument(arg) === e.source.readDocument(String(arg));", FILE
+    )
+    assert same is True
+    error = run(
+        page, "return [e.source.readDocument(arg).error, e.source.readDocument(arg).error];", "a: ["
+    )
+    assert error[0] and error[0] == error[1]
+
+
+def test_only_the_last_texts_are_kept(page) -> None:
+    kept = run(
+        page,
+        """const first = e.source.readDocument('a: 0');
+        for (let i = 1; i <= e.source.READ_CACHE_SIZE; i += 1) e.source.readDocument(`a: ${i}`);
+        const last = e.source.readDocument(`a: ${e.source.READ_CACHE_SIZE}`);
+        return [e.source.readDocument('a: 0') === first, e.source.readDocument(`a: ${e.source.READ_CACHE_SIZE}`) === last];""",
+    )
+    assert kept == [False, True]

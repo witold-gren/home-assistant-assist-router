@@ -2,6 +2,18 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions: [SemVer](https://semver.org/).
 
+## [0.1.7] - 2026-11-16
+
+### Added
+- A **?** button in the top bar of the editor: it opens the step-by-step guide to the editor on the
+  documentation site in a new tab, in Polish when Home Assistant is in Polish
+  (`docs/pl/przewodnik-edytora.html`), otherwise in English (`docs/en/editor-guide.html`).
+
+### Changed
+- The editor reads the same text of `router.yaml` once: it is drawn on every change of a state in the home and
+  read the text again many times for each picture (about 4 % of the main thread all day; now under 1 %).
+  Its FAQ in the guide (English, Polish): the browser's warning that the tab uses a lot of energy or memory.
+
 ## [0.1.6] - 2026-11-15
 
 ### Added

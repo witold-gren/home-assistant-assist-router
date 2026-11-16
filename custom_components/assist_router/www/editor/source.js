@@ -5,10 +5,24 @@
 import { isMap, isScalar, isSeq, parseDocument } from "../vendor/yaml.js";
 
 /** The document of a text, with the first error the YAML library found in it (null when none). */
+// The last texts read, newest last. The editor draws itself on every change of a state in the home and reads the same
+// text many times for one picture; the documents are only read, never changed, so one reading serves them all.
+const READ_CACHE = new Map();
+export const READ_CACHE_SIZE = 8;
+
 export function readDocument(text) {
+  const cached = READ_CACHE.get(text);
+  if (cached) {
+    READ_CACHE.delete(text);
+    READ_CACHE.set(text, cached);
+    return cached;
+  }
   const doc = parseDocument(text, { uniqueKeys: true });
   const error = doc.errors[0];
-  return { doc, error: error ? errorText(error) : null };
+  const read = { doc, error: error ? errorText(error) : null };
+  READ_CACHE.set(text, read);
+  if (READ_CACHE.size > READ_CACHE_SIZE) READ_CACHE.delete(READ_CACHE.keys().next().value);
+  return read;
 }
 
 /** An error of the YAML library in one line, with the line it is on. */

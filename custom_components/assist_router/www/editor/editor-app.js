@@ -38,6 +38,14 @@ const THEME_KEY = "assist-router-editor-theme";
 // The look of the editor: as Home Assistant (light or dark), or one chosen here and kept by the browser.
 export const THEMES = ["auto", "light", "dark"];
 const THEME_ICONS = { auto: "mdi:theme-light-dark", light: "mdi:weather-sunny", dark: "mdi:weather-night" };
+// The documentation site (GitHub Pages) with the step-by-step guide to this editor in English and Polish.
+export const DOCS_SITE = "https://witold-gren.github.io/home-assistant-assist-router/";
+
+/** The guide to the editor on the documentation site, in the language of Home Assistant. */
+export function editorDocsUrl(language) {
+  const polish = String(language ?? "").split("-")[0] === "pl";
+  return `${DOCS_SITE}${polish ? "pl/przewodnik-edytora.html" : "en/editor-guide.html"}`;
+}
 
 /** The look to show: the chosen one, or Home Assistant's (its dark mode, else the system's). */
 export function editorTheme(chosen, hass, prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
@@ -801,6 +809,15 @@ class AssistRouterEditorApp extends LitElement {
         @click=${this._nextTheme}
       >
         <ha-icon .icon=${THEME_ICONS[this._theme]}></ha-icon>
+      </button>
+      <button
+        class="ghost"
+        data-docs
+        title=${this._t("docs")}
+        aria-label=${this._t("docs")}
+        @click=${() => window.open(editorDocsUrl(this.hass?.language), "_blank", "noopener")}
+      >
+        <ha-icon icon="mdi:help-circle-outline"></ha-icon>
       </button>
       <button class="ghost" data-history @click=${this._openHistory}>
         <ha-icon icon="mdi:history"></ha-icon>${this._t("history")}
