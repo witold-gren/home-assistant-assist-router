@@ -7,6 +7,7 @@ import { fieldLines, renameKey, setField, setListItem } from "./fields.js";
 import { translate } from "./i18n.js";
 import { KIND_ICONS, SETTINGS_KEYS, SETTINGS_PATH, SOURCE_KEYS, nodeKey, topicKind } from "./outline.js";
 import { freeKey, keysAt, pairAt, readDocument, valueAt } from "./source.js";
+import { callWS } from "./ws.js";
 
 const FORM_TAG = "assist-router-form";
 // Answer hints for kinds of speakers; hints for single people are keyed by the person.
@@ -178,7 +179,7 @@ class AssistRouterForm extends LitElement {
     const topic = this.path?.[1];
     const text = this.text;
     try {
-      const data = await this.hass.callWS({ type: "assist_router/editor/sources", text, topic });
+      const data = await callWS(this.hass, { type: "assist_router/editor/sources", text, topic });
       if (text === this.text) this._preview = { key, data };
     } catch (err) {
       if (text === this.text) this._preview = { key, error: err.message ?? String(err) };
@@ -190,7 +191,7 @@ class AssistRouterForm extends LitElement {
     const topic = this.path[1];
     this._fetched = { topic, loading: true };
     try {
-      const data = await this.hass.callWS({ type: "assist_router/editor/sources", text: this.text, topic, fetch: true });
+      const data = await callWS(this.hass, { type: "assist_router/editor/sources", text: this.text, topic, fetch: true });
       this._fetched = { topic, data, at: new Date() };
     } catch (err) {
       this._fetched = { topic, error: err.message ?? String(err) };
@@ -200,7 +201,7 @@ class AssistRouterForm extends LitElement {
   async _loadServices() {
     this._services = [];
     try {
-      this._services = (await this.hass.callWS({ type: "assist_router/editor/services" })) ?? [];
+      this._services = (await callWS(this.hass, { type: "assist_router/editor/services" })) ?? [];
     } catch {
       this._services = [];
     }
@@ -209,7 +210,7 @@ class AssistRouterForm extends LitElement {
   async _loadPipelines() {
     this._pipelines = [];
     try {
-      const result = await this.hass.callWS({ type: "assist_pipeline/pipeline/list" });
+      const result = await callWS(this.hass, { type: "assist_pipeline/pipeline/list" });
       this._pipelines = result?.pipelines ?? [];
     } catch {
       this._pipelines = [];

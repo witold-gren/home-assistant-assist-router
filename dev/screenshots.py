@@ -1,9 +1,9 @@
-"""Pictures of the editor for docs/{en,pl}/editor-guide.html.
+"""Pictures of the editor for the documentation site (docs/editor.md, docs/editor.pl.md).
 
 They are taken on the demo (dev/editor-demo.html) with its made-up home, so no real home is in them.
 Every step is a real click in the editor, so the names in the guide are the names on the screen.
 
-    make screenshots        # both languages, into docs/assets/editor/{pl,en}/
+    make screenshots        # both languages, into docs/assets/screens/{pl,en}/
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import threading
 from playwright.sync_api import Page, sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "docs" / "assets" / "editor"
+OUT = ROOT / "docs" / "assets" / "screens"
 SCREEN = {"width": 1440, "height": 900}
 
 # The example of the guide in each language: a sentence of the log that no topic answers, the topic

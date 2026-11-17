@@ -1,0 +1,64 @@
+name: Documentation site
+
+# Builds the documentation (docs/, CHANGELOG, GUIDE.md, PRZEWODNIK.md) with MkDocs Material and publishes it on GitHub Pages:
+# https://witold-gren.github.io/home-assistant-assist-router/
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "CHANGELOG.md"
+      - "GUIDE.md"
+      - "PRZEWODNIK.md"
+      - "mkdocs.yml"
+      - "dev/docs_site.py"
+      - "requirements_docs.txt"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "CHANGELOG.md"
+      - "GUIDE.md"
+      - "PRZEWODNIK.md"
+      - "mkdocs.yml"
+      - "dev/docs_site.py"
+      - "requirements_docs.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  NO_MKDOCS_2_WARNING: "1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install -r requirements_docs.txt
+      - run: mkdocs build --strict
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

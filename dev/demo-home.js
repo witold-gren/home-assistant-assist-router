@@ -1,4 +1,4 @@
-// A made-up home for the demo of the editor (`make ui`): states that the example router.yaml files find, the
+// A made-up home for the demo of the editor (`make demo`): states that the example router.yaml files find, the
 // services a topic may fetch and what they return. Nothing here is a real home.
 
 const state = (value, attributes = {}) => ({ state: value, attributes });

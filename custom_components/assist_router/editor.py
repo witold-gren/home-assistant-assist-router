@@ -52,6 +52,7 @@ from .sentences import (
     text_hash as sentences_hash,
     write_file,
 )
+from .training import websocket_export as websocket_training_export
 
 STATIC_URL = "/assist_router_static"
 WWW_DIR = Path(__file__).parent / "www"
@@ -672,4 +673,5 @@ COMMANDS = [
     websocket_sentences_save,
     websocket_sentences_delete,
     websocket_sentences_test,
+    websocket_training_export,
 ]

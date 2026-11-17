@@ -2,6 +2,55 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions: [SemVer](https://semver.org/).
 
+## [0.1.8] - 2026-11-17
+
+### Added
+- Guide: a "One standard" page (PL/EN) - everything changed in the editor and this repository to follow the
+  shared standard of the house's apps: look and behaviour, speed, documentation, make commands, tests.
+- Guide: a "Recipes" page (PL/EN) - question → answer and question → action → answer step by step on
+  examples: gaming time today and left this week (history stats + template helpers), camera motion in the
+  last 24 hours (Frigate), private mode (a script with a description), heating in the bathroom, your own
+  answer after an action (an automation with `set_conversation_response`) and new podcasts (refresh first,
+  then answer: a topic with `command`); how to check each in the tester and what to do when it fails.
+- Export for the trainer (home-assistant-assist-router-trainer): the WebSocket command
+  `assist_router/training/export` (administrators only, read-only) returns everything the trainer
+  builds its data from - `router.yaml`, the log of unrecognized commands, the test files
+  (`model_test.yaml`, `model_test_data.yaml`), the automations with a `conversation` trigger as
+  written (also those from packages) and the `custom_sentences` files - so the trainer needs only
+  the Home Assistant address and a token, no file share.
+
+### Changed
+- One way to run the house's apps (standards/gpu-studio.md §2, §8a): `make help` has three groups, "1. Start"
+  (help, demo, demo-clean, docs, docs-serve, doctor; Docker Desktop only), "2. Home Assistant" (deploy) and
+  "3. Development". The documentation is built in Docker (`docs`, `docs-build`; `docs-serve` on port 9767), so
+  `.venv-docs` is gone. The developer's Python comes from uv (`PYTHON_VERSION ?= 3.14`, `uv venv`), no brew.
+  `make test` never builds images (`-m "not docker"`), `make test-docker` does; `make test-all` = lint + test +
+  test-browser + test-docker; `make format` (ruff check --fix + ruff format); `make lint` also checks the format;
+  `make doctor` checks Docker, Chrome, uv and the Home Assistant share and installs nothing. **`make ui` is gone**:
+  use `make demo`.
+  `scripts/deploy.sh` reads the version with sed, so deploying needs no Python; tests run on Python 3.14.
+- `make demo` needs only Docker Desktop: it builds a small image with the editor's demo page and runs it on port
+  8767 (8766 is the demo of the wake word studio, so both can run at once); Ctrl+C removes the container,
+  `make demo-clean` the image, and `make demo-local` serves the same page from Python. Both READMEs and the
+  installation page start with a short "Try it on a Mac". A test (marked `docker`, skipped without Docker) builds
+  the image, loads every file of the page and checks that no container is left.
+- Editor: the menu of Home Assistant is hidden when the editor opens; the menu button at the top left shows and
+  hides it, and it comes back on any other page of Home Assistant. It is hidden by the kiosk mode of Home Assistant,
+  which is never saved, so the user's own place of the menu stays as it was.
+- Editor, as the other apps of the house (one standard for their look, docs and tests): the icon of the editor
+  next to its name in the top bar; the tree, the middle and the right column each have a **?** that opens a small
+  window saying what the part does, with a link to its chapter of the guide (only the **?** of the top bar opens the
+  guide at once); the chosen node is in the address (`#/topics/weather`), so a
+  link or a reload opens the editor on it once the file has loaded; a browser that keeps nothing (private window,
+  blocked site data) no longer breaks the editor. The save and history windows have their own **?** too. It never
+  hangs on a slow or silent Home Assistant: every question has a time limit (60 s, the tester 180 s) and ends in a
+  clear message, and the draft is saved one save at a time (changes made meanwhile go with the next one); a test
+  goes through a big router.yaml (150 topics) and allows no task of the page over 500 ms.
+- Documentation: a site made with MkDocs Material in English and Polish (installation, the editor step by step,
+  router.yaml, good practice with every default from the code, models, FAQ, changes), the same anchors in both
+  languages; the old pages lead to their new places. `make demo`, `make docs`, `make docs-build`, `make docs-serve`
+  are the common names. Tests never connect anywhere but 127.0.0.1.
+
 ## [0.1.7] - 2026-11-16
 
 ### Added

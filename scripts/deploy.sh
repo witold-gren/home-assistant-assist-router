@@ -17,7 +17,8 @@ if [ ! -d "$(dirname "$target")" ]; then
   exit 1
 fi
 
-version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
+# The version from manifest.json with sed, so deploying needs nothing but the tools of macOS.
+version="$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' \
   "$repo/custom_components/assist_router/manifest.json")"
 
 # --inplace: no temporary files. The temporary name of __init__.py starts with

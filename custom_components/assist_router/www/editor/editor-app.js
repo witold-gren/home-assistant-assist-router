@@ -3,6 +3,7 @@
 // nothing until it is saved; the lines of the file not edited stay as they were, comments too.
 
 import { LitElement, css, html, nothing } from "../vendor/lit-all.min.js";
+import { PanelMenu } from "./ha-menu.js";
 import { translate } from "./i18n.js";
 import { formFor } from "./forms.js";
 import {
@@ -22,6 +23,11 @@ import "./forms.js";
 import "./tester.js";
 import "./learn.js";
 import { newSentencesFile, sentencesFileName } from "./sentences.js";
+import { readStored, writeStored } from "./stored.js";
+import { addressKey, writeAddress } from "./address.js";
+import { RAIL, foldShortcut, readFolded, writeFolded } from "./columns.js";
+import { DOCS_ANCHORS, docsAnchorFor, editorDocsUrl } from "./docs-anchors.js";
+import { callWS } from "./ws.js";
 
 const APP_TAG = "assist-router-editor-app";
 const DOMAIN = "assist_router";
@@ -34,18 +40,13 @@ export const DRAFT_SAVE_MS = 800;
 export const CHECK_MS = 400;
 const WIDTHS_KEY = "assist-router-editor-widths";
 const COLLAPSED_KEY = "assist-router-editor-collapsed";
+const FOLDED_KEY = "assist-router-editor-folded";
 const THEME_KEY = "assist-router-editor-theme";
 // The look of the editor: as Home Assistant (light or dark), or one chosen here and kept by the browser.
 export const THEMES = ["auto", "light", "dark"];
 const THEME_ICONS = { auto: "mdi:theme-light-dark", light: "mdi:weather-sunny", dark: "mdi:weather-night" };
-// The documentation site (GitHub Pages) with the step-by-step guide to this editor in English and Polish.
-export const DOCS_SITE = "https://witold-gren.github.io/home-assistant-assist-router/";
-
-/** The guide to the editor on the documentation site, in the language of Home Assistant. */
-export function editorDocsUrl(language) {
-  const polish = String(language ?? "").split("-")[0] === "pl";
-  return `${DOCS_SITE}${polish ? "pl/przewodnik-edytora.html" : "en/editor-guide.html"}`;
-}
+// The documentation site and the guide's address live in docs-anchors.js (the dialogs need them too).
+export { DOCS_SITE, editorDocsUrl } from "./docs-anchors.js";
 
 /** The look to show: the chosen one, or Home Assistant's (its dark mode, else the system's). */
 export function editorTheme(chosen, hass, prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
@@ -77,7 +78,7 @@ export function topicTemplate(key, t) {
 
 const readJson = (key, fallback) => {
   try {
-    return JSON.parse(localStorage.getItem(key) ?? "null") ?? fallback;
+    return JSON.parse(readStored(key) ?? "null") ?? fallback;
   } catch {
     return fallback;
   }
@@ -99,7 +100,9 @@ class AssistRouterEditorApp extends LitElement {
     _search: { state: true },
     _collapsed: { state: true },
     _widths: { state: true },
+    _folded: { state: true },
     _dialog: { state: true },
+    _help: { state: true },
     _saveError: { state: true },
     _busy: { state: true },
     _notice: { state: true },
@@ -121,6 +124,8 @@ class AssistRouterEditorApp extends LitElement {
     this._text = "";
     this._file = "";
     this._selected = null;
+    // The node named by the address (#/...), chosen once the file (and the files of sentences) have loaded.
+    this._wanted = addressKey();
     this._tab = "node";
     this._nodeText = null;
     this._search = "";
@@ -133,8 +138,9 @@ class AssistRouterEditorApp extends LitElement {
     this._sentenceEdits = {};
     const widths = readJson(WIDTHS_KEY, {});
     this._widths = { left: columnWidth("left", widths.left), right: columnWidth("right", widths.right) };
+    this._folded = readFolded(FOLDED_KEY);
     this._collapsed = new Set(readJson(COLLAPSED_KEY, []));
-    this._theme = THEMES.includes(localStorage.getItem(THEME_KEY)) ? localStorage.getItem(THEME_KEY) : "auto";
+    this._theme = THEMES.includes(readStored(THEME_KEY)) ? readStored(THEME_KEY) : "auto";
     this._onKey = this._onKey.bind(this);
     this._onVisible = this._onVisible.bind(this);
   }
@@ -143,20 +149,23 @@ class AssistRouterEditorApp extends LitElement {
     return translate(this.hass?.language, key, values, fallback);
   }
 
-  updated() {
+  updated(changed) {
+    // The address follows the chosen node; it is left alone while the node it names waits for the first state.
+    if (changed.has("_selected") && this._wanted === null) writeAddress(this._selected ? nodeKey(this._selected) : null);
     const theme = editorTheme(this._theme, this.hass);
     if (this.dataset.theme !== theme) this.dataset.theme = theme;
   }
 
   _nextTheme() {
     this._theme = THEMES[(THEMES.indexOf(this._theme) + 1) % THEMES.length];
-    localStorage.setItem(THEME_KEY, this._theme);
+    writeStored(THEME_KEY, this._theme);
   }
 
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener("keydown", this._onKey);
     document.addEventListener("visibilitychange", this._onVisible);
+    this._menu.connect();
     this._load();
   }
 
@@ -164,13 +173,14 @@ class AssistRouterEditorApp extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this._onKey);
     document.removeEventListener("visibilitychange", this._onVisible);
+    this._menu.disconnect();
     this._saveDraft();
   }
 
   // Loading and the draft ---------------------------------------------------------------------------
 
   _ws(message) {
-    return this.hass.callWS({ ...message, type: `${DOMAIN}/${message.type}` });
+    return callWS(this.hass, { ...message, type: `${DOMAIN}/${message.type}` });
   }
 
   async _load() {
@@ -193,11 +203,26 @@ class AssistRouterEditorApp extends LitElement {
       this._loaded = true;
       if (loaded.draft) this._runCheck();
       this._loadTests();
-      this._loadSentences();
+      this._followAddress(false);
+      this._loadSentences().then(() => this._followAddress(true));
     } catch (err) {
       this._notice = { kind: "error", text: this._t("error", { message: err.message ?? String(err) }) };
       this._loaded = true;
     }
+  }
+
+  /**
+   * Choose the node the address named when the editor opened. The files of sentences come later than router.yaml:
+   * until they are here (`last` false) a node not found yet keeps waiting.
+   */
+  _followAddress(last) {
+    const key = this._wanted;
+    if (!key) return;
+    const item = flattenOutline(this._outline().groups).find((node) => node.key === key);
+    if (!item && !last) return;
+    this._wanted = null;
+    if (item) this._select(item);
+    else writeAddress(this._selected ? nodeKey(this._selected) : null);
   }
 
   async _loadSentences() {
@@ -332,9 +357,15 @@ class AssistRouterEditorApp extends LitElement {
     this._draftTimer = setTimeout(() => this._saveDraft(), DRAFT_SAVE_MS);
   }
 
+  /**
+   * Save the draft on the server: one save at a time (a slow Home Assistant gets fewer saves, not a queue of them);
+   * changes made while one is on its way are saved right after it.
+   */
   async _saveDraft() {
     clearTimeout(this._draftTimer);
     if (!this._dirty || !this.hass) return;
+    if (this._draftInFlight) return;
+    this._draftInFlight = true;
     this._dirty = false;
     this._saving = true;
     try {
@@ -353,9 +384,13 @@ class AssistRouterEditorApp extends LitElement {
     } catch (err) {
       this._dirty = true;
       this._notice = { kind: "error", text: this._t("error", { message: err.message ?? String(err) }) };
+      return;
     } finally {
+      this._draftInFlight = false;
       this._saving = false;
     }
+    // Changes typed while the save was on its way.
+    if (this._dirty) this._saveDraft();
   }
 
   _scheduleCheck() {
@@ -414,6 +449,17 @@ class AssistRouterEditorApp extends LitElement {
   }
 
   _onKey(event) {
+    if (event.key === "Escape" && this._help) {
+      this._help = null;
+      return;
+    }
+    // Ctrl/⌘+B folds the left column, Ctrl/⌘+Alt+B the right one, also while typing in a field.
+    const column = foldShortcut(event);
+    if (column && !this._dialog) {
+      event.preventDefault();
+      this._toggleColumn(column);
+      return;
+    }
     const mod = event.ctrlKey || event.metaKey;
     if (!mod || this._dialog) return;
     const key = event.key.toLowerCase();
@@ -572,7 +618,7 @@ class AssistRouterEditorApp extends LitElement {
     const next = new Set(this._collapsed);
     ways.forEach((way) => next.delete(way));
     this._collapsed = next;
-    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+    writeStored(COLLAPSED_KEY, JSON.stringify([...next]));
   }
 
   _toggle(item) {
@@ -580,7 +626,7 @@ class AssistRouterEditorApp extends LitElement {
     if (next.has(item.key)) next.delete(item.key);
     else next.add(item.key);
     this._collapsed = next;
-    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+    writeStored(COLLAPSED_KEY, JSON.stringify([...next]));
   }
 
   /**
@@ -603,7 +649,7 @@ class AssistRouterEditorApp extends LitElement {
     if (open) keys.forEach((key) => next.add(key));
     else [...keys, group.key].forEach((key) => next.delete(key));
     this._collapsed = next;
-    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+    writeStored(COLLAPSED_KEY, JSON.stringify([...next]));
   }
 
   // Every part that unfolds folds, or all unfold; the groups stay open, each folds by its own arrow.
@@ -613,16 +659,45 @@ class AssistRouterEditorApp extends LitElement {
       .filter((item) => item.children?.length)
       .map((item) => item.key);
     this._collapsed = new Set(fold ? keys : []);
-    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...this._collapsed]));
+    writeStored(COLLAPSED_KEY, JSON.stringify([...this._collapsed]));
   }
 
-  // The sidebar of Home Assistant, as the menu button of its own panels opens and folds it.
+  // The menu of Home Assistant: hidden while the editor is open, the menu button shows and hides it (ha-menu.js).
+  _menu = new PanelMenu(this);
+
   _toggleMenu() {
-    this.dispatchEvent(new CustomEvent("hass-toggle-menu", { bubbles: true, composed: true }));
+    this._menu.toggle();
   }
 
   /** A bar between columns: dragged, it sets the width of its side column; a double click gives the first back. */
+  /** Fold or unfold a column; its width stays as it was, for when it unfolds. */
+  _toggleColumn(side) {
+    this._folded = { ...this._folded, [side]: !this._folded[side] };
+    writeFolded(FOLDED_KEY, this._folded);
+  }
+
+  /** The button that folds a column, at its top. */
+  _foldButton(side) {
+    const label = this._t(`fold_${side}`);
+    return html`<button class="ghost fold-column" data-fold-column=${side} title=${label} aria-label=${label}
+      @click=${() => this._toggleColumn(side)}>
+      <ha-icon icon=${side === "left" ? "mdi:chevron-left" : "mdi:chevron-right"}></ha-icon>
+    </button>`;
+  }
+
+  /** A folded column: a narrow rail with the button that unfolds it. */
+  _renderRail(side) {
+    const label = this._t(`unfold_${side}`);
+    return html`<aside class="rail" data-rail=${side}>
+      <button class="ghost" data-unfold-column=${side} title=${label} aria-label=${label} @click=${() => this._toggleColumn(side)}>
+        <ha-icon icon=${side === "left" ? "mdi:chevron-right" : "mdi:chevron-left"}></ha-icon>
+      </button>
+    </aside>`;
+  }
+
   _renderSplitter(side) {
+    // The bar beside a folded column does not drag.
+    if (this._folded[side]) return html`<div class="splitter off" data-splitter=${side}></div>`;
     const move = (event) => {
       const box = this.getBoundingClientRect();
       const width = side === "left" ? event.clientX - box.left : box.right - event.clientX;
@@ -638,7 +713,7 @@ class AssistRouterEditorApp extends LitElement {
         bar.removeEventListener("pointermove", move);
         bar.removeEventListener("pointerup", stop);
         bar.removeEventListener("pointercancel", stop);
-        localStorage.setItem(WIDTHS_KEY, JSON.stringify(this._widths));
+        writeStored(WIDTHS_KEY, JSON.stringify(this._widths));
       };
       bar.addEventListener("pointermove", move);
       bar.addEventListener("pointerup", stop);
@@ -646,7 +721,7 @@ class AssistRouterEditorApp extends LitElement {
     };
     const reset = () => {
       this._widths = { ...this._widths, [side]: COLUMNS[side].start };
-      localStorage.setItem(WIDTHS_KEY, JSON.stringify(this._widths));
+      writeStored(WIDTHS_KEY, JSON.stringify(this._widths));
     };
     return html`<div
       class="splitter"
@@ -715,7 +790,7 @@ class AssistRouterEditorApp extends LitElement {
     this._dialog = "history";
     if (!Object.keys(this._users).length) {
       try {
-        const users = await this.hass.callWS({ type: "config/auth/list" });
+        const users = await callWS(this.hass, { type: "config/auth/list" });
         this._users = Object.fromEntries(users.map((user) => [user.id, user.name]));
       } catch {
         this._users = {};
@@ -745,10 +820,15 @@ class AssistRouterEditorApp extends LitElement {
     if (!this._loaded) return html`<p class="empty">${this._t("loading")}</p>`;
     return html`
       ${this._renderTop()} ${this._renderNotices()}
-      <div class="cols" style="--left: ${this._widths.left}px; --right: ${this._widths.right}px">
-        ${this._renderTree()} ${this._renderSplitter("left")} ${this._renderMiddle()} ${this._renderSplitter("right")}
-        ${this._renderSide()}
+      <div
+        class="cols"
+        style="--left: ${this._folded.left ? RAIL : this._widths.left}px; --right: ${this._folded.right ? RAIL : this._widths.right}px"
+      >
+        ${this._folded.left ? this._renderRail("left") : this._renderTree()} ${this._renderSplitter("left")}
+        ${this._renderMiddle()} ${this._renderSplitter("right")}
+        ${this._folded.right ? this._renderRail("right") : this._renderSide()}
       </div>
+      ${this._renderHelp()}
       ${this._dialog === "save"
         ? html`<assist-router-save-dialog
             .language=${this.hass.language}
@@ -780,12 +860,65 @@ class AssistRouterEditorApp extends LitElement {
     `;
   }
 
+  /** The "?" of a part of the editor: what the part is for, and the chapter of the guide about it in a new tab. */
+  _helpButton(part, anchor) {
+    const label = `${this._t("help_what")} ${this._t(`help_${part}_title`)}`;
+    return html`<button
+      class="ghost help ${this._help?.part === part ? "on" : ""}"
+      data-help=${part}
+      data-anchor=${anchor}
+      title=${label}
+      aria-label=${label}
+      aria-expanded=${this._help?.part === part ? "true" : "false"}
+      @click=${(event) => this._toggleHelp(part, anchor, event.currentTarget)}
+    >
+      <ha-icon icon="mdi:help-circle-outline"></ha-icon>
+    </button>`;
+  }
+
+  /** The window of a part's "?": opens under its button (inside the screen), a second click or Esc closes it. */
+  _toggleHelp(part, anchor, button) {
+    if (this._help?.part === part) {
+      this._help = null;
+      return;
+    }
+    const box = button.getBoundingClientRect();
+    const width = Math.min(340, window.innerWidth - 16);
+    const left = Math.max(8, Math.min(box.left, window.innerWidth - width - 8));
+    this._help = { part, anchor, top: box.bottom + 6, left, width };
+  }
+
+  _renderHelp() {
+    const help = this._help;
+    if (!help) return nothing;
+    return html`<div class="help-shade" data-help-shade @click=${() => (this._help = null)}></div>
+      <div
+        class="help-pop"
+        role="dialog"
+        aria-label=${this._t(`help_${help.part}_title`)}
+        data-help-pop=${help.part}
+        style="top: ${help.top}px; left: ${help.left}px; width: ${help.width}px"
+      >
+        <div class="help-head">
+          <b>${this._t(`help_${help.part}_title`)}</b>
+          <button class="ghost" data-help-close aria-label=${this._t("close")} @click=${() => (this._help = null)}>
+            <ha-icon icon="mdi:close"></ha-icon>
+          </button>
+        </div>
+        <p>${this._t(`help_${help.part}`)}</p>
+        <a data-help-more href=${editorDocsUrl(this.hass?.language, help.anchor)} target="_blank" rel="noopener"
+          >${this._t("help_more")} <ha-icon icon="mdi:open-in-new"></ha-icon
+        ></a>
+      </div>`;
+  }
+
   _renderTop() {
     const state = this._saving ? this._t("state_saving") : this._changed ? this._t("state_draft") : this._t("state_clean");
     return html`<header class="top">
       <button class="ghost menu" data-ha-menu aria-label=${this._t("menu")} title=${this._t("menu")} @click=${this._toggleMenu}>
         <ha-icon icon="mdi:menu"></ha-icon>
       </button>
+      <ha-icon class="app-icon" icon="mdi:robot-outline" data-app-icon></ha-icon>
       <h1>${this._t("title")}</h1>
       <span class="board" data-path>${this._path ?? ""}</span>
       <span class="grow"></span>
@@ -894,6 +1027,8 @@ class AssistRouterEditorApp extends LitElement {
         <button class="ghost" data-unfold-all @click=${() => this._foldAll(false)}>
           <ha-icon icon="mdi:unfold-more-horizontal"></ha-icon>${this._t("unfold_all")}
         </button>
+        <span class="grow"></span>
+        ${this._helpButton("tree", DOCS_ANCHORS.screen)} ${this._foldButton("left")}
       </div>
       ${outline.error ? html`<p class="tree-error" data-tree-error>${this._t("file_error", { error: outline.error })}</p>` : nothing}
       ${groups.map((group) => {
@@ -971,7 +1106,8 @@ class AssistRouterEditorApp extends LitElement {
                     <ha-icon icon="mdi:delete-outline"></ha-icon>${this._t("delete")}
                   </button>`
                 : nothing}`
-          : nothing}
+          : html`<span class="grow"></span>`}
+        ${this._helpButton("middle", this._tab === "file" ? DOCS_ANCHORS.parts : docsAnchorFor(this._selected))}
       </div>
       ${formFor(this._selected) === "sentences"
         ? this._renderForm()
@@ -1089,6 +1225,7 @@ class AssistRouterEditorApp extends LitElement {
     const kind = topic !== undefined ? topicKind(topic) : null;
     const item = this._selected && flattenOutline(this._outline().groups).find((node) => node.key === nodeKey(this._selected));
     return html`<aside class="side" data-side>
+      <div class="side-help">${this._helpButton("side", DOCS_ANCHORS.save)} ${this._foldButton("right")}</div>
       <section class="card" data-check=${check ? (check.ok ? "ok" : "error") : "pending"}>
         <h3>${this._t("check_title")}</h3>
         ${!check
@@ -1215,6 +1352,11 @@ class AssistRouterEditorApp extends LitElement {
     button.menu {
       padding: 6px;
       --mdc-icon-size: 22px;
+    }
+    .app-icon {
+      --mdc-icon-size: 22px;
+      color: var(--accent);
+      flex: none;
     }
     h1 {
       margin: 0 8px 0 0;
@@ -1394,6 +1536,81 @@ class AssistRouterEditorApp extends LitElement {
       min-width: 0;
       min-height: 0;
       padding: 10px 16px 14px;
+    }
+    .help {
+      flex: none;
+      padding: 4px;
+      color: var(--muted);
+    }
+    .help ha-icon {
+      --mdc-icon-size: 18px;
+    }
+    .help.on {
+      color: var(--accent);
+    }
+    .fold-column {
+      flex: none;
+      padding: 4px;
+    }
+    .rail {
+      display: flex;
+      justify-content: center;
+      padding-top: 8px;
+      min-width: 0;
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .rail button {
+      padding: 4px 2px;
+    }
+    .splitter.off {
+      cursor: default;
+      pointer-events: none;
+    }
+    .help-shade {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+    }
+    .help-pop {
+      position: fixed;
+      z-index: 21;
+      box-sizing: border-box;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      color: var(--text);
+      box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .help-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .help-head button {
+      padding: 2px;
+    }
+    .help-pop p {
+      margin: 6px 0 10px;
+    }
+    .help-pop a {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .help-pop a ha-icon {
+      --mdc-icon-size: 14px;
+    }
+    .side-help {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: -8px;
     }
     .tabs {
       display: flex;

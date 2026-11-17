@@ -1,0 +1,124 @@
+# The documentation site, published on GitHub Pages by .github/workflows/docs.yml and on the home documents
+# site (docs-hub). Pages: docs/*.md in English, docs/*.pl.md in Polish beside them. The changelog and the guide
+# from scratch (GUIDE.md, PRZEWODNIK.md) are copied in by dev/docs_site.py before each build.
+site_name: Assist Router
+site_description: A Home Assistant conversation agent that understands everyday questions and commands - all local.
+site_url: https://witold-gren.github.io/home-assistant-assist-router/
+repo_url: https://github.com/witold-gren/home-assistant-assist-router
+repo_name: witold-gren/home-assistant-assist-router
+edit_uri: edit/main/docs/
+docs_dir: docs
+strict: true
+
+exclude_docs: |
+  /design/
+
+extra_css:
+  - stylesheets/extra.css
+
+hooks:
+  - dev/docs_site.py
+
+theme:
+  name: material
+  logo: assets/icon.png
+  favicon: assets/icon.png
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tracking
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: pl
+          name: Polski
+          build: true
+          site_description: Agent rozmowy Home Assistant, który rozumie zwykłe pytania i polecenia - wszystko lokalnie.
+          nav_translations:
+            Start: Start
+            Guide from scratch: Przewodnik od zera
+            Installation: Instalacja
+            The editor: Edytor
+            The router.yaml file: Plik router.yaml
+            Recipes: Przepisy
+            Data: Dane
+            Home control: Sterowanie domem
+            Doing it well: Jak robić to dobrze
+            Models: Modele
+            Privacy: Prywatność
+            Adding a language: Dodanie języka
+            FAQ: FAQ
+            One standard: Jeden standard
+            Changelog: Lista zmian
+
+nav:
+  - Start: index.md
+  - Guide from scratch: guide.md
+  - Installation: installation.md
+  - The editor: editor.md
+  - The router.yaml file: router-yaml.md
+  - Recipes: recipes.md
+  - Data: data.md
+  - Home control: control.md
+  - Doing it well: good-practice.md
+  - Models: models.md
+  - Privacy: privacy.md
+  - Adding a language: languages.md
+  - FAQ: faq.md
+  - One standard: standard.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.blocks.caption
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+
+validation:
+  links:
+    absolute_links: ignore
+    anchors: warn

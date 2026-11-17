@@ -8,6 +8,7 @@ import { setField } from "./fields.js";
 import { keyFromName } from "./forms.js";
 import { translate } from "./i18n.js";
 import { freeKey, keysAt, readDocument, valueAt } from "./source.js";
+import { callWS } from "./ws.js";
 
 const LEARN_TAG = "assist-router-learn";
 export const KEY_LENGTH = 30;
@@ -67,7 +68,7 @@ class AssistRouterLearn extends LitElement {
   }
 
   _ws(message) {
-    return this.hass.callWS({ ...message, type: `assist_router/editor/${message.type}` });
+    return callWS(this.hass, { ...message, type: `assist_router/editor/${message.type}` });
   }
 
   updated(changed) {

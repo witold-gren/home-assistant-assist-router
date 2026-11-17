@@ -1,12 +1,13 @@
 [project]
 name = "home-assistant-assist-router"
-version = "0.1.7"
+version = "0.1.8"
 description = "Assist Router for Home Assistant: answers questions and controls the home through a local LLM (Ollama) before falling back to the default agent."
 requires-python = ">=3.13"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = ["docker: builds and runs the demo image of Docker (skipped without Docker)"]
 
 [tool.ruff]
 line-length = 100

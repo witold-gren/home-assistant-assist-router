@@ -5,3 +5,11 @@ __pycache__/
 .ruff_cache/
 .coverage
 .DS_Store
+
+# documentation site (make docs) and the pages its hook copies into docs/
+.venv-docs/
+site/
+docs/changelog.md
+docs/changelog.pl.md
+docs/guide.md
+docs/guide.pl.md

@@ -25,6 +25,18 @@ test set and a history of saves, so there is no need to edit the YAML file by ha
 
 ![The Assist Router editor: the tree of router.yaml, the form of a topic and the tester](docs/assets/editor/en/01-screen.png)
 
+## Try it on a Mac
+
+- **Needs:** only [Docker Desktop](https://www.docker.com/products/docker-desktop/), running. No Python, no Home
+  Assistant, no Ollama, no GPU.
+- **Run:** `make demo` (the first build of the small image takes under a minute).
+- **Open:** <http://127.0.0.1:8767/dev/editor-demo.html> (English: add `?lang=en`), no login.
+- **Made up:** the example `router.example.pl.yaml` in a made-up home, in a container; nothing is saved and nothing
+  reaches a real Home Assistant. Ctrl+C stops and removes the container, `make demo-clean` removes the image.
+- **Docs and developers:** `make docs` builds this documentation in Docker and opens it. `make test` and
+  `make test-browser` need `make setup` (uv, which fetches Python 3.14 itself; Chrome for the browser tests);
+  `make demo-local` serves the same page without Docker.
+
 ## What it does
 
 Every sentence goes to the built-in HA agent first. Intents, `custom_sentences`
@@ -195,13 +207,22 @@ after Ollama starts waits for the model to load.
   [router.example.pl.yaml](router.example.pl.yaml);
 - [CHANGELOG.md](CHANGELOG.md): changes in each version.
 
+## Training your own model
+
+The trainer `home-assistant-assist-router-trainer`
+fine-tunes a smaller model (Gemma 4 E2B / E4B) on your home for the router, the control and the
+answers, to run in Ollama next to Home Assistant. It reads its data through the read-only command
+`assist_router/training/export` (an administrator's long-lived token): `router.yaml`, the log of
+unrecognized commands, the test files, the automations with a `conversation` trigger and
+`custom_sentences`. Nothing in Home Assistant is changed.
+
 ## Development
 
 ```bash
 make help         # every target, in English or Polish (HELP_LANG=en|pl)
 make test         # tests of the integration (the environment is made by the first target)
 make test-browser # tests of the editor in Google Chrome
-make ui           # the editor on router.example.pl.yaml in the browser, nothing saved
+make demo         # the editor on router.example.pl.yaml in the browser, nothing saved (Docker, port 8767)
 make deploy       # copies the integration to HA's config share (custom_components)
 ```
 

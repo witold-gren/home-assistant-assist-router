@@ -3,6 +3,7 @@
   "name": "Assist Router",
   "after_dependencies": [
     "assist_pipeline",
+    "automation",
     "frontend",
     "http",
     "panel_custom"
@@ -20,5 +21,5 @@
   "issue_tracker": "https://github.com/witold-gren/home-assistant-assist-router/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.1.7"
+  "version": "0.1.8"
 }

@@ -1,0 +1,32 @@
+/* The documentation site (mkdocs.yml). */
+
+/* Names of buttons and fields of the editor, as they are written on the page. */
+.md-typeset .ui {
+  padding: 0.05em 0.4em;
+  border-radius: 0.3em;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--md-code-bg-color);
+}
+
+/* Screenshots of the editor: never wider than the text, with a thin frame. */
+.md-typeset img.shot {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.4em;
+}
+
+/* The diagrams (inline SVG): the way of a question, the data, a timetable. */
+.md-typeset .flow {
+  margin: 1em 0;
+  padding: 0.6em;
+  overflow-x: auto;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.5em;
+}
+.md-typeset .flow svg { display: block; min-width: 640px; width: 100%; height: auto; }
+.md-typeset .flow .box { fill: var(--md-default-bg-color); stroke: var(--md-default-fg-color--lighter); stroke-width: 1.5; }
+.md-typeset .flow .hot { fill: var(--md-accent-fg-color--transparent); stroke: var(--md-accent-fg-color); }
+.md-typeset .flow text { fill: var(--md-default-fg-color); font: 13px var(--md-text-font-family, system-ui), sans-serif; }
+.md-typeset .flow .small { fill: var(--md-default-fg-color--light); font-size: 11px; }
+.md-typeset .flow .arrow { stroke: var(--md-default-fg-color--light); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.md-typeset .flow marker path { fill: var(--md-default-fg-color--light); }

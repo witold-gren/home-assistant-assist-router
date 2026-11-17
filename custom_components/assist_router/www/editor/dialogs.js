@@ -5,6 +5,9 @@
 import { LitElement, css, html, nothing } from "../vendor/lit-all.min.js";
 import { describeChanges, diffHunks, diffLines } from "./changes.js";
 import { translate } from "./i18n.js";
+import { DOCS_ANCHORS } from "./docs-anchors.js";
+import "./help.js";
+import { callWS } from "./ws.js";
 
 const label = (key) => key.replace(/^topics\//, "");
 
@@ -48,6 +51,12 @@ export const dialogStyles = css`
   h2 {
     margin: 0;
     font-size: 17px;
+  }
+  .dhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
   h3 {
     margin: 4px 0 0;
@@ -345,7 +354,10 @@ class SaveDialog extends LitElement {
           )}`
         : nothing;
     return html`<div class="box" role="dialog" aria-modal="true" data-save-dialog @keydown=${(event) => event.key === "Escape" && this._close()}>
-      <h2>${this._t("save_title")}</h2>
+      <div class="dhead">
+        <h2>${this._t("save_title")}</h2>
+        <assist-router-help part="save" .anchor=${DOCS_ANCHORS.save} .language=${this.language}></assist-router-help>
+      </div>
       <div class="scroll">
         ${none
           ? html`<p class="muted">${this._t("no_changes")}</p>`
@@ -419,7 +431,7 @@ class HistoryDialog extends LitElement {
     this._text = null;
     this._error = null;
     try {
-      const found = await this.hass.callWS({ type: "assist_router/editor/history_get", version: item.id });
+      const found = await callWS(this.hass, { type: "assist_router/editor/history_get", version: item.id });
       if (this._chosen === item) this._text = found.text;
     } catch (err) {
       this._error = err.message ?? String(err);
@@ -433,7 +445,10 @@ class HistoryDialog extends LitElement {
   render() {
     const history = this.history ?? [];
     return html`<div class="box" role="dialog" aria-modal="true" data-history-dialog @keydown=${(event) => event.key === "Escape" && this._close()}>
-      <h2>${this._t("history_title")}</h2>
+      <div class="dhead">
+        <h2>${this._t("history_title")}</h2>
+        <assist-router-help part="history" .anchor=${DOCS_ANCHORS.history} .language=${this.language}></assist-router-help>
+      </div>
       ${history.length
         ? html`<div class="versions">
             <ul data-versions>

@@ -22,6 +22,18 @@ testów i historia zapisów, więc nie trzeba już ręcznie edytować pliku YAML
 
 ![Edytor Assist Routera: drzewo router.yaml, formularz tematu i tester](docs/assets/editor/pl/01-screen.png)
 
+## Wypróbuj na Macu
+
+- **Potrzebne:** tylko [Docker Desktop](https://www.docker.com/products/docker-desktop/), uruchomiony. Bez Pythona,
+  bez Home Assistant, bez Ollamy, bez GPU.
+- **Uruchom:** `make demo` (pierwsza budowa małego obrazu trwa poniżej minuty).
+- **Otwórz:** <http://127.0.0.1:8767/dev/editor-demo.html> (po angielsku: dopisz `?lang=en`), bez logowania.
+- **Udawane:** przykładowy `router.example.pl.yaml` w zmyślonym domu, w kontenerze; nic się nie zapisuje i nic nie
+  trafia do prawdziwego Home Assistant. Ctrl+C zatrzymuje i usuwa kontener, `make demo-clean` usuwa obraz.
+- **Dokumentacja i dla programisty:** `make docs` buduje tę dokumentację w Dockerze i ją otwiera. `make test`
+  i `make test-browser` potrzebują `make setup` (uv, który sam pobiera Pythona 3.14; Chrome do testów
+  w przeglądarce); `make demo-local` podaje tę samą stronę bez Dockera.
+
 ## Co robi
 
 Każde zdanie trafia najpierw do wbudowanego agenta HA. Intencje, `custom_sentences`
@@ -190,13 +202,22 @@ starcie Ollamy czeka na załadowanie modelu.
   [router.example.yaml](router.example.yaml);
 - [CHANGELOG.md](CHANGELOG.md): zmiany w kolejnych wersjach.
 
+## Trening własnego modelu
+
+Trener `home-assistant-assist-router-trainer`
+douczy mniejszy model (Gemma 4 E2B / E4B) na Twoim domu - do routera, sterowania i odpowiedzi -
+uruchamiany w Ollamie obok Home Assistanta. Dane czyta przez komendę tylko do odczytu
+`assist_router/training/export` (token długoterminowy administratora): `router.yaml`, dziennik
+nierozpoznanych poleceń, pliki testu, automatyzacje z wyzwalaczem `conversation` i
+`custom_sentences`. W Home Assistancie nic się nie zmienia.
+
 ## Rozwój
 
 ```bash
 make help         # wszystkie cele po polsku albo angielsku (HELP_LANG=pl|en)
 make test         # testy integracji (środowisko tworzy pierwszy cel)
 make test-browser # testy edytora w Google Chrome
-make ui           # edytor na router.example.pl.yaml w przeglądarce, nic się nie zapisuje
+make demo         # edytor na router.example.pl.yaml w przeglądarce, nic się nie zapisuje (Docker, port 8767)
 make deploy       # kopiuje integrację do udziału z konfiguracją HA (custom_components)
 ```
 

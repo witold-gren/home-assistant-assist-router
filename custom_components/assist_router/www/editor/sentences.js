@@ -6,6 +6,7 @@ import { LitElement, css, html, nothing } from "../vendor/lit-all.min.js";
 import { renameKey, setField } from "./fields.js";
 import { translate } from "./i18n.js";
 import { keysAt, readDocument, valueAt } from "./source.js";
+import { callWS } from "./ws.js";
 
 const SENTENCES_TAG = "assist-router-sentences";
 export const FILE_NAME = /^[\w-]+\.yaml$/;
@@ -135,7 +136,7 @@ class AssistRouterSentences extends LitElement {
     this._busy = true;
     this._error = null;
     try {
-      const saved = await this.hass.callWS({
+      const saved = await callWS(this.hass, {
         type: "assist_router/editor/sentences_save",
         language: this.file.language,
         name: this.file.name,
@@ -161,7 +162,7 @@ class AssistRouterSentences extends LitElement {
       return;
     }
     try {
-      await this.hass.callWS({ type: "assist_router/editor/sentences_delete", language: this.file.language, name: this.file.name });
+      await callWS(this.hass, { type: "assist_router/editor/sentences_delete", language: this.file.language, name: this.file.name });
       this.dispatchEvent(new CustomEvent("deleted"));
     } catch (err) {
       this._error = err.message ?? String(err);
@@ -175,7 +176,7 @@ class AssistRouterSentences extends LitElement {
       .filter(Boolean);
     if (!sentences.length) return;
     try {
-      this._results = await this.hass.callWS({
+      this._results = await callWS(this.hass, {
         type: "assist_router/editor/sentences_test",
         sentences,
         language: this.file.language,

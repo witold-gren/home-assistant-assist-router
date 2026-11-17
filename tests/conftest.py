@@ -18,6 +18,8 @@ from custom_components.assist_router.const import (
     DOMAIN,
 )
 
+from .network_guard import only_this_machine  # noqa: F401
+
 AGENT_ID = "conversation.assist_router"
 
 

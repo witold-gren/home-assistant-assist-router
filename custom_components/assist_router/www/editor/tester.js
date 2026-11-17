@@ -5,6 +5,11 @@
 import { LitElement, css, html, nothing } from "../vendor/lit-all.min.js";
 import { translate } from "./i18n.js";
 import { keysAt, readDocument, valueAt } from "./source.js";
+import { readStored, writeStored } from "./stored.js";
+import { callWS } from "./ws.js";
+
+// A test runs the whole router, with its model: it may take longer than a plain question to Home Assistant.
+const TEST_TIMEOUT_MS = 180000;
 
 const TESTER_TAG = "assist-router-tester";
 const RECENT_KEY = "assist-router-editor-tests";
@@ -12,7 +17,7 @@ export const RECENT_LIMIT = 10;
 
 const readRecent = () => {
   try {
-    const recent = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
+    const recent = JSON.parse(readStored(RECENT_KEY) ?? "[]");
     return Array.isArray(recent) ? recent.filter((item) => typeof item === "string") : [];
   } catch {
     return [];
@@ -67,18 +72,22 @@ class AssistRouterTester extends LitElement {
     this._busy = true;
     this._error = null;
     this._recent = rememberSentence(this._recent, text);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(this._recent));
+    writeStored(RECENT_KEY, JSON.stringify(this._recent));
     const { speaker, persona, area, ...flags } = this._options;
     try {
-      this._trace = await this.hass.callWS({
-        type: "assist_router/editor/test",
-        text: this.text,
-        sentence: text,
-        speaker: speaker || null,
-        persona: persona || null,
-        area: area || null,
-        ...flags,
-      });
+      this._trace = await callWS(
+        this.hass,
+        {
+          type: "assist_router/editor/test",
+          text: this.text,
+          sentence: text,
+          speaker: speaker || null,
+          persona: persona || null,
+          area: area || null,
+          ...flags,
+        },
+        TEST_TIMEOUT_MS,
+      );
     } catch (err) {
       this._trace = null;
       this._error = err.message ?? String(err);

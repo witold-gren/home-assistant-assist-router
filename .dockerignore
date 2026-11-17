@@ -1,0 +1,20 @@
+# Only what the images of dev/docker/Dockerfile copy: the editor's demo page and the documentation.
+*
+!custom_components/assist_router/www
+!dev/editor-demo.html
+!dev/demo-home.js
+!tests/js/mock-editor.js
+!router.example.yaml
+!router.example.pl.yaml
+!dev/docs_site.py
+!docs
+!mkdocs.yml
+!GUIDE.md
+!PRZEWODNIK.md
+!CHANGELOG.md
+!requirements_docs.txt
+**/__pycache__
+docs/guide.md
+docs/guide.pl.md
+docs/changelog.md
+docs/changelog.pl.md
