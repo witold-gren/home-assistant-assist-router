@@ -318,7 +318,7 @@ section [Privacy](https://github.com/witold-gren/home-assistant-assist-speaker-i
 | Topic | Document |
 |---|---|
 | Assist Router: how it works, router.yaml, data sources, control, speaker, log, models | [documentation](https://witold-gren.github.io/home-assistant-assist-router/en/) |
-| LLM model comparison | [models](https://witold-gren.github.io/home-assistant-assist-router/en/models.html) |
+| LLM model comparison | [models](https://witold-gren.github.io/home-assistant-assist-router/models/) |
 | Example router configuration with comments | [router.example.yaml](router.example.yaml) (Polish: [router.example.pl.yaml](router.example.pl.yaml)) |
 | Adding a language | [README: Adding a language](README.md#adding-a-language) |
 | Assist Router changes | [CHANGELOG.md](CHANGELOG.md) |

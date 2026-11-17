@@ -18,9 +18,9 @@ Zacznij od **[PRZEWODNIK.md](PRZEWODNIK.md)**.
 **Edycja `router.yaml` w edytorze.** Od wersji 0.1.6 panel **Edytor Assist Routera** (administratorzy) edytuje
 plik routera na komputerze: formularze albo YAML każdego tematu z zachowanymi komentarzami, szkic, tester zdań, zestaw
 testów i historia zapisów, więc nie trzeba już ręcznie edytować pliku YAML. Krok po kroku:
-[przewodnik po edytorze](https://witold-gren.github.io/home-assistant-assist-router/pl/przewodnik-edytora.html).
+[przewodnik po edytorze](https://witold-gren.github.io/home-assistant-assist-router/pl/editor/).
 
-![Edytor Assist Routera: drzewo router.yaml, formularz tematu i tester](docs/assets/editor/pl/01-screen.png)
+![Edytor Assist Routera: drzewo router.yaml, formularz tematu i tester](docs/assets/screens/pl/01-screen.png)
 
 ## Wypróbuj na Macu
 
@@ -52,7 +52,7 @@ i automatyzacje ze zdaniami działają bez zmian. Gdy HA nie rozpozna zdania:
 | **Agent zapasowy** | Gdy router nie ma danych, pytanie przejmuje wybrany agent LLM. |
 | **Dziennik** | Nierozpoznane zdania trafiają do `/config/assist/unrecognized_commands.csv`, z podglądem w opcjach, sensorem i akcją czyszczenia. |
 | **Przykładowe komendy** | Akcja `assist_router.generate_examples` układa zdania z Twoich encji i sprawdza je prawdziwym routerem. Wynik ląduje w `assist/router_examples.yaml`. |
-| **Edytor na komputerze** | Panel **Edytor Assist Routera** (administratorzy): drzewo `router.yaml`, YAML jednego tematu z jego komentarzami (pozostałe linie zostają bez zmian), szkic, sprawdzenie przez router, zapis z kopią `.bak` i historią 30 wersji. Także opcje integracji → „Plik routera”. Krok po kroku ze zrzutami: [przewodnik po edytorze](https://witold-gren.github.io/home-assistant-assist-router/pl/przewodnik-edytora.html). |
+| **Edytor na komputerze** | Panel **Edytor Assist Routera** (administratorzy): drzewo `router.yaml`, YAML jednego tematu z jego komentarzami (pozostałe linie zostają bez zmian), szkic, sprawdzenie przez router, zapis z kopią `.bak` i historią 30 wersji. Także opcje integracji → „Plik routera”. Krok po kroku ze zrzutami: [przewodnik po edytorze](https://witold-gren.github.io/home-assistant-assist-router/pl/editor/). |
 
 **Sprawdzone w praktyce:** u autora wszystko działa na co dzień na **NVIDIA Jetson AGX Orin 64 GB**
 (Ollama z Gemma 4 26B, faster-whisper, Assist Speaker ID) i działa bardzo dobrze: router odpowiada
@@ -194,7 +194,7 @@ starcie Ollamy czeka na załadowanie modelu.
   Po polsku: [docs/pl](https://witold-gren.github.io/home-assistant-assist-router/pl/),
   in English: [docs/en](https://witold-gren.github.io/home-assistant-assist-router/en/)
   (pliki źródłowe: [docs/](docs/));
-- [porównanie modeli LLM](https://witold-gren.github.io/home-assistant-assist-router/pl/modele.html):
+- [porównanie modeli LLM](https://witold-gren.github.io/home-assistant-assist-router/pl/models/):
   Gemma 4, Bielik, PLLuM, Qwen 3.5, Ministral na Jetsonie AGX Orin 64 GB, trafność i czas
   w każdej roli, wnioski i douczanie;
 - [router.example.pl.yaml](router.example.pl.yaml): przykładowa konfiguracja z komentarzami

@@ -316,7 +316,7 @@ Więcej: [dokumentacja, rozdział 14](https://witold-gren.github.io/home-assista
 |---|---|
 | Assist Router: jak działa, router.yaml, źródła danych, sterowanie, mówca, dziennik, modele | [dokumentacja](https://witold-gren.github.io/home-assistant-assist-router/pl/) |
 | Przykładowa konfiguracja routera z komentarzami | [router.example.pl.yaml](router.example.pl.yaml) (z angielskimi nazwami: [router.example.yaml](router.example.yaml)) |
-| Porównanie modeli LLM | [modele](https://witold-gren.github.io/home-assistant-assist-router/pl/modele.html) |
+| Porównanie modeli LLM | [modele](https://witold-gren.github.io/home-assistant-assist-router/pl/models/) |
 | Dodanie języka | [README: Dodanie języka](README.pl.md#dodanie-języka) |
 | Zmiany Assist Routera | [CHANGELOG.md](CHANGELOG.md) |
 | Assist Speaker ID: instalacja, użycie, wzorce, progi i kalibracja, prywatność | [README Assist Speaker ID](https://github.com/witold-gren/home-assistant-assist-speaker-id#readme) |

@@ -21,9 +21,9 @@ recognition)? Start with **[GUIDE.md](GUIDE.md)** (Polish version:
 **Edit `router.yaml` in the editor.** From 0.1.6 the **Assist Router editor** panel (administrators) edits the
 router's file on a computer: forms or YAML for each topic with its comments kept, a draft, a tester of sentences, a
 test set and a history of saves, so there is no need to edit the YAML file by hand. Step by step:
-[the editor guide](https://witold-gren.github.io/home-assistant-assist-router/en/editor-guide.html).
+[the editor guide](https://witold-gren.github.io/home-assistant-assist-router/editor/).
 
-![The Assist Router editor: the tree of router.yaml, the form of a topic and the tester](docs/assets/editor/en/01-screen.png)
+![The Assist Router editor: the tree of router.yaml, the form of a topic and the tester](docs/assets/screens/en/01-screen.png)
 
 ## Try it on a Mac
 
@@ -55,7 +55,7 @@ and sentence-triggered automations keep working unchanged. When HA does not reco
 | **Fallback agent** | When the router has no data, the chosen LLM agent takes over the question. |
 | **Log** | Unrecognized sentences go to `/config/assist/unrecognized_commands.csv`, with a preview in the options, a sensor and a clear action. |
 | **Example commands** | The `assist_router.generate_examples` action writes sentences from your entities and checks them with the real router. The result lands in `assist/router_examples.yaml`. |
-| **Editor on a computer** | The **Assist Router editor** panel (administrators): the tree of `router.yaml`, the YAML of one topic with its comments (every other line stays as it was), a draft, the router's check, saving with a `.bak` copy and a history of 30 versions. Also integration options → “Router file”. Step by step with pictures: [the editor guide](https://witold-gren.github.io/home-assistant-assist-router/en/editor-guide.html). |
+| **Editor on a computer** | The **Assist Router editor** panel (administrators): the tree of `router.yaml`, the YAML of one topic with its comments (every other line stays as it was), a draft, the router's check, saving with a `.bak` copy and a history of 30 versions. Also integration options → “Router file”. Step by step with pictures: [the editor guide](https://witold-gren.github.io/home-assistant-assist-router/editor/). |
 
 **Proven in practice:** the author runs everything daily on an **NVIDIA Jetson AGX Orin 64 GB**
 (Ollama with Gemma 4 26B, faster-whisper, Assist Speaker ID) and it works very well: the router
@@ -199,7 +199,7 @@ after Ollama starts waits for the model to load.
   In English: [docs/en](https://witold-gren.github.io/home-assistant-assist-router/en/),
   in Polish: [docs/pl](https://witold-gren.github.io/home-assistant-assist-router/pl/)
   (source files: [docs/](docs/));
-- [LLM model comparison](https://witold-gren.github.io/home-assistant-assist-router/en/models.html)
+- [LLM model comparison](https://witold-gren.github.io/home-assistant-assist-router/models/)
   (the test used Polish questions): Gemma 4, Bielik, PLLuM, Qwen 3.5, Ministral
   on a Jetson AGX Orin 64 GB, accuracy and time in each role;
 - [router.example.yaml](router.example.yaml): an example configuration with comments
