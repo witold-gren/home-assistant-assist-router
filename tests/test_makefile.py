@@ -40,7 +40,16 @@ GROUPS = [
     ("3. Development", "3. Rozwój"),
 ]
 START = ["help", "demo", "demo-clean", "docs", "docs-serve", "doctor"]
-NO_TOOLS = {"PATH": "/usr/bin:/bin", "HOME": str(Path.home())}
+MAKE = shutil.which("make") or "make"
+
+
+@pytest.fixture
+def no_tools(tmp_path: Path) -> dict[str, str]:
+    """An environment with no programs at all: PATH is an empty folder. On Linux docker and uv live
+    in /usr/bin, so with /usr/bin in PATH `make demo` would really start and never end."""
+    empty = tmp_path / "bin"
+    empty.mkdir()
+    return {"PATH": str(empty), "HOME": str(tmp_path)}
 
 
 def targets() -> dict[str, list[str]]:
@@ -178,9 +187,15 @@ def test_make_help_shows_the_groups(lang: str, index: int) -> None:
 
 @pytest.mark.skipif(not shutil.which("make"), reason="make not installed")
 @pytest.mark.parametrize("target", ["demo", "docs-build", "docs-serve"])
-def test_without_docker_a_clear_message(target: str) -> None:
+def test_without_docker_a_clear_message(target: str, no_tools: dict[str, str]) -> None:
     result = subprocess.run(
-        ["make", "-s", target], cwd=ROOT, capture_output=True, text=True, env=NO_TOOLS, check=False
+        [MAKE, "-s", target],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env=no_tools,
+        check=False,
+        timeout=60,
     )
     assert result.returncode != 0
     assert "Docker Desktop" in result.stdout + result.stderr
@@ -188,29 +203,50 @@ def test_without_docker_a_clear_message(target: str) -> None:
 
 
 @pytest.mark.skipif(not shutil.which("make"), reason="make not installed")
-def test_without_uv_a_clear_message() -> None:
+@pytest.mark.parametrize("target", ["demo", "docs-build", "docs-serve"])
+def test_docker_not_running_a_clear_message(target: str, no_tools: dict[str, str]) -> None:
+    docker = Path(no_tools["PATH"]) / "docker"
+    docker.write_text("#!/bin/sh\nexit 1\n")
+    docker.chmod(0o755)
     result = subprocess.run(
-        ["make", "-s", "uv-check"],
+        [MAKE, "-s", target],
         cwd=ROOT,
         capture_output=True,
         text=True,
-        env=NO_TOOLS,
+        env=no_tools,
         check=False,
+        timeout=60,
+    )
+    assert result.returncode != 0
+    assert "Docker Desktop" in result.stdout + result.stderr
+
+
+@pytest.mark.skipif(not shutil.which("make"), reason="make not installed")
+def test_without_uv_a_clear_message(no_tools: dict[str, str]) -> None:
+    result = subprocess.run(
+        [MAKE, "-s", "uv-check"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env=no_tools,
+        check=False,
+        timeout=60,
     )
     assert result.returncode != 0
     assert "astral.sh/uv" in result.stdout + result.stderr
 
 
 @pytest.mark.skipif(not shutil.which("make"), reason="make not installed")
-def test_doctor_installs_nothing_and_needs_no_setup() -> None:
+def test_doctor_installs_nothing_and_needs_no_setup(no_tools: dict[str, str]) -> None:
     assert targets()["doctor"] == []
     result = subprocess.run(
-        ["make", "-s", "doctor"],
+        [MAKE, "-s", "doctor"],
         cwd=ROOT,
         capture_output=True,
         text=True,
-        env=NO_TOOLS,
+        env=no_tools,
         check=False,
+        timeout=60,
     )
     assert "MISSING  Docker Desktop" in result.stdout
     assert "MISSING  uv" in result.stdout
