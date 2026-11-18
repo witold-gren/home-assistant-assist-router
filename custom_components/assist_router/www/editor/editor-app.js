@@ -45,6 +45,15 @@ const THEME_KEY = "assist-router-editor-theme";
 // The look of the editor: as Home Assistant (light or dark), or one chosen here and kept by the browser.
 export const THEMES = ["auto", "light", "dark"];
 const THEME_ICONS = { auto: "mdi:theme-light-dark", light: "mdi:weather-sunny", dark: "mdi:weather-night" };
+const LANGUAGE_KEY = "assist-router-editor-language";
+// The language of the editor: as Home Assistant, or one chosen here and kept by the browser.
+export const EDITOR_LANGUAGES = ["auto", "pl", "en"];
+
+/** Home Assistant's hass with the language chosen for the editor; the same hass while it follows Home Assistant. */
+export function withLanguage(hass, chosen) {
+  if (!hass || !EDITOR_LANGUAGES.includes(chosen) || chosen === "auto" || hass.language === chosen) return hass;
+  return { ...hass, language: chosen };
+}
 // The documentation site and the guide's address live in docs-anchors.js (the dialogs need them too).
 export { DOCS_SITE, editorDocsUrl } from "./docs-anchors.js";
 
@@ -86,7 +95,7 @@ const readJson = (key, fallback) => {
 
 class AssistRouterEditorApp extends LitElement {
   static properties = {
-    hass: { attribute: false },
+    hass: { attribute: false, noAccessor: true },
     _loaded: { state: true },
     _text: { state: true },
     _file: { state: true },
@@ -110,6 +119,8 @@ class AssistRouterEditorApp extends LitElement {
     _future: { state: true },
     _users: { state: true },
     _theme: { state: true },
+    _language: { state: true },
+    _gear: { state: true },
     _tests: { state: true },
     _tryRequest: { state: true },
     _saveChecks: { state: true },
@@ -141,8 +152,23 @@ class AssistRouterEditorApp extends LitElement {
     this._folded = readFolded(FOLDED_KEY);
     this._collapsed = new Set(readJson(COLLAPSED_KEY, []));
     this._theme = THEMES.includes(readStored(THEME_KEY)) ? readStored(THEME_KEY) : "auto";
+    this._language = EDITOR_LANGUAGES.includes(readStored(LANGUAGE_KEY)) ? readStored(LANGUAGE_KEY) : "auto";
+    this._gear = false;
+    this._onOutside = this._onOutside.bind(this);
     this._onKey = this._onKey.bind(this);
     this._onVisible = this._onVisible.bind(this);
+  }
+
+  // Home Assistant's hass comes in here; the editor and everything in it see it with the language chosen for the editor.
+  set hass(value) {
+    const old = this._hass;
+    this._haHass = value;
+    this._hass = withLanguage(value, this._language);
+    this.requestUpdate("hass", old);
+  }
+
+  get hass() {
+    return this._hass;
   }
 
   _t(key, values, fallback) {
@@ -157,13 +183,34 @@ class AssistRouterEditorApp extends LitElement {
   }
 
   _nextTheme() {
-    this._theme = THEMES[(THEMES.indexOf(this._theme) + 1) % THEMES.length];
-    writeStored(THEME_KEY, this._theme);
+    this._setTheme(THEMES[(THEMES.indexOf(this._theme) + 1) % THEMES.length]);
+  }
+
+  _setTheme(theme) {
+    this._theme = theme;
+    writeStored(THEME_KEY, theme);
+  }
+
+  _setLanguage(language) {
+    this._language = language;
+    writeStored(LANGUAGE_KEY, language);
+    this.hass = this._haHass;
+  }
+
+  // ⚙: a small window under the button with the look and the language; a choice works at once and the window stays.
+  _toggleGear() {
+    this._gear = !this._gear;
+    if (this._gear) this._help = null;
+  }
+
+  _onOutside(event) {
+    if (this._gear && !event.composedPath().some((node) => node.classList?.contains("gear-wrap"))) this._gear = false;
   }
 
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener("keydown", this._onKey);
+    window.addEventListener("click", this._onOutside);
     document.addEventListener("visibilitychange", this._onVisible);
     this._menu.connect();
     this._load();
@@ -172,6 +219,7 @@ class AssistRouterEditorApp extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this._onKey);
+    window.removeEventListener("click", this._onOutside);
     document.removeEventListener("visibilitychange", this._onVisible);
     this._menu.disconnect();
     this._saveDraft();
@@ -449,6 +497,10 @@ class AssistRouterEditorApp extends LitElement {
   }
 
   _onKey(event) {
+    if (event.key === "Escape" && this._gear) {
+      this._gear = false;
+      return;
+    }
     if (event.key === "Escape" && this._help) {
       this._help = null;
       return;
@@ -666,6 +718,7 @@ class AssistRouterEditorApp extends LitElement {
   _menu = new PanelMenu(this);
 
   _toggleMenu() {
+    this._gear = false;
     this._menu.toggle();
   }
 
@@ -943,6 +996,20 @@ class AssistRouterEditorApp extends LitElement {
       >
         <ha-icon .icon=${THEME_ICONS[this._theme]}></ha-icon>
       </button>
+      <span class="gear-wrap">
+        <button
+          class="ghost"
+          data-gear
+          aria-haspopup="dialog"
+          aria-expanded=${this._gear ? "true" : "false"}
+          title=${this._t("gear_title")}
+          aria-label=${this._t("gear_title")}
+          @click=${this._toggleGear}
+        >
+          <ha-icon icon="mdi:cog-outline"></ha-icon>
+        </button>
+        ${this._gear ? this._renderGear() : nothing}
+      </span>
       <button
         class="ghost"
         data-docs
@@ -959,6 +1026,30 @@ class AssistRouterEditorApp extends LitElement {
         <ha-icon icon="mdi:content-save"></ha-icon>${this._t("save")}
       </button>
     </header>`;
+  }
+
+  _renderGear() {
+    const segment = (group, values, current, choose) => html`<div class="segment" role="group" data-segment=${group}>
+      ${values.map(
+        (value) => html`<button
+          type="button"
+          data-value=${value}
+          class=${value === current ? "on" : ""}
+          aria-pressed=${value === current ? "true" : "false"}
+          @click=${() => choose(value)}
+        >
+          ${this._t(`gear_${group}_${value}`)}
+        </button>`,
+      )}
+    </div>`;
+    return html`<div class="gear-pop" role="dialog" data-gear-pop aria-label=${this._t("gear_title")}>
+      <b>${this._t("gear_title")}</b>
+      <span class="gear-group">${this._t("gear_theme")}</span>
+      ${segment("theme", THEMES, this._theme, (theme) => this._setTheme(theme))}
+      <span class="gear-group">${this._t("gear_language")}</span>
+      ${segment("language", EDITOR_LANGUAGES, this._language, (language) => this._setLanguage(language))}
+      <p class="gear-hint">${this._t("gear_hint")}</p>
+    </div>`;
   }
 
   _renderNotices() {
@@ -1571,6 +1662,58 @@ class AssistRouterEditorApp extends LitElement {
       position: fixed;
       inset: 0;
       z-index: 20;
+    }
+    .gear-wrap {
+      position: relative;
+      display: inline-flex;
+    }
+    .gear-pop {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      z-index: 22;
+      display: grid;
+      gap: 8px;
+      min-width: 260px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      color: var(--text);
+      box-shadow: 0 12px 32px var(--shadow);
+      font-size: 13px;
+    }
+    .gear-group {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .segment {
+      display: flex;
+      gap: 2px;
+      padding: 2px;
+      border-radius: 9px;
+      background: var(--panel2);
+    }
+    .segment button {
+      flex: 1;
+      justify-content: center;
+      padding: 5px 10px;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .segment button.on {
+      background: var(--on);
+      color: var(--text);
+      font-weight: 600;
+    }
+    .gear-hint {
+      max-width: 300px;
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 12px;
     }
     .help-pop {
       position: fixed;

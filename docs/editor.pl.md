@@ -45,7 +45,8 @@ Temat `podsumowanie_dnia` otwarty w formularzu.
 - **Prawa kolumna:** <b class="ui">Sprawdzenie</b> (czy router przeczyta tekst i ile ma tematów), <b class="ui">Plik</b> (stan
   szkicu), <b class="ui">Rodzaj tematu</b> i <b class="ui">Tester</b>.
 - **Górny pasek:** stan (<b class="ui">Bez zmian</b> albo <b class="ui">Szkic zapisany</b>), cofnij i ponów, <b class="ui">Odrzuć szkic</b>,
-  jasny lub ciemny wygląd, **?** (ten przewodnik w nowej karcie), <b class="ui">Historia</b> i <b class="ui">Zapisz…</b>.
+  jasny lub ciemny wygląd, **⚙** (małe okienko: <b class="ui">Motyw</b> i <b class="ui">Język</b>), **?** (ten przewodnik w nowej
+  karcie), <b class="ui">Historia</b> i <b class="ui">Zapisz…</b>.
 - **Mały ?** nad drzewem, środkiem i prawą kolumną: małe okienko z opisem tego, co robi ta część, bez wychodzenia
   z edytora (Esc albo kliknięcie obok je zamyka); *Więcej w przewodniku* na jego dole otwiera rozdział o niej, w środku
   o tym, co wybrałeś (temat, testy, nauka…). Przewodnik od razu otwiera tylko ? w pasku górnym.
@@ -234,7 +235,10 @@ Integracja dodaje do paska bocznego Home Assistant panel dla administratorów:
 **Edytor Assist Routera**. Opcja *Pokazuj edytor w pasku bocznym* (Konfiguruj → Ustawienia)
 chowa go z paska; wtedy otwiera się pod adresem `/assist-router-editor`. Edytor ma jasny i ciemny wygląd:
 domyślnie taki jak Home Assistant, a przycisk w górnym pasku przełącza Auto, Jasny i Ciemny (przeglądarka to
-pamięta). Edytuje `router.yaml` w
+pamięta). **⚙** obok otwiera pod sobą małe okienko z wyborem: <b class="ui">Motyw</b> (Jak w HA / Jasny / Ciemny)
+i <b class="ui">Język</b> edytora (Jak w HA / Polski / English): oba ustawia Home Assistant, dopóki nie wybierzesz
+inaczej, więc przy Home Assistant po angielsku możesz mieć edytor po polsku. Wybór działa od razu i pamięta go ta
+przeglądarka; zamykają okienko Esc, kliknięcie obok i ponowne ⚙. Edytuje `router.yaml` w
 trzech kolumnach:
 
 - **drzewo** pliku: dom (domownicy, osoby, rodzina, persony, muzyka, ogłoszenia,

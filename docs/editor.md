@@ -45,7 +45,8 @@ The topic `daily_summary` open in its form.
 - **Right:** <b class="ui">Check</b> (whether the router reads the text and how many topics it has), <b class="ui">File</b>
   (the state of the draft), <b class="ui">Kind of topic</b> and the <b class="ui">Tester</b>.
 - **Top bar:** the state (<b class="ui">No changes</b> or <b class="ui">Draft saved</b>), undo and redo, <b class="ui">Discard draft</b>,
-  light or dark look, **?** (this guide, in a new tab), <b class="ui">History</b> and <b class="ui">Save…</b>.
+  light or dark look, **⚙** (a small window: <b class="ui">Look</b> and <b class="ui">Language</b>), **?** (this guide, in a new
+  tab), <b class="ui">History</b> and <b class="ui">Save…</b>.
 - **Small ?** above the tree, the middle and the right column: a small window that says what that part does, without
   leaving the editor (Esc or a click beside it closes it); *More in the guide* at its bottom opens the chapter about
   it, in the middle the one about what you chose (a topic, the tests, learning…). Only the ? of the top bar opens this
@@ -237,7 +238,11 @@ keeps it as `.bak`.
 The integration adds a panel for administrators to the sidebar of Home Assistant:
 **Assist Router editor**. The option *Show the editor in the sidebar* (Configure → Settings) takes it
 out of the sidebar; it then opens at `/assist-router-editor`. The editor has a light and a dark look: as
-Home Assistant by default, and a button in the top bar switches Auto, Light and Dark (the browser remembers it). It edits `router.yaml` in three
+Home Assistant by default, and a button in the top bar switches Auto, Light and Dark (the browser remembers it). The **⚙** next to it opens a small
+window under it with the same <b class="ui">Look</b> (As in HA / Light / Dark) and the <b class="ui">Language</b> of the editor
+(As in HA / Polski / English): Home Assistant decides both until you choose otherwise, so with Home Assistant in English
+you can still have the editor in Polish. A choice works at once and this browser remembers it; Esc, a click beside the
+window or ⚙ again close it. It edits `router.yaml` in three
 columns:
 
 - **the tree** of the file: the home (household, people, family, personas, music,

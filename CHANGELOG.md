@@ -2,6 +2,14 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions: [SemVer](https://semver.org/).
 
+## [0.1.9] - 2026-11-18
+
+### Added
+- Editor: **⚙** in the top bar opens a small window under it with the look (As in HA / Light / Dark) and the
+  language of the editor (As in HA / Polski / English). Home Assistant decides both until one is chosen here; the
+  choice works at once, the browser keeps it, and Esc, a click beside it or ⚙ again close the window. The look
+  button stays in the bar.
+
 ## [0.1.8] - 2026-11-17
 
 ### Added
