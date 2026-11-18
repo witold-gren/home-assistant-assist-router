@@ -710,14 +710,22 @@ def parse_route(config: RouterConfig, content: str, text: str) -> Route | None:
 
 
 async def async_chat(
-    hass: HomeAssistant, ollama: OllamaSettings, body: dict[str, Any]
+    hass: HomeAssistant,
+    ollama: OllamaSettings,
+    body: dict[str, Any],
+    on_text: Callable[[str], None] | None = None,
 ) -> str | None:
     """Content of the Ollama answer or None (error, timeout).
 
     Without "thinking" (Qwen, Gemma) - time matters; a model without this option (400)
-    gets the same request without it.
+    gets the same request without it. ``on_text`` - the answer is streamed and each part
+    goes there as it comes (text to speech starts early); a failure after some text keeps
+    that text: it has been said already.
     """
     session = async_get_clientsession(hass)
+    if on_text is not None:
+        body = {**body, "stream": True}
+    received: list[str] = []
     try:
         async with asyncio.timeout(ollama.timeout):
             for request in ({**body, "think": False}, body):
@@ -725,13 +733,26 @@ async def async_chat(
                     if resp.status == 400 and "think" in request:
                         continue
                     resp.raise_for_status()
-                    result = await resp.json()
-                    return str((result.get("message") or {}).get("content", ""))
+                    if on_text is None:
+                        result = await resp.json()
+                        return str((result.get("message") or {}).get("content", ""))
+                    async for line in resp.content:
+                        if not line.strip():
+                            continue
+                        part = json.loads(line)
+                        if part.get("error"):
+                            raise ValueError(str(part["error"]))
+                        if text := str((part.get("message") or {}).get("content", "")):
+                            received.append(text)
+                            on_text(text)
+                        if part.get("done"):
+                            break
+                    return "".join(received)
     except TimeoutError:
         _LOGGER.warning("Model %s did not answer within %s s", ollama.model, ollama.timeout)
     except (aiohttp.ClientError, ValueError) as err:
         _LOGGER.warning("Model %s failed: %s", ollama.model, err)
-    return None
+    return "".join(received) or None
 
 
 async def async_classify(
@@ -748,9 +769,13 @@ async def async_classify(
 
 
 async def async_generate(
-    hass: HomeAssistant, ollama: OllamaSettings, messages: list[dict[str, str]], max_tokens: int
+    hass: HomeAssistant,
+    ollama: OllamaSettings,
+    messages: list[dict[str, str]],
+    max_tokens: int,
+    on_text: Callable[[str], None] | None = None,
 ) -> str | None:
-    """The answer model's answer (one line of text) or None."""
+    """The answer model's answer (one line of text) or None; ``on_text`` - streamed."""
     body = {
         "model": ollama.model,
         "stream": False,
@@ -758,7 +783,7 @@ async def async_generate(
         "options": {"temperature": 0.2, "num_predict": max_tokens, "num_ctx": ollama.num_ctx},
         "messages": messages,
     }
-    content = await async_chat(hass, ollama, body)
+    content = await async_chat(hass, ollama, body, on_text)
     text = " ".join((content or "").split())
     return text or None
 

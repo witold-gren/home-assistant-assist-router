@@ -208,6 +208,14 @@ heard text, the chosen topic and the answer there. Sentences the assistant did n
 go to the log: Assist Router options → **Unrecognized commands**
 ([documentation, chapter 11](https://witold-gren.github.io/home-assistant-assist-router/en/#log)).
 
+
+**Long answers start sooner.** Assist Router tells the pipeline that it streams: the answer
+model's answer, the Wikipedia summary and the fallback agent's answer go to text to speech while
+the model is still writing them. Home Assistant starts speaking after about 60 characters, so a
+long answer is heard 1–2 s earlier and a short one is read as a whole, as before. It needs a
+text-to-speech engine that takes text in parts - a current Piper over Wyoming does.
+Several commands in one sentence are answered together, without streaming.
+
 ---
 
 ## 6. (Optional) Who is speaking: Assist Speaker ID

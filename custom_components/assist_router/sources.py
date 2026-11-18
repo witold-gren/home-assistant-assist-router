@@ -252,11 +252,73 @@ def past(data: Any, now: datetime, mode: str) -> Any:
     return out
 
 
+class _Table(str):
+    """A list written as a table - YAML keeps it as a block of lines."""
+
+
+def _table_representer(dumper: yaml.SafeDumper, data: _Table) -> yaml.ScalarNode:
+    return dumper.represent_scalar("tag:yaml.org,2002:str", str(data), style="|")
+
+
+class _Dumper(yaml.SafeDumper):
+    pass
+
+
+_Dumper.add_representer(_Table, _table_representer)
+
+TABLE_SEPARATOR = " | "
+
+
+def _cell(value: Any) -> str:
+    if value is True:
+        return "true"
+    return " ".join(str(value).split()).replace("|", "/") or "-"
+
+
+def _as_table(items: list[Any]) -> _Table | None:
+    """Two or more items with only plain values (a forecast, events, lessons) as a table:
+    the keys once in the header, one line per item. In YAML every item repeats all its keys,
+    which is most of the prompt for a long list - and the model reads it slower."""
+    if len(items) < 2 or not all(isinstance(item, dict) and item for item in items):
+        return None
+    if any(isinstance(v, (dict, list)) for item in items for v in item.values()):
+        return None
+    keys: list[str] = []
+    for item in items:
+        keys.extend(k for k in item if k not in keys)
+    lines = [TABLE_SEPARATOR.join(keys)]
+    # a missing value is „-”: a line must not end with a space (YAML would quote the block)
+    lines += [TABLE_SEPARATOR.join(_cell(item.get(k, "-")) for k in keys) for item in items]
+    return _Table("\n".join(lines))
+
+
+def _tables(value: Any) -> Any:
+    """Lists of plain items anywhere in the tree turned into tables; the rest unchanged."""
+    if isinstance(value, dict):
+        return {key: _tables(item) for key, item in value.items()}
+    if isinstance(value, list):
+        dicts = [item for item in value if isinstance(item, dict)]
+        if (table := _as_table(dicts)) is not None:
+            # „… and 12 more” after the items stays a line of its own
+            rest = [str(item) for item in value if not isinstance(item, dict)]
+            return _Table("\n".join([table, *rest])) if rest else table
+        return [_tables(item) for item in value]
+    return value
+
+
 def render(title: str, value: Any, limit: int = SOURCE_CHARS) -> str:
-    """Source for the model: a title and compact YAML (Polish characters, no quotes)."""
-    if isinstance(value, (dict, list)):
-        body = yaml.safe_dump(
-            value, allow_unicode=True, sort_keys=False, default_flow_style=False, width=1000
+    """Source for the model: a title and compact YAML (Polish characters, no quotes), lists of
+    plain items as tables (``_as_table``)."""
+    if isinstance(value, list) and isinstance(table := _tables(value), _Table):
+        body = str(table)
+    elif isinstance(value, (dict, list)):
+        body = yaml.dump(
+            _tables(value),
+            Dumper=_Dumper,
+            allow_unicode=True,
+            sort_keys=False,
+            default_flow_style=False,
+            width=1000,
         ).strip()
     else:
         body = str(value)

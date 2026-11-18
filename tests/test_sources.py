@@ -172,3 +172,38 @@ def test_past_leaves_other_data_alone() -> None:
     # naive now, zoned event (tools without HA)
     ended = {"events": [{"end": "2000-01-01T10:00:00+00:00"}]}
     assert past(ended, now, PAST_DROP) == {"events": []}
+
+
+def test_lists_of_plain_items_are_tables() -> None:
+    """A forecast or a list of events: the keys once, one line per item (fewer tokens for the
+    answer model than YAML repeating every key)."""
+    forecast = {
+        "forecast": [
+            {"datetime": "2026-11-19 10:00 (czwartek)", "condition": "rainy", "temperature": 9.6},
+            {"datetime": "2026-11-19 11:00 (czwartek)", "condition": "cloudy", "precipitation": 0},
+            "… i jeszcze 3",
+        ]
+    }
+    text = render("Prognoza godzinowa", forecast)
+    assert text == (
+        "Prognoza godzinowa:\n"
+        "forecast: |-\n"
+        "  datetime | condition | temperature | precipitation\n"
+        "  2026-11-19 10:00 (czwartek) | rainy | 9.6 | -\n"
+        "  2026-11-19 11:00 (czwartek) | cloudy | - | 0\n"
+        "  … i jeszcze 3"
+    )
+    # a bare list is a table without YAML around it; cells keep one line and no separator
+    rows = [{"summary": "Basen | sala\n2", "done": True}, {"summary": "Robotyka", "done": True}]
+    assert (
+        render("Wydarzenia", rows)
+        == "Wydarzenia:\nsummary | done\nBasen / sala 2 | true\nRobotyka | true"
+    )
+
+
+def test_lists_that_are_not_tables_stay_yaml() -> None:
+    one = render("Plan", {"lessons": [{"subject": "Matematyka", "time": "8:00"}]})
+    assert one == "Plan:\nlessons:\n- subject: Matematyka\n  time: '8:00'"
+    nested = {"children": [{"child": "Kasia", "lessons": [1, 2]}, {"child": "Jan", "lessons": [3]}]}
+    assert "- child: Kasia\n  lessons:\n  - 1" in render("Plan", nested)
+    assert render("Lista", ["mleko", "chleb"]) == "Lista:\n- mleko\n- chleb"

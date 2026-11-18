@@ -210,6 +210,15 @@ kuchni”. Szczegóły każdego zapytania pokazuje Ustawienia → Asystenci gło
 asystent nie zrozumiał, trafiają do dziennika: opcje Assist Routera → **Nierozpoznane
 komendy** ([dokumentacja, rozdział 11](https://witold-gren.github.io/home-assistant-assist-router/pl/#dziennik)).
 
+
+**Długie odpowiedzi zaczynają się szybciej.** Assist Router mówi potokowi, że strumieniuje:
+odpowiedź modelu odpowiedzi, streszczenie z Wikipedii i odpowiedź agenta zapasowego idą do
+zamiany tekstu na mowę, gdy model jeszcze je pisze. Home Assistant zaczyna mówić po około 60
+znakach, więc długą odpowiedź słychać 1–2 s wcześniej, a krótką czyta w całości, jak dotąd.
+Potrzebny jest silnik mowy, który przyjmuje tekst w częściach - aktualny Piper przez Wyoming
+to potrafi. Kilka poleceń w jednym zdaniu dostaje wspólną odpowiedź, bez
+strumieniowania.
+
 ---
 
 ## 6. (Opcjonalnie) Kto mówi: Assist Speaker ID

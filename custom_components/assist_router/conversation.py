@@ -37,6 +37,7 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
     area_registry as ar,
+    chat_session,
     device_registry as dr,
     entity_registry as er,
     intent,
@@ -124,6 +125,7 @@ from .router import (
     template_variables,
     with_speaker_room,
 )
+from .streaming import ReplyStream, listening_chat_log
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -184,6 +186,10 @@ def probable_speaker(hass: HomeAssistant) -> tuple[str | None, str | None]:
 
 # the persona of the utterance being handled (set in async_process, read by the answers)
 PERSONA: ContextVar[Persona | None] = ContextVar("assist_router_persona", default=None)
+# False while the reply is put together from several answers (several commands in one
+# sentence, commands waiting for an answered question): once the pipeline has streamed a
+# text it does not read the result's speech, so a joined reply must not stream
+STREAMING: ContextVar[bool] = ContextVar("assist_router_streaming", default=True)
 
 
 def current_pipeline(hass: HomeAssistant, context: Context) -> tuple[str, str, str | None] | None:
@@ -317,6 +323,8 @@ class AssistRouterAgent(conversation.ConversationEntity):
 
     _attr_has_entity_name = True
     _attr_name = None
+    # long answers of the models go to text to speech while they are written (streaming.py)
+    _attr_supports_streaming = True
 
     def __init__(self, entry: ConfigEntry[RuntimeData]) -> None:
         self._entry = entry
@@ -406,7 +414,12 @@ class AssistRouterAgent(conversation.ConversationEntity):
             names = {p.speaker: p.name for p in config.people.values()} if config else {}
             speech = voice.answer(speaker_result(self.hass), names)
             return self._speak(user_input, user_input.conversation_id, speech)
-        result = await self._process_turn(user_input)
+        waiting = self._queued.get(user_input.conversation_id or "")
+        token = STREAMING.set(not (waiting and waiting[1] >= time.monotonic()))
+        try:
+            result = await self._process_turn(user_input)
+        finally:
+            STREAMING.reset(token)
         key = result.conversation_id or user_input.conversation_id or ""
         queued = None if result.continue_conversation else self._queued.pop(key, None)
         if queued and queued[1] >= time.monotonic() and not is_cancel(user_input.text):
@@ -594,6 +607,27 @@ class AssistRouterAgent(conversation.ConversationEntity):
         if before is not None:
             speeches.append(before.response.speech.get("plain", {}).get("speech", ""))
         result = before
+        token = STREAMING.set(False)
+        try:
+            result = await self._parts_in_turn(user_input, parts, result, speeches)
+        finally:
+            STREAMING.reset(token)
+        if result is None:  # no commands - nothing to say
+            response = intent.IntentResponse(language=user_input.language)
+            result = conversation.ConversationResult(
+                response=response, conversation_id=user_input.conversation_id
+            )
+        result.response.async_set_speech(" ".join(s.strip() for s in speeches if s.strip()))
+        return result
+
+    async def _parts_in_turn(
+        self,
+        user_input: conversation.ConversationInput,
+        parts: list[str],
+        result: conversation.ConversationResult | None,
+        speeches: list[str],
+    ) -> conversation.ConversationResult | None:
+        """The commands of ``_run_parts`` in turn; their replies go to ``speeches``."""
         for index, text in enumerate(parts):
             result = await self._process_turn(dataclasses.replace(user_input, text=text), part=True)
             user_input = dataclasses.replace(user_input, conversation_id=result.conversation_id)
@@ -604,13 +638,25 @@ class AssistRouterAgent(conversation.ConversationEntity):
                     key = result.conversation_id or ""
                     self._queued[key] = (rest, time.monotonic() + CONFIRM_SECONDS)
                 break
-        if result is None:  # no commands - nothing to say
-            response = intent.IntentResponse(language=user_input.language)
-            result = conversation.ConversationResult(
-                response=response, conversation_id=user_input.conversation_id
-            )
-        result.response.async_set_speech(" ".join(s.strip() for s in speeches if s.strip()))
         return result
+
+    def _reply_stream(self, conversation_id: str | None, prefix: str = "") -> ReplyStream | None:
+        """A stream of the answer to the pipeline's text to speech, None when nobody listens
+        (no pipeline, another conversation) or the reply will be joined from several answers."""
+        if not STREAMING.get():
+            return None
+        chat_log = listening_chat_log(conversation_id)
+        if chat_log is None:
+            return None
+        persona = PERSONA.get()
+        gender = persona.gender if persona else None
+        return ReplyStream(
+            self.hass,
+            chat_log,
+            self.entity_id,
+            prefix=prefix,
+            words=lambda text: LANG.gendered(text, gender),
+        )
 
     def _ollama(self) -> OllamaSettings | None:
         options = self._entry.options
@@ -704,6 +750,8 @@ class AssistRouterAgent(conversation.ConversationEntity):
             speaker = (None, None)  # a guess that changes nothing is not worth saying
         key = speaker_person(config, speaker[0])
         speaker_name = config.people[key].name if key else speaker[1]
+        # „Wydaje mi się, że pyta Kasia.” before an answer that depends on a guessed speaker
+        prefix = LANG.probable_speaker(speaker_name) if probable and used and speaker_name else ""
         if topic.unclear:
             return await self._unclear(user_input, text, conversation_id, config)
         if topic.control:
@@ -718,12 +766,24 @@ class AssistRouterAgent(conversation.ConversationEntity):
         ):
             return None, route.topic
         else:
+            # the answers of data topics say the opening sentence themselves (it streams first)
             answer, label = await self._answer_topic(
-                user_input, text, conversation_id, config, ollama, route, speaker, speaker_name
+                user_input,
+                text,
+                conversation_id,
+                config,
+                ollama,
+                route,
+                speaker,
+                speaker_name,
+                prefix,
             )
-        if answer is not None and probable and used and speaker_name:
+            if answer is not None and prefix:
+                label += LANG.LOG_PROBABLE.format(name=speaker_name)
+            return answer, label
+        if answer is not None and prefix:
             speech = answer.response.speech.get("plain", {}).get("speech", "")
-            answer.response.async_set_speech(f"{LANG.probable_speaker(speaker_name)} {speech}")
+            answer.response.async_set_speech(f"{prefix} {speech}")
             label += LANG.LOG_PROBABLE.format(name=speaker_name)
         return answer, label
 
@@ -737,9 +797,17 @@ class AssistRouterAgent(conversation.ConversationEntity):
         route: Route,
         speaker: tuple[str | None, str | None],
         speaker_name: str | None,
+        prefix: str = "",
     ) -> tuple[conversation.ConversationResult | None, str]:
         """Answer of a data topic: automation sentence, entities and sources for the answer
-        model, or Wikipedia. None = nothing to say (the fallback agent may answer)."""
+        model, or Wikipedia. None = nothing to say (the fallback agent may answer).
+
+        ``prefix`` - a sentence said before the answer. The models' answers stream to the
+        pipeline's text to speech while they are written (``_reply_stream``)."""
+
+        def said(speech: str) -> str:
+            return f"{prefix} {speech}" if prefix else speech
+
         topic = config.topics[route.topic]
         label = route.topic
         data_parts: list[str] = []
@@ -763,7 +831,7 @@ class AssistRouterAgent(conversation.ConversationEntity):
                     data_parts.append(data)
                     if topic.verbatim:
                         # the automation's answer in its layout (several sentences - all of them)
-                        return self._speak(user_input, conversation_id, data), label
+                        return self._speak(user_input, conversation_id, said(data)), label
                 else:
                     label += LANG.LOG_NOT_RECOGNIZED
         lines = []
@@ -808,7 +876,14 @@ class AssistRouterAgent(conversation.ConversationEntity):
                     config, dt_util.now(), data, text, speaker_name, hint.strip(), PERSONA.get()
                 )
                 tokens = topic.answer_tokens or ANSWER_TOKENS
-                answer = await async_generate(self.hass, answer_model, messages, tokens)
+                stream = self._reply_stream(conversation_id, prefix)
+                answer = await async_generate(
+                    self.hass, answer_model, messages, tokens, stream.push if stream else None
+                )
+                if stream is not None and (spoken := await stream.finish()):
+                    answer = spoken  # said already, with the opening sentence
+                elif answer is not None:
+                    answer = said(answer)
                 if answer is None:
                     # model pushed out of memory or busy - the next question will make it in time
                     self._preload(answer_model)
@@ -817,7 +892,7 @@ class AssistRouterAgent(conversation.ConversationEntity):
             else:
                 # without an answer model - the automation text (bare entity states are not
                 # suitable for reading aloud)
-                answer = command_data
+                answer = said(command_data) if command_data else ""
             if answer:
                 if routed is None:
                     response = intent.IntentResponse(language=user_input.language)
@@ -832,16 +907,23 @@ class AssistRouterAgent(conversation.ConversationEntity):
             article = await async_search_wikipedia(self.hass, config, route.phrase, ollama.timeout)
             speech = None
             if article and (answer_model := self._answer_model()):
+                stream = self._reply_stream(conversation_id, prefix)
                 speech = await async_generate(
                     self.hass,
                     answer_model,
                     summary_messages(config, article, text, PERSONA.get()),
                     SUMMARY_TOKENS_PER_SENTENCE * config.sentences,
+                    stream.push if stream else None,
                 )
+                if stream is not None and (spoken := await stream.finish()):
+                    speech = spoken
+                elif speech:
+                    speech = said(speech)
                 if speech:
                     label += " + streszczenie"
             if article and not speech:
                 speech = clean_extract(article, config.sentences)
+                speech = said(speech) if speech else speech
             if speech:
                 response = intent.IntentResponse(language=user_input.language)
                 response.async_set_speech(speech)
@@ -1447,20 +1529,30 @@ class AssistRouterAgent(conversation.ConversationEntity):
             conversation_id=self._fallback_conversations.get(conversation_id or ""),
             extra_system_prompt=prompt,
         )
+        stream = self._reply_stream(conversation_id)
+        own_id: list[str] = []  # the fallback agent's conversation, known before it answers
+        result: conversation.ConversationResult | None = None
         try:
             async with asyncio.timeout(timeout):
-                if isinstance(agent, conversation.ConversationEntity):
-                    agent.async_set_context(user_input.context)
-                    result = await agent.internal_async_process(inner)
+                if stream is None:
+                    result = await self._fallback_process(agent, inner, user_input)
                 else:
-                    result = await agent.async_process(inner)
+                    result = await self._fallback_streamed(agent, inner, user_input, stream, own_id)
         except TimeoutError:
             _LOGGER.warning("Fallback agent %s did not answer within %s s", agent_id, timeout)
-            return None
         except Exception:
             _LOGGER.warning("Fallback agent %s failed", agent_id, exc_info=True)
-            return None
-        if result.response.response_type == intent.IntentResponseType.ERROR:
+        spoken = await stream.finish() if stream is not None else ""
+        if spoken:
+            # said already (also when the agent failed or ran out of time halfway): the
+            # result carries exactly the streamed text
+            if result is None or result.response.response_type == intent.IntentResponseType.ERROR:
+                response = intent.IntentResponse(language=user_input.language)
+                result = conversation.ConversationResult(
+                    response=response, conversation_id=own_id[0] if own_id else None
+                )
+            result.response.async_set_speech(spoken)
+        if result is None or result.response.response_type == intent.IntentResponseType.ERROR:
             return None
         speech = result.response.speech.get("plain", {}).get("speech", "")
         if not speech.strip():
@@ -1476,6 +1568,48 @@ class AssistRouterAgent(conversation.ConversationEntity):
         return dataclasses.replace(
             result, conversation_id=conversation_id or result.conversation_id
         )
+
+    @staticmethod
+    async def _fallback_process(
+        agent: Any,
+        inner: conversation.ConversationInput,
+        user_input: conversation.ConversationInput,
+    ) -> conversation.ConversationResult:
+        if isinstance(agent, conversation.ConversationEntity):
+            agent.async_set_context(user_input.context)
+            return await agent.internal_async_process(inner)
+        return await agent.async_process(inner)
+
+    async def _fallback_streamed(
+        self,
+        agent: Any,
+        inner: conversation.ConversationInput,
+        user_input: conversation.ConversationInput,
+        stream: ReplyStream,
+        own_id: list[str],
+    ) -> conversation.ConversationResult:
+        """The fallback agent with its own conversation, its streamed text passed on.
+
+        The agent writes into the chat log of its own conversation (it must not see the HA
+        error in the history), which the pipeline does not listen to. We open that chat log
+        first, as its initial caller, with a listener that passes the assistant's text to
+        ``stream`` - the pipeline's chat log.
+        """
+        role = None
+
+        def listen(_chat_log: Any, delta: dict) -> None:
+            nonlocal role
+            role = delta.get("role", role)
+            if role == "assistant" and (text := delta.get("content")):
+                stream.push(text)
+
+        with (
+            chat_session.async_get_chat_session(self.hass, inner.conversation_id) as session,
+            conversation.async_get_chat_log(self.hass, session, chat_log_delta_listener=listen),
+        ):
+            own_id.append(session.conversation_id)
+            inner = dataclasses.replace(inner, conversation_id=session.conversation_id)
+            return await self._fallback_process(agent, inner, user_input)
 
     def _where(self, user_input: conversation.ConversationInput) -> tuple[str, str]:
         """Room and name of the voice device (the satellite, or the device when there is none)."""

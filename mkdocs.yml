@@ -80,6 +80,7 @@ plugins:
             Home control: Sterowanie domem
             Doing it well: Jak robić to dobrze
             Models: Modele
+            Response speed: Szybkość odpowiedzi
             Privacy: Prywatność
             Adding a language: Dodanie języka
             FAQ: FAQ
@@ -97,6 +98,7 @@ nav:
   - Home control: control.md
   - Doing it well: good-practice.md
   - Models: models.md
+  - Response speed: speed.md
   - Privacy: privacy.md
   - Adding a language: languages.md
   - FAQ: faq.md

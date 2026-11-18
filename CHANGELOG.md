@@ -2,6 +2,23 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions: [SemVer](https://semver.org/).
 
+## [0.1.10] - 2026-11-18
+
+### Added
+- **Streaming answers:** the agent tells the Assist pipeline that it streams, and the answer model's answer,
+  the Wikipedia summary and the fallback agent's answer go to text to speech while they are written - a long
+  answer is heard 1–2 s sooner (Home Assistant starts after about 60 characters; a short answer is read as a
+  whole, as before). „Wydaje mi się, że pyta …” goes first, the persona's female forms are kept, whitespace is
+  cleaned up on the way. The fallback agent keeps its own conversation; its text is passed on. A model that
+  fails halfway keeps what was said. Several commands in one sentence (and commands waiting for an answered
+  question) get one joined reply, without streaming. Typed questions and the editor's tester work as before.
+- Data for the answer model: a list of items with plain fields (a forecast, events, lessons) is written as a
+  table - the field names once in the header, one line per item - instead of YAML repeating every key. A 24-hour
+  hourly forecast: 1855 → 1439 tokens, read 0.3–0.5 s faster, the same answer.
+- Guide: a "Response speed" page (PL/EN) - where the time from the end of speech to the answer goes (measured
+  stage by stage), what the router does itself, the Ollama settings (`OLLAMA_NUM_PARALLEL=2`, one `num_ctx` for
+  every client), less data, speech to text, choosing the topic, a checklist.
+
 ## [0.1.9] - 2026-11-18
 
 ### Added
