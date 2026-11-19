@@ -100,3 +100,83 @@ def test_plain_turns_yaml_values_into_json() -> None:
         "at": "2026-11-16",
         "list": [1, 2],
     }
+
+
+# --- the home's voice commands ------------------------------------------------------------------
+
+
+def _recordings(hass: HomeAssistant, tmp_path: Path) -> Path:
+    from homeassistant.components.assist_pipeline.const import DATA_CONFIG
+
+    root = tmp_path / "assist_pipeline"
+    for relative, data in (
+        ("dev1/Kuchnia/111/00_wake.wav", b"wake"),
+        ("dev1/Kuchnia/111/01_stt-stt.whisper.wav", b"a" * 10),
+        ("dev1/Salon/222/01_stt-stt.whisper.wav", b"b" * 10),
+        ("Salon/333/01_stt.wav", b"c" * 10),
+        ("dev1/Salon/222/notes.txt", b"x"),
+    ):
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    hass.data[DATA_CONFIG] = {"debug_recording_dir": str(root)}
+    return root
+
+
+async def test_recordings_are_listed_and_handed_over_in_parts(
+    hass, setup, hass_ws_client, tmp_path, monkeypatch
+) -> None:
+    import base64
+
+    from custom_components.assist_router import training
+
+    _recordings(hass, tmp_path)
+    client = await hass_ws_client(hass)
+    listed = await ok(client, type=f"{DOMAIN}/training/recordings")
+    assert listed["configured"] is True
+    paths = sorted(item["path"] for item in listed["files"])
+    assert paths == [
+        "Salon/333/01_stt.wav",
+        "dev1/Kuchnia/111/01_stt-stt.whisper.wav",
+        "dev1/Salon/222/01_stt-stt.whisper.wav",
+    ]  # no wake word, no other files
+    monkeypatch.setattr(training, "RECORDINGS_PART", 15)
+    first = await ok(client, type=f"{DOMAIN}/training/recording_files", paths=paths)
+    assert [f["path"] for f in first["files"]] == paths[:1]  # 10 + 10 bytes > 15
+    assert base64.b64decode(first["files"][0]["data"]) == b"c" * 10
+    rest = await ok(client, type=f"{DOMAIN}/training/recording_files", paths=paths[1:])
+    assert [f["path"] for f in rest["files"]] == paths[1:2]
+
+
+async def test_recordings_never_leave_their_folder(hass, setup, hass_ws_client, tmp_path) -> None:
+    root = _recordings(hass, tmp_path)
+    (root.parent / "secret.wav").write_bytes(b"s")
+    client = await hass_ws_client(hass)
+    answer = await ok(
+        client,
+        type=f"{DOMAIN}/training/recording_files",
+        paths=["../secret.wav", "/etc/passwd", "dev1/Salon/222/notes.txt", "missing.wav"],
+    )
+    assert answer["files"] == []
+
+
+async def test_without_a_recording_folder(hass, setup, hass_ws_client) -> None:
+    from homeassistant.components.assist_pipeline.const import DATA_CONFIG
+
+    hass.data.pop(DATA_CONFIG, None)
+    client = await hass_ws_client(hass)
+    assert await ok(client, type=f"{DOMAIN}/training/recordings") == {
+        "configured": False,
+        "files": [],
+    }
+    answer = await ok(client, type=f"{DOMAIN}/training/recording_files", paths=["a.wav"])
+    assert answer["files"] == []
+
+
+async def test_only_administrators_get_recordings(hass, setup, hass_ws_client) -> None:
+    person = MockUser(name="Ola").add_to_hass(hass)
+    refresh = await hass.auth.async_create_refresh_token(person, "client")
+    ola = await hass_ws_client(hass, access_token=hass.auth.async_create_access_token(refresh))
+    for kind in ("recordings", "recording_files"):
+        answer = await call(ola, type=f"{DOMAIN}/training/{kind}", paths=[])
+        assert answer["error"]["code"] in ("unauthorized", "invalid_format")

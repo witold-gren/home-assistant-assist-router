@@ -2,6 +2,29 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions: [SemVer](https://semver.org/).
 
+## [0.1.11] - 2026-11-19
+
+### Added
+- **Voice recordings for the trainer:** `assist_router/training/recordings` lists the speech-to-text
+  recordings Home Assistant keeps with `assist_pipeline: debug_recording_dir` (path, size, time; no
+  wake word recordings) and `assist_router/training/recording_files` returns the asked ones as
+  base64, at most 4 MB per answer. Administrators only, read-only, nothing outside the recording
+  folder and nothing but WAV files.
+- **Language packs as folders a translator can edit without Python:** `languages/<code>/` holds
+  `texts.yaml` (what the assistant says, the prompts), `words.yaml` (the words it understands),
+  `patterns.yaml` (regular expressions, each with `matches` / `not_matches` examples) and
+  `grammar.py` (the functions that build sentences). `tools/check_language.py FOLDER` lists every
+  problem of a pack - a missing name, a lost `{field}`, a translated Home Assistant name, a JSON key
+  word the prompts do not use, a pattern that misses its example - and the same checks run in the
+  tests for every pack. Guide: Adding a language (rewritten).
+
+### Changed
+- The Polish pack moved from `languages/pl.py` to `languages/pl/` - every value is the same.
+  `control_prompt` takes the change words from `CHANGE_SET` / `CHANGE_MORE` / `CHANGE_LESS`
+  (translated once, the prompt follows).
+- `tools/snapshot_data.py` and `tools/check_sentences.py` use the active pack's language instead of
+  Polish.
+
 ## [0.1.10] - 2026-11-18
 
 ### Added

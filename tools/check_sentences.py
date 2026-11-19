@@ -24,7 +24,7 @@ from hassil.sample import sample_sentence
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from snapshot_data import _ws
+from snapshot_data import LANG, _ws
 
 WILDCARD = "test"  # value substituted for the trigger {wildcards}
 
@@ -71,7 +71,7 @@ def samples(template: str, count: int, rng: random.Random) -> list[str]:
     expression = re.sub(r"\{[^}]+\}", WILDCARD, template)
     try:
         sentences = []
-        for sentence in sample_sentence(parse_sentence(expression), language="pl"):
+        for sentence in sample_sentence(parse_sentence(expression), language=LANG.CODE):
             sentences.append(" ".join(sentence.split()))
             if len(sentences) >= 5000:
                 break
@@ -113,7 +113,7 @@ async def check(args: argparse.Namespace) -> dict[str, Any]:
         batch = valid[start : start + 200]
         (result,) = await _ws(url, token, [{
             "type": "conversation/agent/homeassistant/debug",
-            "sentences": [c["sentence"] for c in batch], "language": "pl",
+            "sentences": [c["sentence"] for c in batch], "language": LANG.CODE,
         }])  # fmt: skip
         for case, match in zip(batch, result["results"], strict=True):
             if not match or not match.get("match"):

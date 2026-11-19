@@ -1,0 +1,172 @@
+# Assist Router - patterns of the language (Polish).
+#
+# Each entry is a regular expression (Python `re`) the code uses to recognize something in what was
+# said. `matches` are sentences it must find something in, `not_matches` sentences it must not -
+# the tests check both (tests/test_languages.py). When translating, translate the examples first,
+# then change the pattern until the tests pass. `flags: [IGNORECASE]` - letter case does not
+# matter. Entries with `items` are ordered lists: the first item that matches wins.
+#
+# Names (ALARM_WORDS …), `key` values (day codes, relations) and `value` numbers stay as they are.
+
+# Alarm: only sentences (automations), never parsed by the model - a test showed that
+# "aktywuj alarm w trybie domowym" could hit the scene "Dzień dobry".
+# "alar" also catches speech recognition errors ("halaryn", "alarn").
+ALARM_WORDS:
+  pattern: \b(h?alar|czuwani|ochron|syren|uzbr|rozbr)
+  flags: [IGNORECASE]
+  matches: ["włącz alarm", "wyłącz halaryn", "uzbrój system"]
+  not_matches: ["włącz światło"]
+
+# „wyłącz muzykę” - turning off music means pausing the players that play it
+MUSIC_WORDS:
+  pattern: \b(muzyk|muzycz|piosen|utw[óo]r|playlist|grani[ea])
+  flags: [IGNORECASE]
+  matches: ["wyłącz muzykę", "zatrzymaj ten utwór"]
+  not_matches: ["wyłącz telewizor"]
+
+# „puść muzykę”, „włącz coś” - no title: resume what the room's player played last
+GENERIC_MUSIC:
+  pattern: ^(jak[aąieś]+ )?(muzyk[aęi]|muzyczk[aęi]|coś|cokolwiek|coś do słuchania|piosenk[aęi])$
+  flags: [IGNORECASE]
+  matches: ["muzykę", "coś", "jakąś muzykę", "coś do słuchania"]
+  not_matches: ["Dawida Podsiadło"]
+
+# "all", "whole house" - a large scope is then intended, no question
+WHOLE_HOUSE:
+  pattern: \b(wszystk|cał|każd)
+  flags: [IGNORECASE]
+  matches: ["zgaś wszystkie światła", "w całym domu"]
+  not_matches: ["zgaś światło w kuchni"]
+
+# Lead-ins after "nie, ..." that only introduce the corrected command; they are dropped
+# („nie, pytałem czy możesz zgasić światło” -> „możesz zgasić światło”). Optional - most often
+# the correction follows right after „nie” („nie, wyłącz światło w łazience”).
+REPHRASE_LEADS:
+  pattern: ^(?:(?:ja\s+)?pyta(?:łem|łam|łeś|łaś)(?:\s+się)?\s+(?:czy|o)\s+|chodzi(?:ło)?\s+(?:mi\s+)?o\s+|miał(?:em|am)\s+na\s+myśli,?\s+|chciał(?:em|am)(?:,?\s+(?:żebyś|abyś|byś))?\s+|prosił(?:em|am)(?:\s+o)?\s+|(?:mówił|powiedział)(?:em|am),?(?:\s+(?:że|żebyś|abyś))?\s+)
+  flags: [IGNORECASE]
+  matches: ["pytałem czy jutro pada", "chodziło mi o lampę", "miałam na myśli kuchnię"]
+  not_matches: ["jaka jest pogoda"]
+
+# The start of a knowledge question, not needed in the search phrase.
+QUESTION_PREFIX:
+  pattern: ^(kim (był|była|było|byli|jest|są)|co to (jest|są|było|był|była)|czym (jest|był|była)|kto (jest|był|była|był|zdobył|zdobyła|wygrał|wygrała|został|została|napisał|wynalazł)(
+    (obecnie|aktualnie|teraz|ostatnio))?|gdzie (leży|jest|znajduje się|leżą)|kiedy (był|była|było|byli|żył|żyła|powstał|powstała|zbudowano|odkryto)|jak
+    (wysoki|wysoka|wysokie|duży|duża|duże|długi|długa|długie|stary|stara|stare|głęboki|głęboka) (jest|był|była)|ile
+    (lat )?(ma|miał|miała|mieszka)|(opowiedz|powiedz) (mi )?(coś )?o|co wiesz o)\s+
+  flags: [IGNORECASE]
+  matches: ["kim był Kopernik", "co to jest fotosynteza", "gdzie leży Kraków"]
+  not_matches: ["Kopernik"]
+
+# Pronunciation and transcription in brackets at the start of an article - not read aloud.
+PRONUNCIATION:
+  pattern: \s*\([^()]*(?:wym\.|IPA|ˈ|ː|\[)[^()]*\)
+  matches: ["Kraków (wym. [ˈkrakuf]) to miasto"]
+  not_matches: ["Kraków (miasto) leży nad Wisłą"]
+
+# End of a sentence: a full stop after a word longer than 3 letters - abbreviations like
+# „ur.”, „m.in.”, „św.” do not end a sentence; the next sentence starts with a capital.
+SENTENCE_END:
+  pattern: (?<=[^\s.]{4}[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ0-9])
+  matches: ["Jest ciepło. Jutro pada."]
+  not_matches: ["Urodził się m.in. w Toruniu", "zmarł w 1543 r. we Fromborku"]
+
+# A question in the 1st person („jakie mam zajęcia”, „moje oceny”) is about the speaker;
+# „mamy” (we) and „mama” do not match thanks to the word boundary
+FIRST_PERSON:
+  pattern: \b(?:mam|mój|moja|moje|mojego|mojej|moich|moim|moją|mnie|mi|ja|jestem|muszę|powinienem|powinnam|byłem|byłam|dostałem|dostałam)\b
+  flags: [IGNORECASE]
+  matches: ["jakie mam zajęcia", "moje oceny"]
+  not_matches: ["co mamy na obiad", "gdzie jest mama"]
+
+# „w moim pokoju”, „u mnie w pokoju”, „mój pokój” - the speaker's room
+MY_ROOM:
+  pattern: \b(?:w\s+moim\s+pokoju|u\s+mnie\s+w\s+pokoju|u\s+mnie|(?:mój|moim|mojego)\s+pok(?:ój|oju))\b
+  flags: [IGNORECASE]
+  matches: ["zgaś światło w moim pokoju", "u mnie w pokoju"]
+  not_matches: ["w pokoju gościnnym"]
+
+# questions about voice recognition (after speech to text, with Whisper punctuation)
+WHO_SPEAKS:
+  pattern: \b(?:kto\s+(?:to\s+|teraz\s+)?(?:do\s+ciebie\s+)?mówi|kto\s+mówi\s+do\s+ciebie|kim\s+jestem|kto\s+jestem|jak\s+(?:mnie\s+)?rozpoznajesz|rozpoznajesz\s+mnie|czy\s+mnie\s+rozpoznajesz|jak\s+rozpoznajesz\s+(?:mój\s+|ten\s+|czyj\s+)?głos|co\s+to\s+za\s+głos|czyj\s+(?:to\s+)?(?:jest\s+)?(?:ten\s+)?głos|(?:czy\s+)?wiesz,?\s+kim\s+jestem|(?:czy\s+)?wiesz,?\s+kto\s+(?:to\s+)?mówi)\b
+  flags: [IGNORECASE]
+  matches: ["kto mówi?", "czy mnie rozpoznajesz", "kim jestem"]
+  not_matches: ["kto jest w domu"]
+
+# announcement (intercom): a word at the start - the speaker's recording on other speakers
+ANNOUNCEMENT:
+  pattern: ^\W*(?:ogłoszenie|komunikat|do\s+wszystkich|intercom|interkom)\b
+  flags: [IGNORECASE]
+  matches: ["ogłoszenie: obiad gotowy", "komunikat do wszystkich"]
+  not_matches: ["przeczytaj ogłoszenie"]
+
+# conjunctions that may join several commands („… oraz …”, „…, a potem …”)
+CONJUNCTIONS:
+  pattern: \b(?:i|oraz|potem|następnie|a\s+także|a\s+też)\b|,
+  flags: [IGNORECASE]
+  matches: ["zgaś światło i zamknij rolety", "włącz radio, a potem kawę"]
+  not_matches: ["zgaś światło w kuchni"]
+
+# Day words in a question -> day codes (sources.py: today, tomorrow, ..., monday ... sunday).
+# Order matters: „pojutrze” contains „jutr”. The day codes stay in English; the patterns
+# are not compiled (the code searches with each one in turn).
+WHEN_PATTERNS:
+  compile: false
+  items:
+  - {key: day_after_tomorrow, pattern: \bpojutrz, matches: [co jest pojutrze]}
+  - {key: tomorrow, pattern: \bjutr, matches: [jakie lekcje jutro, na jutro]}
+  - {key: monday, pattern: \bponiedział, matches: [w poniedziałek]}
+  - {key: tuesday, pattern: \bwtor, matches: [we wtorek]}
+  - {key: wednesday, pattern: \bśrod, matches: [w środę]}
+  - {key: thursday, pattern: \bczwart, matches: [w czwartek]}
+  - {key: friday, pattern: \bpiąt, matches: [w piątek]}
+  - {key: weekend, pattern: \bweekend, matches: [w weekend]}
+  - {key: saturday, pattern: \bsobot, matches: [w sobotę]}
+  - {key: sunday, pattern: \bniedziel, matches: [w niedzielę]}
+  - {key: week, pattern: \b(tydzie|tygodni), matches: [w tym tygodniu, cały tydzień]}
+  - {key: today, pattern: \b(dziś|dzisiaj|dzisiejsz|teraz), matches: [co dziś, na dzisiaj]}
+
+# Family words relative to the speaker (family in router.yaml): relation -> pattern.
+# The relation names stay in English; the patterns cover every inflected form.
+RELATIONS:
+  items:
+  - key: brother
+    pattern: \bbra(?:t|ta|tu|tem|cie|cia|ci|ćmi)\b
+    flags: [IGNORECASE]
+    matches: [gdzie jest mój brat, zadzwoń do brata]
+    not_matches: [bratek w ogrodzie]
+  - key: sister
+    pattern: \bsiostr\w*
+    flags: [IGNORECASE]
+    matches: [gdzie jest siostra, moja siostrzyczka]
+  - key: siblings
+    pattern: \brodzeństw\w*
+    flags: [IGNORECASE]
+    matches: [co robi moje rodzeństwo]
+  - key: son
+    pattern: \bsyn(?:a|owi|em|u|owie|ów|ami)?\b
+    flags: [IGNORECASE]
+    matches: [gdzie jest mój syn, lekcje syna]
+    not_matches: [synoptyk]
+  - key: daughter
+    pattern: \bcór(?:ka|ki|kę|ką|ce|ek|kom|kami|eczk\w*)\b
+    flags: [IGNORECASE]
+    matches: [gdzie jest córka, lekcje córki]
+  - key: children
+    pattern: \b(?:moje|nasze)\s+dzie(?:ci|ciom|ćmi)\b
+    flags: [IGNORECASE]
+    matches: [gdzie są moje dzieci, nasze dzieciom]
+    not_matches: [dzieci sąsiadów]
+
+# Days back named in the question -> number of days (the classifier's day codes only look
+# ahead). „przedwczoraj” before „wczoraj”, which it contains.
+PAST_DAYS:
+  items:
+  - value: 2
+    pattern: \bprzedwczoraj
+    flags: [IGNORECASE]
+    matches: [kto był przedwczoraj]
+  - value: 1
+    pattern: \bwczoraj
+    flags: [IGNORECASE]
+    matches: [kto był wczoraj w salonie]
+    not_matches: [kto jest dziś]

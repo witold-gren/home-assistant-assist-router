@@ -7,7 +7,7 @@ sentences and automations always take priority.
 
     The verbs, Whisper corrections, yes/no replies, alarm words and the JSON field names
     below belong to the language pack. The examples are in English; the Polish words of the bundled pack
-    (`languages/pl.py`) are given in brackets where the behavior depends on them.
+    (`languages/pl/`) are given in brackets where the behavior depends on them.
 
 1. **Whisper corrections.** Certain corrections of words speech recognition often
    garbles are applied immediately (Polish: „czystkę” → „wszystkie”, “all”), while uncertain ones

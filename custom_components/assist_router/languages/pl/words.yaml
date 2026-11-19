@@ -1,0 +1,333 @@
+# Assist Router - words of the language (Polish).
+#
+# Words and word lists used to understand commands and questions: yes / no / cancel, command verbs,
+# colors, shades of white, days, family words, states read aloud …
+#
+# Rules (the tests check them):
+# - translate the words, never the names (YES_WORDS …);
+# - in dictionaries the comment says which side is translated; Home Assistant names stay as they
+#   are: intents (HassTurnOn), domains (light, cover), device classes, states (on, off), color
+#   values (red, white), media classes (track), day codes (today, monday);
+# - `!tuple`, `!set`, `!frozenset` and `!translate` only keep the type the code expects - keep the
+#   tag, translate the items. Word stems (e.g. „świat” for światło, światła …) cover every form of a
+#   word; in a language with little inflection the whole word is fine.
+
+# intent -> (for the model: when to use it, for questions: verb in the infinitive)
+INTENTS:
+  HassTurnOn: !tuple
+  - włącz, zapal, uruchom, otwórz rolety lub bramę, zarygluj zamek, aktywuj scenę
+  - włączyć
+  HassTurnOff: !tuple
+  - wyłącz, zgaś, zamknij rolety lub bramę, otwórz (odblokuj) zamek, zatrzymaj urządzenie
+  - wyłączyć
+  HassLightSet: !tuple
+  - jasność, kolor lub barwa światła, rozjaśnij, przyciemnij, zrób jaśniej/ciemniej, zrób ciepłe/zimne
+    światło, zmień kolor na czerwony
+  - ustawić
+  HassSetPosition: !tuple
+  - pozycja rolet lub zaworu w procentach, uchyl, opuść do połowy, wyżej/niżej
+  - ustawić pozycję
+  HassClimateSetTemperature: !tuple
+  - temperatura ogrzewania lub klimatyzacji, cieplej, chłodniej
+  - ustawić temperaturę
+  HassSetVolume: !tuple [głośność w procentach, ustawić głośność]
+  HassSetVolumeRelative: !tuple ['głośniej, ciszej, podgłośnij, przycisz', zmienić głośność]
+  HassMediaPause: !tuple ['pauza, zatrzymaj muzykę lub film', wstrzymać]
+  HassMediaUnpause: !tuple ['wznów, graj dalej (bez tytułu)', wznowić]
+  HassMediaSearchAndPlay: !tuple
+  - 'puść, zagraj konkretną muzykę: wykonawcę, utwór, album, playlistę, gatunek, podcast'
+  - puścić
+  HassMediaNext: !tuple ['następny utwór, dalej', przełączyć na następny]
+  HassMediaPrevious: !tuple ['poprzedni utwór, wróć', przełączyć na poprzedni]
+  HassVacuumStart: !tuple ['odkurzanie, sprzątanie robotem', uruchomić odkurzacz]
+  HassVacuumReturnToBase: !tuple
+  - odkurzacz do bazy, przerwij sprzątanie
+  - odesłać odkurzacz do bazy
+  HassListAddItem: !tuple [dopisz do listy zakupów lub zadań, dopisać do listy]
+
+# HA domain -> what it is called (for the model; the first word is used in questions)
+DOMAINS:
+  light: światła, lampy, oświetlenie, LED
+  switch: przełączniki, gniazdka, wtyczki
+  cover: rolety, żaluzje, zasłony, brama, drzwi garażowe
+  media_player: głośniki, telewizor, muzyka
+  climate: ogrzewanie, klimatyzacja, termostat
+  fan: wentylator, oczyszczacz
+  vacuum: odkurzacz
+  lock: zamek
+  scene: scena
+  script: skrypt
+  valve: zawór
+  todo: lista zakupów, lista zadań
+
+# JSON keys the control prompt asks the model for (meaning -> key in the model's answer)
+CONTROL_KEYS:
+  intent: intencja
+  domain: domena
+  area: obszar
+  floor: pietro
+  name: nazwa
+  all: wszystkie
+  value: wartosc
+  change: zmiana
+  item: element
+  color: kolor
+  white: barwa
+  query: szukaj
+  media_class: rodzaj
+  artist: wykonawca
+  radio: radio
+
+# Words that show the kind of device. A model that does not know a word ("halaryn") may
+# guess the domain - without such a word and without a device name we ask instead.
+DOMAIN_HINTS:
+  light: !tuple [świat, lamp, oświetl, żarów, led, kinkiet, jaśn, ciemn, zgaś, zapal, gaś, barw, kolor,
+    nastr]
+  cover: !tuple [rolet, żaluz, zasłon, zasłoń, odsłoń, bram, markiz, opuść, podnie, uchyl]
+  climate: !tuple [ogrzew, grzej, grzan, klimat, termost, stopn, temperat, ciepl, chłod, zimn]
+  media_player: !tuple [głośn, cisz, muzyk, telewiz, tv, radio, piosen, utwór, film, puść, graj, pauz,
+    następn, poprzedn, projekt, kino]
+  vacuum: !tuple [odkurz, sprząt, robot, mop]
+  lock: !tuple [zamek, zamk, drzwi, rygl, blokuj]
+  fan: !tuple [went, oczyszcz, wiatrak]
+  todo: !tuple [list, dopisz, zakup]
+
+# light color in the nominative (as the model answers) -> CSS name for HA (rgb_color)
+COLORS:
+  biały: white
+  czerwony: red
+  zielony: green
+  niebieski: blue
+  żółty: yellow
+  pomarańczowy: orange
+  fioletowy: purple
+  różowy: hotpink
+  turkusowy: turquoise
+  błękitny: deepskyblue
+  złoty: gold
+  limonkowy: lime
+  purpurowy: magenta
+  brązowy: brown
+
+# shade of white -> kelvin (color_temp_kelvin)
+WHITES:
+  ciepła: 2700
+  neutralna: 4000
+  zimna: 6500
+
+# kind of music -> MediaClass for search_media
+MEDIA_CLASSES:
+  utwór: track
+  album: album
+  wykonawca: artist
+  playlista: playlist
+  gatunek: genre
+  podcast: podcast
+
+# letters folded for comparing word stems
+ACCENTS: !translate
+  from: ąćęłńóśźż
+  to: acelnoszz
+
+# Whisper mistakes in commands: word -> (fix, certain). An uncertain fix
+# ("jaś" -> "zgaś") means asking before executing.
+WHISPER_FIXES:
+  czystkę: !tuple [wszystkie, true]
+  czystkie: !tuple [wszystkie, true]
+  wszystkę: !tuple [wszystkie, true]
+  wszystkię: !tuple [wszystkie, true]
+  zgaść: !tuple [zgaś, true]
+  gaś: !tuple [zgaś, true]
+  jaś: !tuple [zgaś, false]
+  zgaj: !tuple [zgaś, false]
+  włóż: !tuple [włącz, false]
+  ruchom: !tuple [uruchom, true]
+
+# Stems of command verbs - a command without any of them means asking first.
+COMMAND_VERBS: !tuple [włącz, wyłącz, zapal, zgaś, gaś, otwórz, otwieraj, zamknij, opuść, podnieś, ustaw,
+  zrób, przyciemnij, rozjaśnij, ścisz, przycisz, podgłośnij, zatrzymaj, wstrzymaj, wznów, puść, graj,
+  następn, poprzedn, odkurz, posprzątaj, sprzątaj, wyślij, odeślij, dopisz, dodaj, zasłoń, odsłoń, uchyl,
+  niech, aktywuj, uruchom, odpal, zablokuj, odblokuj, zarygluj, zmniejsz, zwiększ, podkręć, skręć, przełącz,
+  pauza, stop, dalej, jaśniej, ciemniej, cieplej, chłodniej, głośniej, ciszej, wyżej, niżej, przymknij,
+  przewietrz, wywietrz, zaparz, przygotuj, nalej, kalibruj, skalibruj, zmień, pogaś, pozapalaj, zapal]
+
+# words that may stand before the name of a script or scene ("uruchom skrypt ...")
+ROUTINE_WORDS: !set [akty, odpa, prosz, scen, skry, uruc, wlac, zrob]
+
+# Answers to the assistant's questions ("Czy dobrze rozumiem…?", "Czy chodziło o…?",
+# "Czy …?") - one vocabulary for all questions. Phrases at the start of the utterance; the
+# refusal is checked first ("nie rób" before "rób"), longer phrases before shorter ones.
+YES_WORDS: !tuple [tak, tak jest, no tak, dokładnie, dokładnie tak, o to chodzi, o to mi chodzi, właśnie
+    tak, zgadza się, zrób, zrób to, rób, wykonaj, działaj, dawaj, potwierdzam, dobrze, ok, okej, jasne,
+  pewnie, śmiało, oczywiście, proszę, owszem, zgoda]
+
+# "you misunderstood" - apologize and ask to repeat, the conversation goes on
+REPEAT_WORDS: !tuple
+- nie
+- nie o to
+- nie to
+- o coś innego
+- chodzi o coś innego
+- nie o to chodzi
+- jeszcze raz
+- powtórzę
+- może powtórzę
+- powtórz
+- źle
+- źle zrozumiałeś
+- pomyłka
+- wróć
+
+# end of the conversation - nothing is done
+CANCEL_WORDS: !tuple
+- anuluj
+- koniec
+- nieważne
+- zostaw
+- zostaw to
+- nic nie rób
+- nie rób
+- daj spokój
+- daj sobie spokój
+- daj sobie z tym spokój
+- olej to
+- olej
+- nie trzeba
+- nie teraz
+- nie chcę
+- rezygnuję
+- przestań
+- stop
+- odwołaj
+
+# Answering with a verb: the verb of the question = yes, the opposite one = no
+# ("Czy włączyć…?" - "włącz" yes, "wyłącz" no; "Czy wyłączyć…?" - the other way round).
+ON_WORDS: !tuple [włącz, zapal, uruchom, odpal]
+
+OFF_WORDS: !tuple [wyłącz, zgaś, zatrzymaj]
+
+OPEN_WORDS: !tuple [otwórz, otwieraj, odblokuj, podnieś, odsłoń]
+
+CLOSE_WORDS: !tuple [zamknij, zarygluj, zablokuj, opuść, zasłoń]
+
+# fillers between answer phrases ("tak, to proszę")
+FILLER: !frozenset [dzięki, dziękuję, go, je, już, ją, mi, nie, 'no', proszę, tak, teraz, to]
+
+# Reply after execution
+DONE:
+  HassTurnOn: Włączono
+  HassTurnOff: Wyłączono
+  HassLightSet: Ustawiono światło
+  HassSetPosition: Ustawiono
+  HassClimateSetTemperature: Ustawiono temperaturę
+  HassSetVolume: Ustawiono głośność
+  HassSetVolumeRelative: Zmieniono głośność
+  HassMediaPause: Wstrzymano
+  HassMediaUnpause: Wznowiono
+  HassMediaNext: Następny utwór
+  HassMediaPrevious: Poprzedni utwór
+  HassVacuumStart: Uruchomiono odkurzacz
+  HassVacuumReturnToBase: Odkurzacz wraca do bazy
+  HassListAddItem: Dopisano do listy
+  HassMediaSearchAndPlay: Puszczam
+
+# Variables of the `command` templates in router.yaml. The English names are documented;
+# the Polish ones keep older router.yaml files working (`kiedy` gets the Polish day name
+# from DAY_ALIASES, e.g. "jutro", while `when` is the day code, e.g. "tomorrow").
+COMMAND_VARIABLE_ALIASES:
+  who: kto
+  person: osoba
+  people: osoby
+  when: kiedy
+  text: tekst
+
+# words a model sometimes returns instead of null
+GUESS_EMPTY: !tuple ['', 'null', none, brak, nic]
+
+# Polish names accepted in `days:` of router.yaml (and given to old templates as `kiedy`)
+DAY_ALIASES:
+  dzis: today
+  jutro: tomorrow
+  pojutrze: day_after_tomorrow
+  weekend: weekend
+  tydzien: week
+  poniedzialek: monday
+  wtorek: tuesday
+  sroda: wednesday
+  czwartek: thursday
+  piatek: friday
+  sobota: saturday
+  niedziela: sunday
+
+# A disambiguation page instead of an article
+DISAMBIGUATION: !tuple [może oznaczać, może dotyczyć, może odnosić się]
+
+# fixed replies of a female persona: the first-person forms of the replies above
+FEMININE_FORMS:
+  zrozumiałem: zrozumiałam
+  usłyszałem: usłyszałam
+  znalazłem: znalazłam
+  zmieniłem: zmieniłam
+  pewien: pewna
+
+WEEKDAY_NAMES: !tuple [poniedziałek, wtorek, środa, czwartek, piątek, sobota, niedziela]
+
+MONTHS_GENITIVE: !tuple [stycznia, lutego, marca, kwietnia, maja, czerwca, lipca, sierpnia, września,
+  października, listopada, grudnia]
+
+# Entity states for the answer model. Binary sensors: on/off by device_class.
+BINARY_STATES:
+  door: !tuple [otwarte, zamknięte]
+  garage_door: !tuple [otwarte, zamknięte]
+  window: !tuple [otwarte, zamknięte]
+  opening: !tuple [otwarte, zamknięte]
+  lock: !tuple [otwarty, zamknięty]
+  problem: !tuple [problem, w porządku]
+  battery: !tuple [słaba bateria, bateria w porządku]
+  running: !tuple [pracuje, nie pracuje]
+  moisture: !tuple [mokro, sucho]
+  motion: !tuple [ruch, brak ruchu]
+  occupancy: !tuple [ktoś jest, nikogo]
+  presence: !tuple [obecny, nieobecny]
+  connectivity: !tuple [połączone, rozłączone]
+  plug: !tuple [podłączone, odłączone]
+  power: !tuple [zasilanie jest, brak zasilania]
+  smoke: !tuple [dym, brak dymu]
+
+STATES:
+  'on': włączone
+  'off': wyłączone
+  home: w domu
+  not_home: poza domem
+  locked: zamknięty
+  unlocked: otwarty
+  open: otwarte
+  closed: zamknięte
+  disarmed: rozbrojony
+  armed_home: uzbrojony (tryb w domu)
+  armed_away: uzbrojony (tryb poza domem)
+  armed_night: uzbrojony (tryb nocny)
+  armed_vacation: uzbrojony (tryb wakacyjny)
+  armed_custom_bypass: uzbrojony (własny)
+  arming: uzbrajanie
+  pending: odliczanie
+  triggered: ALARM - wyzwolony
+
+# Columns of the preview of unrecognized commands in the options (CSV key -> header)
+PREVIEW_HEADERS:
+  timestamp: Kiedy
+  area: Pokój
+  speaker: Mówca
+  text: Usłyszane
+  response: Odpowiedź
+
+# Open / close of covers and locks (HassTurnOn opens a cover but locks a lock):
+# domain -> intent -> [infinitive for the question, form after execution, opens?]
+# The last value says which words confirm it: true = OPEN_WORDS, false = CLOSE_WORDS.
+OPEN_CLOSE_VERBS:
+  cover:
+    HassTurnOn: !tuple [otworzyć, Otwarto, true]
+    HassTurnOff: !tuple [zamknąć, Zamknięto, false]
+  lock:
+    HassTurnOn: !tuple [zamknąć, Zamknięto, false]
+    HassTurnOff: !tuple [otworzyć, Otwarto, true]

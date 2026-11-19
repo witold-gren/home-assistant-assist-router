@@ -1,45 +1,73 @@
 # Dodanie języka {#adding-a-language}
 
-Wszystko, co zależy od języka, jest w jednym **pakiecie językowym**: module Pythona w
-`custom_components/assist_router/languages/`, nazwanym kodem języka. Integracja ma
-wbudowany pakiet polski, `pl.py`. Są w nim:
+Wszystko, co Assist Router mówi, rozpoznaje albo wysyła do modelu językowego w jednym języku, jest w
+**pakiecie językowym**: katalogu w `custom_components/assist_router/languages/` nazwanym kodem języka.
+Integracja ma polski, `pl/`. Do przetłumaczenia większości nie trzeba znać Pythona - trzy z czterech
+plików to zwykły YAML, a testy mówią dokładnie, co jeszcze jest źle.
 
-- odpowiedzi mówione (potwierdzenia, błędy, „Czy chodziło o…?”, komunikaty ogłoszeń i mówcy);
-- słowa i wzorce do rozumienia poleceń i pytań: słowa dni (zamieniane na kody dni), odpowiedzi
-  tak / nie / anuluj i zwroty poprawek („pytałem czy” – REPHRASE_LEADS), czasowniki, kolory, słowa 1. osoby, określenia rodzinne, słowa ogłoszeń
-  i alarmu, poprawki Whispera, początki pytań o wiedzę;
-- prompty dla modeli (router, odpowiedź, streszczenie, sterowanie, zgadywanie, przykładowe
-  zdania) i nazwy kluczy JSON, o które proszą (`TOPIC_KEY`, `CONTROL_KEYS`…);
-- zdanie o postaci asystenta (`PERSONA`) i formy żeńskie stałych odpowiedzi
-  (`FEMININE_FORMS`, `gendered()`; język bez rodzaju zwraca tekst bez zmian);
-- etykiety dziennika, nazwy stanów i kilka funkcji składających zdania (zależą od gramatyki)
-  oraz `CODE` i domyślny `WIKIPEDIA_LANGUAGE`.
+## Co jest w pakiecie {#pack}
 
-Żeby dodać np. czeski:
+| Plik | Co zawiera | Co robisz |
+|---|---|---|
+| `texts.yaml` | wszystko, co asystent mówi na głos (potwierdzenia, błędy, „Czy chodziło o…?”), wpisy dziennika, prompty wysyłane do modelu, słowa kluczy JSON, o które proszą prompty (`TOPIC_KEY`, `SENTENCES_KEY` …) | tłumaczysz wartości; każde `{pole}` zostaje |
+| `words.yaml` | słowa, po których asystent rozumie wypowiedź: tak / nie / anuluj, czasowniki poleceń, kolory, barwy bieli, dni, słowa rodzinne, nazwy stanów czytane na głos, typowe błędy Whispera | tłumaczysz słowa; nazwy Home Assistanta zostają |
+| `patterns.yaml` | wyrażenia regularne (słowa alarmu, „wszystkie”, początek pytania o wiedzę, słowa dni …), każde z przykładami `matches` i `not_matches` | najpierw tłumaczysz przykłady, potem poprawiasz wzorzec, aż je znajdzie |
+| `grammar.py` | kilka funkcji, które budują zdania (przypadki, liczba mnoga, rodzaj, data czytana na głos), i wartości liczone z danych | tłumaczysz tekst w funkcjach i dopasowujesz gramatykę |
 
-1. Skopiuj `languages/pl.py` do `languages/cs.py`.
-2. Przetłumacz wszystkie zwroty, wzorce, prompty i odpowiedzi. Zostaw te same nazwy stałych
-   i funkcji (i ich argumentów) - kod czyta je przez `LANG`. Nazwy kluczy JSON też możesz
-   przetłumaczyć (opcjonalnie; model pewniej wypełnia klucze w swoim języku). Ustaw
-   `CODE = "cs"` i `WIKIPEDIA_LANGUAGE = "cs"`.
-3. **Kody dni się nie zmieniają.** Kody w `days:` i w zmiennej
-   `when` (`today`, `tomorrow`, `day_after_tomorrow`,
-   `weekend`, `week`, `monday` … `sunday`, liczba dni) to
-   słowa kluczowe, takie same w każdym języku. Nowy pakiet mapuje na nie czeskie słowa
-   (`WHEN_PATTERNS`) i może dodać własne nazwy dla `days:`
-   (`DAY_ALIASES`, jak polskie `dzis`, `jutro`); te nazwy dostaje
-   też alias zmiennej `when` z `COMMAND_VARIABLE_ALIASES` (po polsku
-   `kiedy`).
-4. Pakiet działa, gdy język Home Assistanta to `cs` albo gdy `router.yaml`
-   ma `language: cs`. Agent konwersacji podaje wtedy czeski wśród obsługiwanych języków.
-   Nieznany kod w `language:` wyłącza router z błędem w logu.
-5. Wybierz model w Ollamie, który dobrze rozumie i pisze w tym języku - router, odpowiedzi
-   i rozbiór poleceń dzieją się w tym języku.
-6. Opisy, przykłady i wzorce `match` w `router.yaml` napisz po czesku,
-   a całość sprawdź narzędziem `tools/model_benchmark.py` z czeskimi pytaniami testowymi
-   ([Test i wybór modeli](good-practice.md#testing)).
+Komentarz nad każdym wpisem mówi, co to jest i kiedy się przydaje. Pakiet polski jest wzorcem: nowy
+pakiet ma dokładnie te same nazwy.
+
+### Zasady sprawdzane przez testy {#rules}
+
+- **Nazwy zostają** (`CONFIRM_QUESTION`, `YES_WORDS` …) - kod je czyta.
+- **`{pola}` zostają** - `MORE_ITEMS: "… i {count} więcej"` musi mieć `{count}`.
+- **Nazwy Home Assistanta zostają**: intencje (`HassTurnOn`), domeny (`light`, `cover`), klasy
+  urządzeń, stany (`on`, `off`), wartości kolorów (`red`, `white`), rodzaje mediów (`track`), kody
+  dni (`today`, `monday`, `weekend`). W słowniku komentarz mówi, którą stronę się tłumaczy: w
+  `COLORS` słowo się tłumaczy, a nazwa CSS zostaje; w `DOMAINS` klucz zostaje, a opis się tłumaczy.
+- **Znaczniki zostają**: `!tuple`, `!set`, `!frozenset`, `!translate` tylko zachowują typ, którego
+  oczekuje kod.
+- **Słowa kluczy JSON zgadzają się z promptami**: jeśli `SENTENCES_KEY` to `vety`, prompty pokazujące
+  `{"zdania": [...]}` muszą pokazywać `{"vety": [...]}`; `CHANGE_SET` / `CHANGE_MORE` / `CHANGE_LESS`
+  to słowa, którymi odpowiada parser poleceń, a `control_prompt` bierze je z pakietu.
+- **Każdy wzorzec znajduje swoje `matches` i żadnego z `not_matches`.**
+
+Rdzenie słów są w porządku tam, gdzie język się odmienia („świat” obejmuje *światło, światła,
+światłem*); w języku z małą odmianą lepsze są całe słowa.
+
+## Krok po kroku (na przykładzie czeskiego) {#steps}
+
+1. **Zacznij od szkicu.** Skopiuj `languages/pl/` do `languages/cs/` albo pozwól przetłumaczyć go
+   trenerowi: `router-trainer language new cs` zapisuje sprawdzone tłumaczenie maszynowe tego pakietu
+   (i pakietu trenera) z `REVIEW.md` - listą tego, co musi przejrzeć osoba znająca język. Zobacz
+   przewodnik trenera, *Nowy język*.
+2. **`texts.yaml`**: przetłumacz. Ustaw `CODE: cs` i `WIKIPEDIA_LANGUAGE: cs`.
+3. **`words.yaml`**: przetłumacz listy słów. Dobrym źródłem właściwych czasowników i nazw kolorów są
+   zdania samego Home Assistanta dla Twojego języka: repozytorium
+   [home-assistant/intents](https://github.com/home-assistant/intents), katalog `sentences/cs/`.
+4. **`patterns.yaml`**: przetłumacz przykłady `matches` / `not_matches`, potem wzorzec. Po każdym
+   uruchom sprawdzenie.
+5. **`grammar.py`**: przetłumacz zdania w funkcjach i dopasuj gramatykę - liczbę mnogą
+   (`done_speech`), datę (`format_now`, `MONTHS_GENITIVE`), żeńskie formy odpowiedzi (`gendered`;
+   język bez rodzaju gramatycznego zwraca tekst bez zmian).
+6. **Sprawdź** - jedna linia na problem, nic, gdy pakiet jest gotowy:
+
+    ```bash
+    .venv/bin/python tools/check_language.py custom_components/assist_router/languages/cs
+    make test     # te same kontrole dla każdego pakietu, razem z resztą testów
+    ```
+
+7. **Użyj**: pakiet wybiera się, gdy językiem Home Assistanta jest `cs`, albo przez `language: cs` w
+   `router.yaml`. Opisy, przykłady i wzorce `match` w `router.yaml` napisz po czesku, wybierz model
+   Ollamy, który dobrze pisze po czesku, i przetestuj `tools/model_benchmark.py` na czeskich pytaniach
+   ([Testowanie i wybór modeli](good-practice.md#testing)).
+
+Kody dni to słowa kluczowe, takie same w każdym języku: pakiet przypisuje do nich mówione słowa
+(`WHEN_PATTERNS`, w kolejności - wygrywa pierwszy pasujący) i może dodać własne nazwy dla `days:` w
+`router.yaml` (`DAY_ALIASES`).
 
 !!! tip
 
-    Nowe pakiety są mile widziane: wyślij go jako pull request do
-    [repozytorium na GitHubie](https://github.com/witold-gren/home-assistant-assist-router).
+    Nowe języki są mile widziane: wyślij katalog jako pull request do
+    [repozytorium na GitHubie](https://github.com/witold-gren/home-assistant-assist-router). Wynik
+    `tools/check_language.py` w opisie pull requesta ułatwia przegląd.

@@ -49,7 +49,7 @@ def ask_ha(url: str, token: str, text: str) -> str:
     request = urllib.request.Request(
         f"{url}/api/conversation/process",
         json.dumps(
-            {"text": text, "language": "pl", "agent_id": "conversation.home_assistant"}
+            {"text": text, "language": LANG.CODE, "agent_id": "conversation.home_assistant"}
         ).encode(),
         {"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
     )

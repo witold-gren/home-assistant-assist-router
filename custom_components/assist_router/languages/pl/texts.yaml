@@ -1,0 +1,229 @@
+# Assist Router - texts of the language (Polish).
+#
+# Everything Assist Router says aloud, writes to its log, or sends to the language model (prompts).
+# Translate the values, never the names (CONFIRM_QUESTION …). Keep every {field} exactly as it is
+# (the code fills them in: {count}, {name}, {household} …) - the tests check that each template has
+# the same fields as in Polish. Values ending in _KEY are JSON key names the prompts ask the model
+# for; they may be translated, but the same word must then appear in the prompts that use it.
+# The comment above an entry says what it is and when it is used.
+
+CODE: pl
+
+WIKIPEDIA_LANGUAGE: pl
+
+# Relative change values the model may return ("set", "more", "less")
+CHANGE_SET: ustaw
+
+CHANGE_MORE: więcej
+
+CHANGE_LESS: mniej
+
+ALARM_HINT: 'Alarmem steruję tylko konkretnymi zdaniami, na przykład: „wyłącz alarm”, „włącz alarm w trybie
+  dom”, „włącz alarm poza domem” albo „fałszywy alarm”.'
+
+# a word in the name of the shopping list (the default list for "dopisz ...")
+SHOPPING_LIST_WORD: zakup
+
+NO_KNOWN_VERB: brak znanego czasownika
+
+# Reasons for a confirmation question (written to the log of unrecognized commands)
+CONFIRM_UNCERTAIN_NAME: niepewna nazwa
+
+CONFIRM_SEVERAL_DEVICES: kilka pasujących urządzeń
+
+CONFIRM_KIND_GUESSED: rodzaj urządzenia zgadnięty (brak słowa w poleceniu)
+
+CONFIRM_LARGE_SCOPE: duży zasięg ({count} urządzeń)
+
+CONFIRM_SENSITIVE: urządzenie wrażliwe (zamek, brama, drzwi)
+
+CONFIRM_LISTED: urządzenie z listy potwierdzeń
+
+CONFIRM_ACTION_OR_DEVICE: akcja czy urządzenie „{device}”
+
+# Spoken errors when a command cannot be executed
+ERROR_DEVICE_NOT_FOUND: Nie znalazłem urządzenia „{name}”.
+
+ERROR_WHICH_ROOM: W którym pomieszczeniu?
+
+ERROR_NO_COLOR: To światło nie zmienia koloru.
+
+ERROR_NO_WHITE: To światło nie zmienia barwy.
+
+ERROR_NO_VALUE: Nie wiem, na jaką wartość ustawić.
+
+ERROR_NO_VOLUME: Nie wiem, jaką ustawić głośność.
+
+ERROR_NO_LIST_ITEM: Nie wiem, co i gdzie dopisać.
+
+ERROR_NO_PLAYER_IN_AREA: W pomieszczeniu {area} nie ma teraz głośnika, na którym mogę puścić muzykę.
+
+ERROR_WHERE_TO_PLAY: W którym pomieszczeniu mam puścić?
+
+# the bare "no" of REPEAT_WORDS (an explicit request to repeat is everything else)
+BARE_NO: nie
+
+# Reply when nothing understood the command ({text} = what speech recognition heard)
+MESSAGE_NO_MATCH: 'Powiedziałeś: {text}. Niestety nie mogę tego zrozumieć.'
+
+MESSAGE_EMPTY: Nic nie usłyszałem.
+
+# after asking to repeat MISUNDERSTOOD_LIMIT times in a row
+MESSAGE_GIVE_UP: Przepraszam, nie rozumiem. Jeśli będziesz czegoś potrzebować, poproś mnie jeszcze raz.
+
+ASK_TO_REPEAT: Przepraszam, źle zrozumiałem. Powtórz, proszę.
+
+NOT_UNDERSTOOD: Nie zrozumiałem. Powtórz, proszę.
+
+NOTHING_DONE: Dobrze, nic nie robię.
+
+NOTHING_CHANGED: Dobrze, nic nie zmieniam.
+
+COMMAND_FAILED: Nie udało się wykonać polecenia.
+
+DEVICE_NOT_AVAILABLE: Nie znalazłem takiego urządzenia albo nie jest udostępnione asystentowi.
+
+PLAY_FAILED: Nie udało się puścić muzyki.
+
+PLAY_NOT_FOUND: 'Nie znalazłem: {query}.'
+
+# confirmation questions ({description} from describe())
+CONFIRM_QUESTION: Czy dobrze rozumiem, że mam {description}?
+
+SENSITIVE_QUESTION: Czy {description}?
+
+GUESS_QUESTION: 'Nie jestem pewien, czy dobrze usłyszałem. Czy chodziło o: {guess}?'
+
+# a personal question without a recognized speaker
+UNKNOWN_SPEAKER_HINT: Nie wiadomo, kto pyta - nie zgaduj i nie używaj imion.
+
+# the device states block in the data for the answer model
+DEVICE_STATES: 'Stany urządzeń:'
+
+# Labels written to the "route" column of the log of unrecognized commands
+LOG_NOT_RECOGNIZED: ' (nie rozpoznano)'
+
+LOG_ENTITIES: ' + {count} encji'
+
+LOG_SOURCES: ' + {count} źródeł'
+
+LOG_ANSWER: ' + odpowiedź'
+
+LOG_CONTROL: sterowanie
+
+LOG_CONTROL_BARE_ANSWER: sterowanie (sama odpowiedź tak/nie)
+
+LOG_CONTROL_ALARM: sterowanie (alarm)
+
+LOG_CONTROL_NOT_PARSED: sterowanie (nie rozebrano)
+
+LOG_NOT_PARSED: nie rozebrano
+
+LOG_QUESTION: ' (pytanie: {reason})'
+
+LOG_REPHRASED: ' (poprawione: {text})'
+
+LOG_PROBABLE: ' (prawdopodobnie {name})'
+
+LOG_UNCLEAR: niezrozumiałe
+
+LOG_UNCLEAR_GIVE_UP: niezrozumiałe - koniec rozmowy ({limit}× bez zrozumienia)
+
+LOG_UNCLEAR_NO_GUESS: niezrozumiałe (bez propozycji)
+
+# Guessing what speech recognition garbled (topic with `unclear: true`)
+GUESS_KEY: zdanie
+
+# Prompts of the answer model; they can be overridden in router.yaml (answer_prompt,
+# summary_prompt). Fields: {household}, {now}, {sentences}.
+ANSWER_PROMPT: 'Jesteś asystentem głosowym domu. {household} Odpowiedz na pytanie po polsku, krótko (jedno–dwa
+  zdania), zwykłym tekstem do przeczytania na głos. Odpowiadaj na podstawie danych z Home Assistanta poniżej.
+  Możesz wyciągać z nich proste wnioski: policzyć, porównać, a koniec lekcji to wyjście ze szkoły. Mów,
+  że nie wiesz, tylko gdy w danych naprawdę nie ma odpowiedzi. Teraz jest {now}.'
+
+SUMMARY_PROMPT: 'Jesteś asystentem głosowym. Na podstawie fragmentu artykułu z Wikipedii poniżej odpowiedz
+  na pytanie po polsku w {sentences} zdaniach: najpierw wprost odpowiedź, potem najważniejsze informacje.
+  Pisz zwykłym tekstem do przeczytania na głos - bez list, nawiasów, obcych nazw w innych alfabetach i
+  przypisów. Używaj tylko informacji z artykułu.'
+
+ASKED_BY: 'Pyta: {speaker}.'
+
+DATA_HEADER: 'Dane:'
+
+ARTICLE_HEADER: 'Artykuł:'
+
+# a persona of the pipeline (router.yaml personas): who the assistant is, after the prompt
+PERSONA: 'Kim jesteś: {persona} Odpowiadaj jako ta postać - jej stylem i w jej rodzaju gramatycznym (np.
+  zrozumiałam / zrozumiałem) - ale fakty podawaj tylko z danych i nie wydłużaj odpowiedzi.'
+
+# Classifier (router model): the topic of the question
+TOPIC_KEY: temat
+
+# When a topic skips states (e.g. lights that are off) and nothing is left - also an answer.
+NOTHING_ACTIVE: Wszystkie te urządzenia są teraz wyłączone - żadne nie jest włączone.
+
+UNAVAILABLE: niedostępne
+
+ALIASES: inaczej
+
+# A person asked about has no own entity in a source whose entities are assigned to people
+NO_OWN_SOURCE: '{name} nie ma przypisanego własnego źródła „{title}” – powiedz to wprost i nie mów, że
+  nie ma żadnych wydarzeń. Pozostałe dane nie są osobiste dla tej osoby.'
+
+# A to-do list without items
+EMPTY_LIST: pusta
+
+# sources.py: a list the filter removed everything from (e.g. lessons on Saturday)
+EMPTY: brak
+
+MORE_ITEMS: … i {count} więcej
+
+SOURCE_KEY: źródło
+
+PAST_KEY: już_było
+
+OTHER_ARTICLES: 'Inne artykuły:'
+
+# frigate.py: who the cameras saw (topic option `frigate`)
+FRIGATE_VISITS: Kamery - kto, gdzie i kiedy był widziany (od najstarszych)
+
+FRIGATE_SUMMARIES: Kamery - opisy zdarzeń
+
+FRIGATE_UNKNOWN: osoba nierozpoznana
+
+FRIGATE_NOW: teraz
+
+FRIGATE_UNAVAILABLE: Frigate nie odpowiada
+
+ANNOUNCED: Ogłoszenie wysłane.
+
+NOBODY_HEARD: Żaden głośnik nie odpowiedział.
+
+NO_VOICE: Nie wiem - głos rozpoznaję tylko w poleceniach mówionych do głośnika z rozpoznawaniem mówcy.
+
+TOO_SHORT: 'Za krótko, żeby rozpoznać głos. Powiedz dłużej, na przykład: powiedz mi, kto teraz do ciebie
+  mówi.'
+
+NO_PRINTS: Nie mam jeszcze zapisanych wzorców głosu.
+
+EXAMPLES_PROMPT: 'Układasz przykładowe pytania i polecenia, które domownik mówi do polskiego asystenta
+  głosowego domu. Pisz tak, jak się mówi: krótko (4-10 słów), poprawną polszczyzną, każde zdanie inne.
+  Opieraj się na podanych nazwach urządzeń, pokoi i osób, ale mów je naturalnie: odmieniaj i upraszczaj
+  („Salon Lampa 2” -> „drugą lampę w salonie”, „Roborock S5 Max Bateria” -> „baterię odkurzacza”), bez
+  nawiasów, emoji i angielskich nazw technicznych. Domownik mówi do asystenta - nie zwracaj się do domowników
+  po imieniu; imię pada tylko, gdy pytanie dotyczy tej osoby („Jakie lekcje ma jutro Kasia?”). Nie numeruj.
+  Odpowiedz JSON-em: {"zdania": [...]}.'
+
+SENTENCES_KEY: zdania
+
+NO_ROUTER_ANSWER: brak odpowiedzi routera
+
+EXAMPLES_HEADER: "# Assist Router - przykładowe komendy dla tego domu\n# Wygenerowane {when}; zdania:\
+  \ {writer}, sprawdzenie: router {router}.\n# „working”: router wybrał właściwy temat (sterowanie: plan\
+  \ polecenia bez błędu,\n# bez wykonania). „rejected”: dokąd trafiły - wskazówka, co poprawić w router.yaml.\n\
+  # Nadpisywany przy każdym generowaniu (akcja assist_router.generate_examples).\n\n"
+
+SPLIT_KEY: polecenia
+
+# a sentence with several commands in the log of unrecognized commands
+LOG_MULTI: kilka poleceń → {parts}

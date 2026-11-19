@@ -214,7 +214,10 @@ fine-tunes a smaller model (Gemma 4 E2B / E4B) on your home for the router, the 
 answers, to run in Ollama next to Home Assistant. It reads its data through the read-only command
 `assist_router/training/export` (an administrator's long-lived token): `router.yaml`, the log of
 unrecognized commands, the test files, the automations with a `conversation` trigger and
-`custom_sentences`. Nothing in Home Assistant is changed.
+`custom_sentences`. With `assist_pipeline: debug_recording_dir` set, two more read-only commands,
+`assist_router/training/recordings` and `assist_router/training/recording_files`, hand over the
+speech-to-text recordings of the voice commands (the list, then the files in parts), so the
+trainer learns from the home's real speech. Nothing in Home Assistant is changed.
 
 ## Development
 
@@ -233,22 +236,21 @@ chapter 12).
 
 ## Adding a language
 
-The integration ships the Polish language pack. Everything language-dependent lives in
-`custom_components/assist_router/languages/<code>.py`: spoken replies, words and patterns
-(days, yes/no answers and correction lead-ins, verbs, colors, conjunctions and the prompt that splits several commands…), LLM prompts and the JSON keys they ask for, log
-labels and the functions that build sentences. To add e.g. Czech:
+The integration ships the Polish language pack. Everything language-dependent is one folder,
+`custom_components/assist_router/languages/<code>/`, mostly plain YAML a translator can edit
+without Python:
 
-1. Copy `languages/pl.py` to `languages/cs.py`.
-2. Translate all phrases, patterns, prompts and replies, and optionally the JSON key names.
-   Keep the same names of constants and functions - the code reads them through `LANG`.
-3. The pack is used when HA's language is `cs`, or when `router.yaml` has `language: cs`
-   (an unknown code disables the router with an error in the log).
-4. Day codes (`today`, `tomorrow`, `day_after_tomorrow`, `weekend`, `week`, `monday` …
-   `sunday`, a number of days) stay the same in every language: they are what `days:` takes and
-   what the `when` variable holds. The pack maps its spoken words to them (`WHEN_PATTERNS`) and
-   may add its own names for `days:` (`DAY_ALIASES`, e.g. Polish `dzis`, `jutro`).
-5. Choose an Ollama model that understands the language, write the `router.yaml`
-   descriptions and examples in it, and test with `tools/model_benchmark.py`.
+- `texts.yaml` - what the assistant says, log lines, the prompts and their JSON key words;
+- `words.yaml` - words it understands (yes / no, verbs, colours, days, family words …);
+- `patterns.yaml` - regular expressions, each with `matches` / `not_matches` examples the tests
+  check;
+- `grammar.py` - the few functions that build sentences (plural forms, cases, dates).
 
-Details: [documentation, chapter 15](https://witold-gren.github.io/home-assistant-assist-router/en/#adding-a-language).
+To add e.g. Czech: copy `languages/pl/` to `languages/cs/` (or let the trainer write a checked
+machine translation: `router-trainer language new cs`), translate, and run
+`tools/check_language.py custom_components/assist_router/languages/cs` - one line per problem
+(a lost `{field}`, a translated Home Assistant name, a pattern that no longer finds its example).
+The pack is used when HA's language is `cs` or `router.yaml` has `language: cs`.
+
+Details: [Adding a language](https://witold-gren.github.io/home-assistant-assist-router/languages/).
 Contributions are welcome as a pull request.

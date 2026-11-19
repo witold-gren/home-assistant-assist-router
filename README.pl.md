@@ -209,7 +209,10 @@ douczy mniejszy model (Gemma 4 E2B / E4B) na Twoim domu - do routera, sterowania
 uruchamiany w Ollamie obok Home Assistanta. Dane czyta przez komendę tylko do odczytu
 `assist_router/training/export` (token długoterminowy administratora): `router.yaml`, dziennik
 nierozpoznanych poleceń, pliki testu, automatyzacje z wyzwalaczem `conversation` i
-`custom_sentences`. W Home Assistancie nic się nie zmienia.
+`custom_sentences`. Gdy ustawione jest `assist_pipeline: debug_recording_dir`, dwie kolejne komendy
+tylko do odczytu, `assist_router/training/recordings` i `assist_router/training/recording_files`,
+przekazują nagrania poleceń głosowych (najpierw listę, potem pliki w częściach), więc trener uczy
+się na prawdziwej mowie domu. W Home Assistancie nic się nie zmienia.
 
 ## Rozwój
 
@@ -227,23 +230,21 @@ Narzędzia do testu modeli i zdań są w `tools/` (`model_benchmark.py`, `check_
 
 ## Dodanie języka
 
-Integracja ma wbudowany pakiet polski. Wszystko, co zależy od języka, jest w
-`custom_components/assist_router/languages/<kod>.py`: odpowiedzi mówione, słowa i wzorce
-(dni, odpowiedzi tak/nie i zwroty poprawek, czasowniki, kolory, spójniki i prompt rozpisujący kilka poleceń…), prompty dla modeli i klucze JSON, o które
-proszą, etykiety dziennika i funkcje składające zdania. Żeby dodać np. czeski:
+Integracja ma wbudowany pakiet polski. Wszystko, co zależy od języka, to jeden katalog,
+`custom_components/assist_router/languages/<kod>/`, w większości zwykły YAML, który tłumacz
+edytuje bez Pythona:
 
-1. Skopiuj `languages/pl.py` do `languages/cs.py`.
-2. Przetłumacz wszystkie zwroty, wzorce, prompty i odpowiedzi, opcjonalnie też nazwy kluczy
-   JSON. Zostaw te same nazwy stałych i funkcji - kod czyta je przez `LANG`.
-3. Pakiet działa, gdy język HA to `cs` albo gdy `router.yaml` ma `language: cs` (nieznany
-   kod wyłącza router z błędem w logu).
-4. Kody dni są angielskie i takie same w każdym języku (`today`, `tomorrow`,
-   `day_after_tomorrow`, `weekend`, `week`, `monday` … `sunday`, liczba dni) - przyjmuje je
-   `days:` i zawiera je zmienna `when`. Pakiet mapuje na nie wypowiadane słowa
-   (`WHEN_PATTERNS`) i może dodać własne nazwy dla `days:` (`DAY_ALIASES`, np. polskie `dzis`,
-   `jutro`, `tydzien`).
-5. Wybierz model w Ollamie, który rozumie ten język, napisz w nim opisy i przykłady
-   w `router.yaml` i sprawdź całość narzędziem `tools/model_benchmark.py`.
+- `texts.yaml` - co asystent mówi, wpisy dziennika, prompty i słowa ich kluczy JSON;
+- `words.yaml` - słowa, które rozumie (tak / nie, czasowniki, kolory, dni, słowa rodzinne …);
+- `patterns.yaml` - wyrażenia regularne, każde z przykładami `matches` / `not_matches`, które
+  sprawdzają testy;
+- `grammar.py` - kilka funkcji składających zdania (liczba mnoga, przypadki, daty).
 
-Szczegóły: [dokumentacja, rozdział 15](https://witold-gren.github.io/home-assistant-assist-router/pl/#jezyk).
+Żeby dodać np. czeski: skopiuj `languages/pl/` do `languages/cs/` (albo niech trener napisze
+sprawdzone tłumaczenie maszynowe: `router-trainer language new cs`), przetłumacz i uruchom
+`tools/check_language.py custom_components/assist_router/languages/cs` - jedna linia na problem
+(zgubione `{pole}`, przetłumaczona nazwa Home Assistanta, wzorzec, który nie znajduje już swojego
+przykładu). Pakiet działa, gdy język HA to `cs` albo `router.yaml` ma `language: cs`.
+
+Szczegóły: [Dodanie języka](https://witold-gren.github.io/home-assistant-assist-router/pl/languages/).
 Nowe pakiety są mile widziane jako pull request.

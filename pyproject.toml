@@ -1,6 +1,6 @@
 [project]
 name = "home-assistant-assist-router"
-version = "0.1.10"
+version = "0.1.11"
 description = "Assist Router for Home Assistant: answers questions and controls the home through a local LLM (Ollama) before falling back to the default agent."
 requires-python = ">=3.13"
 
@@ -14,8 +14,9 @@ line-length = 100
 target-version = "py313"
 
 [tool.ruff.lint]
-# test case tables - one case per line reads better
-per-file-ignores = { "tests/test_actions.py" = ["E501"], "tests/browser/*" = ["E501"] }  # JavaScript in strings
+# test case tables - one case per line reads better; JavaScript in strings; a language pack's
+# grammar.py runs with the names of its YAML files already defined (languages/__init__.py)
+per-file-ignores = { "tests/test_actions.py" = ["E501"], "tests/browser/*" = ["E501"], "custom_components/assist_router/languages/*/grammar.py" = ["F821", "E501"] }
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 ignore = ["RUF001", "RUF002", "RUF003"]
 

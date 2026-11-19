@@ -5,7 +5,7 @@ i automatyzacje zawsze mają pierwszeństwo.
 
 1. **Poprawki Whispera.** Pewne poprawki są stosowane od razu („czystkę” →
    „wszystkie”), a niepewne (np. „jaś” → „zgaś”) oznaczają dopytanie. Listę zawiera
-   `WHISPER_FIXES` w pakiecie językowym (`languages/pl.py`).
+   `WHISPER_FIXES` w pakiecie językowym (`languages/pl/`).
 2. **Rozbiór.** Model zwraca JSON wymuszony schematem. Pole
    `intencja` to intencja HA: `HassTurnOn`/`Off`,
    `HassLightSet`, `HassSetPosition`,
