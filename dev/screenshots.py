@@ -80,6 +80,15 @@ def take(page: Page, base: str, language: str) -> None:
     (OUT / language).mkdir(parents=True, exist_ok=True)
     open_demo(page, base, language)
 
+    # 10. The tour of the editor: it starts by itself on the first visit (shown at the tree),
+    # then Esc ends it.
+    page.wait_for_selector("assist-router-editor-tour [data-tour-bubble]")
+    page.locator("assist-router-editor-tour [data-tour-next]").click()
+    page.wait_for_timeout(600)
+    shot(page, language, "10-tour")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+
     # 1. The screen: a topic of the example file in its form.
     first = page.locator("[data-node^='topics/']").first
     first.click()
@@ -172,6 +181,17 @@ def take(page: Page, base: str, language: str) -> None:
     page.locator("[data-sentences-run]").click()
     page.wait_for_timeout(1200)
     shot(page, language, "09-command")
+
+    # 11. The lessons (⚙ → Lessons), and 12. one of them waiting for the framed button
+    # to be clicked.
+    page.locator("[data-gear]").click()
+    page.locator("[data-gear-lessons]").click()
+    page.wait_for_selector("assist-router-lessons [data-lessons-dialog]")
+    shot(page, language, "11-lessons")
+    page.locator("assist-router-lessons [data-lesson='first_topic']").click()
+    page.wait_for_selector("assist-router-editor-tour [data-tour-try]")
+    shot(page, language, "12-lesson")
+    page.keyboard.press("Escape")
 
 
 def main(languages: list[str]) -> None:

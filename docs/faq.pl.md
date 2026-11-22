@@ -5,6 +5,9 @@
 | Komunikat albo objaw | Przyczyna i co zrobić |
 | --- | --- |
 | Nie ma „Edytor Assist Routera” w pasku bocznym | Panel pojawia się po restarcie HA po instalacji albo aktualizacji integracji i tylko dla administratorów. Po restarcie odśwież stronę (Ctrl+Shift+R). |
+| Przewodnik po edytorze nie pokazuje się przy otwarciu | Pokazuje się sam tylko za pierwszym razem w danej przeglądarce; po <b class="ui">Pomiń</b> albo Esc już nie wraca. Otwórz go z ⚙ → <b class="ui">Przewodnik po edytorze</b>. W oknie prywatnym (bez pamięci przeglądarki) nie startuje sam wcale, żeby nie wracać przy każdym otwarciu. |
+| Samouczek jest wyszarzony | Czegoś mu brakuje i mówi czego: <b class="ui">Zapisz zmiany</b> potrzebuje zmiany w szkicu, <b class="ui">Składnia zdań</b> pliku komend z intencją (zrób go samouczkiem <b class="ui">Komenda Home Assistanta</b>), <b class="ui">Dane domu</b> i <b class="ui">Odpowiedź</b> tematu. |
+| Samouczek „stoi” na kroku z ramką | Krok czeka na kliknięcie przycisku w ramce (napis pod tekstem); kliknięcia obok są zablokowane. Kliknij przycisk w ramce albo <b class="ui">Dalej</b>, które zrobi to samo. Esc kończy samouczek. |
 | „Router nie przeczyta tego tekstu: …” | Szkic ma błąd, który wyłączyłby router; okno podaje powód (np. persona bez promptu). Popraw go w formularzu albo w YAML; zapis czeka. |
 | `expected ',' or ']', but got '?'` | Tekst ze znakiem `?` albo `:` w liście w nawiasach bez cudzysłowu: `[Czy będzie padać?]`. Napisz `["Czy będzie padać?"]`. Formularz robi to sam. |
 | „W międzyczasie router.yaml zmienił się poza edytorem” | Ktoś zmienił plik (inny edytor, File editor, Samba) od początku szkicu. Różnice pokazuje okno zapisu; *Zapisz mimo to* nadpisze tamtą zmianę, a *Odrzuć szkic* wczyta plik od nowa. |

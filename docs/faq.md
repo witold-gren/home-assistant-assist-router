@@ -5,6 +5,9 @@
 | Message or symptom | Cause and what to do |
 | --- | --- |
 | No “Assist Router editor” in the sidebar | The panel appears after restarting HA once the integration is installed or updated, and only for administrators. After the restart reload the page (Ctrl+Shift+R). |
+| The tour of the editor does not show when it opens | It shows by itself only the first time in a browser; after <b class="ui">Skip</b> or Esc it stays away. Open it from ⚙ → <b class="ui">Tour of the editor</b>. In a private window (no browser storage) it never starts by itself, so it does not come back on every open. |
+| A lesson is greyed out | It needs something and says what: <b class="ui">Save the changes</b> a change in the draft, <b class="ui">Sentence syntax</b> a file of commands with an intent (make one with the lesson <b class="ui">A command of Home Assistant</b>), <b class="ui">Data of the home</b> and <b class="ui">The answer</b> a topic. |
+| A lesson “stands” on a framed step | The step waits for the framed button to be clicked (the line under the text); clicks beside it are blocked. Click the framed button, or <b class="ui">Next</b>, which does the same. Esc ends the lesson. |
 | “The router will not read this text: …” | The draft has an error that would turn the router off; the window says why (e.g. a persona without a prompt). Fix it in the form or in YAML; saving waits. |
 | `expected ',' or ']', but got '?'` | A text with `?` or `:` in a list in brackets without quotes: `[Will it rain?]`. Write `["Will it rain?"]`. The form does it itself. |
 | “router.yaml was changed outside the editor meanwhile” | Someone changed the file (another editor, File editor, Samba) since the draft began. The window of saving shows the differences; *Save anyway* overwrites that change, and *Discard draft* reads the file again. |

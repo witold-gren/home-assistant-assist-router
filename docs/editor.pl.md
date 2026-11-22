@@ -45,10 +45,11 @@ Temat `podsumowanie_dnia` otwarty w formularzu.
 - **Prawa kolumna:** <b class="ui">Sprawdzenie</b> (czy router przeczyta tekst i ile ma tematów), <b class="ui">Plik</b> (stan
   szkicu), <b class="ui">Rodzaj tematu</b> i <b class="ui">Tester</b>.
 - **Górny pasek:** stan (<b class="ui">Bez zmian</b> albo <b class="ui">Szkic zapisany</b>), cofnij i ponów, <b class="ui">Odrzuć szkic</b>,
-  jasny lub ciemny wygląd, **⚙** (małe okienko: <b class="ui">Motyw</b> i <b class="ui">Język</b>), **?** (ten przewodnik w nowej
+  jasny lub ciemny wygląd, **⚙** (małe okienko: <b class="ui">Motyw</b>, <b class="ui">Język</b>, <b class="ui">Przewodnik po edytorze</b> i
+  <b class="ui">Samouczki</b>, [rozdział](#lessons)), **?** (ten przewodnik w nowej
   karcie), <b class="ui">Historia</b> i <b class="ui">Zapisz…</b>.
 - **Mały ?** nad drzewem, środkiem i prawą kolumną: małe okienko z opisem tego, co robi ta część, bez wychodzenia
-  z edytora (Esc albo kliknięcie obok je zamyka); *Więcej w przewodniku* na jego dole otwiera rozdział o niej, w środku
+  z edytora (Esc albo kliknięcie obok je zamyka); <b class="ui">Pokaż krok po kroku: {name}</b> uruchamia samouczek tego miejsca, *Więcej w przewodniku* na jego dole otwiera rozdział o niej, w środku
   o tym, co wybrałeś (temat, testy, nauka…). Przewodnik od razu otwiera tylko ? w pasku górnym.
 - **Adres** strony zawiera wybrany element (`…#/topics/weather`): skopiowany link albo odświeżenie otwiera edytor na
   nim, gdy plik się wczyta.
@@ -196,8 +197,8 @@ zmiany odrzuca <b class="ui">Odrzuć szkic</b>.
 Nie każde zdanie potrzebuje routera. Proste polecenia Home Assistant rozpozna sam, szybciej i bez modelu, jeśli
 dodasz je do `custom_sentences`. Takie pliki są w grupie <b class="ui">Komendy Home Assistanta</b>.
 
-1. <b class="ui">+</b> przy <b class="ui">Komendy Home Assistanta</b>. Przeglądarka zapyta o nazwę pliku
-   („Nazwa nowego pliku w custom_sentences (litery, cyfry, _ i -):”), np. `lampy.yaml`.
+1. <b class="ui">+</b> przy <b class="ui">Komendy Home Assistanta</b>. Okno <b class="ui">Nowy plik komend</b> zapyta o jego nazwę
+   (litery, cyfry, _ i -), np. `lampy.yaml`; <b class="ui">Utwórz</b> albo <kbd>Enter</kbd> go zakłada, <b class="ui">Anuluj</b> albo <kbd>Esc</kbd> nie.
 2. Wpisz intencję w <b class="ui">Intencja, np. HassTurnOn</b> i kliknij <b class="ui">Dodaj intencję</b>. Wbudowane intencje Home
    Assistant (np. `HassTurnOn`, `HassTurnOff`) działają od razu.
 3. W <b class="ui">Zdania 1</b> wpisz zdanie w <b class="ui">Dodaj zdanie, np. rozbudź {name}</b> i naciśnij <kbd>Enter</kbd>, np.
@@ -222,6 +223,93 @@ Plik `pl/lampy.yaml` zapisany i przeładowany; „zaświeć salon” → <b clas
 
 Plik komend zapisuje się osobno, nie razem ze szkicem `router.yaml`. <b class="ui">Usuń plik</b> odkłada go jako
 `.bak`.
+
+### Składnia zdań {#syntax}
+
+Jedna linia może obejmować wiele sposobów powiedzenia tego samego. Samouczek <b class="ui">Składnia zdań</b>
+pokazuje to w edytorze.
+
+| Zapis | Znaczenie | Przykład |
+| --- | --- | --- |
+| `(a|b)` | jedno ze słów | `(włącz|zapal) {name}` |
+| `[a]` | słowo opcjonalne | `[proszę] włącz {name}` |
+| `{name}`, `{area}`, `{floor}` | urządzenie (encja udostępniona dla Assist), obszar, piętro; Home Assistant uzupełnia je sam | `zgaś światło w {area}` |
+| `{lista}` | własna lista z `lists:` albo lista intencji, np. `{brightness}` | `ustaw {name} na {brightness}` |
+| `<reguła>` | fragment z `expansion_rules:`, wpisany raz, użyty w wielu zdaniach | `<włącz> {name}` |
+
+<b class="ui">Dodaj grupę zdań</b> zakłada kolejną grupę. Grupa to zdania z tymi samymi dodatkowymi ustawieniami:
+stałe `slots:` (np. `domain: light`) albo `requires_context:` (np. tylko obszar, w którym stoi głośnik). Formularz
+zapisuje zdania; ustawienia grupy, `lists:` i `expansion_rules:` wpisuje się w widoku **YAML** (formularz pokazuje
+je jako „Także: …”).
+
+```yaml
+language: pl
+intents:
+  HassLightSet:
+    data:
+      - sentences:
+          - "<ustaw> {name} na {kolor}"
+        slots:
+          domain: light
+lists:
+  kolor:
+    values:
+      - in: "(czerwony|czerwono)"
+        out: red
+      - in: "(niebieski|niebiesko)"
+        out: blue
+expansion_rules:
+  ustaw: "(ustaw|zmień|przestaw)"
+```
+
+Inne rodzaje list: `range:` (liczby, np. `from: 0`, `to: 100`) i `wildcard: true` (dowolny tekst, np. rzecz na listę
+zakupów). Po zapisie <b class="ui">Co rozpozna Home Assistant</b> pokazuje obok intencji wartości slotów, np.
+`{"name": "lampka biurko", "kolor": "red"}`, więc widać, czy zdanie trafiło tam, gdzie miało.
+
+## Przewodnik i samouczki {#lessons}
+
+Edytor sam pokazuje, gdzie co jest. **Przewodnik po edytorze** startuje sam przy pierwszym otwarciu w przeglądarce:
+ramkuje po kolei drzewo, przyciski +, środek, zakładki, prawą kolumnę, tester, szkic, zapis i pomoc, a dymek mówi,
+do czego służy każda część i gdzie się ją ustawia. <b class="ui">Dalej</b>, <b class="ui">Wstecz</b> albo strzałki
+przechodzą, Esc albo <b class="ui">Pomiń</b> kończy. Wraca z **⚙** → <b class="ui">Przewodnik po edytorze</b>.
+
+![Przewodnik po edytorze przy drzewie](assets/screens/pl/10-tour.png){ .shot loading=lazy }
+/// caption
+Krok 2 przewodnika: drzewo w ramce, reszta przyciemniona, dymek z opisem i miejscem ustawień.
+///
+
+**Samouczki** (⚙ → <b class="ui">Samouczki</b>) to krótkie zadania krok po kroku. Każdy sam idzie tam, gdzie robi się
+zadanie (wybiera temat, otwiera część formularza), ramkuje jedną rzecz naraz, a krok z przyciskiem czeka, aż go
+klikniesz, więc zadanie robisz w trakcie nauki. <b class="ui">Dalej</b> w takim kroku robi to samo co kliknięcie.
+Nic się nie zapisuje, dopóki sam nie klikniesz <b class="ui">Zapisz</b>.
+
+![Lista samouczków](assets/screens/pl/11-lessons.png){ .shot loading=lazy }
+/// caption
+Samouczki w trzech grupach. Wyszarzony mówi, czego jeszcze potrzebuje; ✓ oznacza przerobione w tej przeglądarce.
+///
+
+| Grupa | Samouczek | Czego uczy |
+| --- | --- | --- |
+| <b class="ui">Na początek</b> | <b class="ui">Pierwszy temat</b> | + przy tematach, nazwa, na co odpowiada, przykłady, rodzaj ([Nowy temat](#topic)) |
+| | <b class="ui">Dane domu</b> | wzorce encji, atrybuty, usługi ([Dane tematu](#data)) |
+| | <b class="ui">Sprawdź zdanie</b> | tester i droga zdania ([Tester](#tester)) |
+| | <b class="ui">Zapisz zmiany</b> | okno zapisu: zmiany, ostrzeżenia, testy, opis ([Zapis](#save)); potrzebuje zmiany w szkicu |
+| <b class="ui">Następne kroki</b> | <b class="ui">Ucz się z tego, co padło</b> | nierozpoznane zdania ([Skąd wziąć pomysł](#learning)) |
+| | <b class="ui">Zestaw testów</b> | nowy test, uruchomienie na szkicu ([Zestaw testów](#tests)) |
+| | <b class="ui">Odpowiedź</b> | wskazówki dla modelu odpowiedzi, długość, „o pytającym” |
+| | <b class="ui">Cofanie i historia</b> | cofnij, odrzuć szkic, przywróć wersję ([Historia](#history)) |
+| | <b class="ui">Komenda Home Assistanta</b> | plik komend (zakłada go sam, gdy nie ma żadnego), intencja, zdania, zapis ([Komenda](#command)) |
+| | <b class="ui">Składnia zdań</b> | (a\|b), [a], {name}/{area}, grupy zdań, intencja bez obsługi, lists i expansion_rules w YAML, wartości slotów ([Składnia](#syntax)); potrzebuje pliku komend z intencją |
+| <b class="ui">Ustawiane raz</b> | <b class="ui">Dom</b> | domownicy, osoby, persony, ustawienia |
+| | <b class="ui">Wygląd, język i pomoc</b> | ⚙, mały ?, szerokość kolumn |
+
+![Samouczek czeka na kliknięcie](assets/screens/pl/12-lesson.png){ .shot loading=lazy }
+/// caption
+Krok czeka na kliknięcie + w ramce: drzewo samo przewinęło się do niego, reszta ekranu nie reaguje na kliknięcia.
+///
+
+Mały **?** nad każdą kolumną proponuje samouczek tego miejsca (<b class="ui">Pokaż krok po kroku: {name}</b>): przy drzewie
+pierwszy temat, przy prawej kolumnie tester, w środku ten, który dotyczy wybranej części.
 
 ## Wszystkie części edytora {#editor}
 

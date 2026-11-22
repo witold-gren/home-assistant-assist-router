@@ -8,6 +8,8 @@ import re
 from playwright.sync_api import Page, expect
 import yaml
 
+from .test_editor_app import answer
+
 ROUTER = "household: Tom\ntopics:\n  weather:\n    description: the weather\n"
 LIGHTS = """language: pl
 # lights of the living room
@@ -125,8 +127,8 @@ def test_an_intent_is_added_answered_renamed_and_removed(page: Page) -> None:
 
 def test_a_new_file_is_made_saved_and_deleted(page: Page) -> None:
     open_editor(page, sentences=[])
-    page.once("dialog", lambda dialog: dialog.accept("radio"))
     page.locator("[data-add-sentences]").click()
+    answer(page, value="radio")
     expect(page.locator("[data-node='@sentences/pl/radio.yaml']")).to_have_class(
         re.compile(r"\bsel\b")
     )
@@ -138,19 +140,19 @@ def test_a_new_file_is_made_saved_and_deleted(page: Page) -> None:
     assert yaml.safe_load(server_text(page, "radio.yaml"))["intents"] == {
         "HassTurnOn": {"data": [{"sentences": []}]}
     }
-    page.once("dialog", lambda dialog: dialog.accept())
     page.locator("[data-sentences-delete]").click()
+    answer(page)
     expect(page.locator("[data-node='@sentences/pl/radio.yaml']")).to_have_count(0)
     assert server_text(page, "radio.yaml") is None
 
 
 def test_a_bad_name_or_a_taken_one_is_refused(page: Page) -> None:
     open_editor(page)
-    page.once("dialog", lambda dialog: dialog.accept("../zle"))
     page.locator("[data-add-sentences]").click()
+    answer(page, value="../zle")
     expect(page.locator("[data-node^='@sentences/']")).to_have_count(1)
-    page.once("dialog", lambda dialog: dialog.accept("lampy.yaml"))
     page.locator("[data-add-sentences]").click()
+    answer(page, value="lampy.yaml")
     expect(page.locator("[data-notice='error']")).to_contain_text("już istnieje")
 
 
@@ -214,3 +216,49 @@ def test_the_demo_server_matches_templates_of_home_assistant(page: Page) -> None
                 m.templateSlots('rozbudź {name}', 'zgaś salon')];
     }""")
     assert found == [{"name": "salon"}, {"name": "w kuchni"}, {"name": "salon"}, None]
+
+
+def test_the_name_of_a_new_file_is_asked_in_a_window_of_the_editor(page: Page) -> None:
+    open_editor(page, sentences=[])
+    page.locator("[data-add-sentences]").click()
+    expect(page.locator("[data-ask-title]")).to_have_text("Nowy plik komend")
+    expect(page.locator("[data-ask-ok]")).to_have_text("Utwórz")
+    field = page.locator("[data-ask-input]")
+    # The usual name, focused and selected: typing replaces it
+    expect(field).to_have_value("moje_komendy.yaml")
+    expect(field).to_be_focused()
+    assert page.evaluate(
+        """() => {
+          const field = window.editor.app.shadowRoot.querySelector('assist-router-ask')
+            .shadowRoot.querySelector('[data-ask-input]');
+          return [field.selectionStart, field.selectionEnd];
+        }"""
+    ) == [0, len("moje_komendy.yaml")]
+    # An empty name cannot be confirmed
+    field.fill("  ")
+    expect(page.locator("[data-ask-ok]")).to_be_disabled()
+    # Esc: no file
+    page.keyboard.press("Escape")
+    expect(page.locator("[data-ask]")).to_have_count(0)
+    expect(page.locator("[data-node^='@sentences/']")).to_have_count(0)
+    # Enter confirms the typed name
+    page.locator("[data-add-sentences]").click()
+    page.keyboard.type("salon")
+    page.keyboard.press("Enter")
+    expect(page.locator("[data-ask]")).to_have_count(0)
+    expect(page.locator("[data-node='@sentences/pl/salon.yaml']")).to_have_class(
+        re.compile(r"\bsel\b")
+    )
+
+
+def test_deleting_a_file_of_commands_asks_with_the_focus_on_cancel(page: Page) -> None:
+    open_editor(page)
+    choose(page)
+    page.locator("[data-sentences-delete]").click()
+    expect(page.locator("[data-ask-title]")).to_have_text("Usuwanie pliku komend")
+    expect(page.locator("[data-ask-ok]")).to_have_class("danger")
+    expect(page.locator("[data-ask-cancel]")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("[data-ask]")).to_have_count(0)
+    assert server_text(page, "lampy.yaml") is not None
+    expect(page.locator("[data-node='@sentences/pl/lampy.yaml']")).to_be_visible()

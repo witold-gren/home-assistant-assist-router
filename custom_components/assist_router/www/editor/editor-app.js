@@ -19,9 +19,13 @@ import {
 } from "./outline.js";
 import { appendBlock, blockText, freeKey, keysAt, readDocument, removeBlock, replaceBlock, valueAt } from "./source.js";
 import "./dialogs.js";
+import { ask, asking } from "./ask.js";
 import "./forms.js";
 import "./tester.js";
 import "./learn.js";
+import "./tour.js";
+import { tourSeen } from "./tour.js";
+import { lessonByKey, lessonFor, lessonReady } from "./lessons.js";
 import { newSentencesFile, sentencesFileName } from "./sentences.js";
 import { readStored, writeStored } from "./stored.js";
 import { addressKey, writeAddress } from "./address.js";
@@ -127,6 +131,9 @@ class AssistRouterEditorApp extends LitElement {
     _sentences: { state: true },
     _sentenceEdits: { state: true },
     _testRun: { state: true },
+    // The tour of the editor (tour.js) over everything, or one of its lessons (lessons.js).
+    _tour: { state: true },
+    _lesson: { state: true },
   };
 
   constructor() {
@@ -154,6 +161,8 @@ class AssistRouterEditorApp extends LitElement {
     this._theme = THEMES.includes(readStored(THEME_KEY)) ? readStored(THEME_KEY) : "auto";
     this._language = EDITOR_LANGUAGES.includes(readStored(LANGUAGE_KEY)) ? readStored(LANGUAGE_KEY) : "auto";
     this._gear = false;
+    this._tour = false;
+    this._lesson = null;
     this._onOutside = this._onOutside.bind(this);
     this._onKey = this._onKey.bind(this);
     this._onVisible = this._onVisible.bind(this);
@@ -204,7 +213,10 @@ class AssistRouterEditorApp extends LitElement {
   }
 
   _onOutside(event) {
-    if (this._gear && !event.composedPath().some((node) => node.classList?.contains("gear-wrap"))) this._gear = false;
+    const path = event.composedPath();
+    // A click in the tour (its Next button) leaves the window open: a lesson frames what is in it.
+    if (path.some((node) => node.tagName === "ASSIST-ROUTER-EDITOR-TOUR")) return;
+    if (this._gear && !path.some((node) => node.classList?.contains("gear-wrap"))) this._gear = false;
   }
 
   connectedCallback() {
@@ -249,6 +261,11 @@ class AssistRouterEditorApp extends LitElement {
       this._nodeError = null;
       if (this._selected && !this._has(this._selected)) this._selected = null;
       this._loaded = true;
+      // The first time the editor opens in this browser it shows itself round.
+      if (!this._toured) {
+        this._toured = true;
+        if (!tourSeen() && !this._dialog) this._tour = true;
+      }
       if (loaded.draft) this._runCheck();
       this._loadTests();
       this._followAddress(false);
@@ -306,16 +323,30 @@ class AssistRouterEditorApp extends LitElement {
     return { key: "commands", label: this._t("group_commands"), children };
   }
 
-  _addSentencesFile() {
-    const name = sentencesFileName(window.prompt(this._t("sentences_new_name"), this._t("sentences_default_name")));
+  async _addSentencesFile() {
+    const typed = await ask(this, {
+      title: this._t("sentences_new_title"),
+      text: this._t("sentences_new_name"),
+      ok: this._t("sentences_create"),
+      input: this._t("sentences_default_name"),
+    });
+    const name = sentencesFileName(typed);
     if (!name) return;
     const language = this._sentences.language;
     if (this._sentences.files.some((file) => file.language === language && file.name === name)) {
       this._notice = { kind: "error", text: this._t("sentences_exists", { name }) };
       return;
     }
-    const file = { language, name, text: newSentencesFile(language), hash: "", check: null };
-    this._sentences = { ...this._sentences, files: [...this._sentences.files, file] };
+    this._openSentencesFile(name);
+  }
+
+  /** A file of commands chosen by its name; a new one (written only by its Save) when it is not there yet. */
+  _openSentencesFile(name) {
+    const language = this._sentences.language;
+    if (!this._sentences.files.some((file) => file.language === language && file.name === name)) {
+      const file = { language, name, text: newSentencesFile(language), hash: "", check: null };
+      this._sentences = { ...this._sentences, files: [...this._sentences.files, file] };
+    }
     this._select({ path: ["@sentences", language, name] });
   }
 
@@ -463,7 +494,7 @@ class AssistRouterEditorApp extends LitElement {
   }
 
   async _discard() {
-    if (!window.confirm(this._t("discard_confirm"))) return;
+    if (!(await ask(this, { title: this._t("discard_title"), text: this._t("discard_confirm"), ok: this._t("discard_ok"), danger: true }))) return;
     clearTimeout(this._draftTimer);
     this._dirty = false;
     await this._ws({ type: "editor/discard" });
@@ -497,6 +528,10 @@ class AssistRouterEditorApp extends LitElement {
   }
 
   _onKey(event) {
+    // The tour and the lessons have their keys of their own.
+    if (this._tour || this._lesson) return;
+    // An open question (ask.js) has the keys too: Esc and Tab are its own, the shortcuts wait.
+    if (asking(this.renderRoot)) return;
     if (event.key === "Escape" && this._gear) {
       this._gear = false;
       return;
@@ -616,9 +651,10 @@ class AssistRouterEditorApp extends LitElement {
     }
   }
 
-  _delete() {
+  async _delete() {
     const path = this._selected;
-    if (!window.confirm(this._t("delete_confirm", { name: path.at(-1) }))) return;
+    const question = { title: this._t("delete_title"), text: this._t("delete_confirm", { name: path.at(-1) }), ok: this._t("delete"), danger: true };
+    if (!(await ask(this, question))) return;
     try {
       this._setText(removeBlock(this._text, path));
       this._selected = null;
@@ -852,7 +888,8 @@ class AssistRouterEditorApp extends LitElement {
   }
 
   async _restore({ version }) {
-    if (this._draft && !window.confirm(this._t("history_restore_confirm"))) return;
+    if (this._draft && !(await ask(this, { title: this._t("history_restore_title"), text: this._t("history_restore_confirm"), ok: this._t("history_restore_ok") })))
+      return;
     clearTimeout(this._draftTimer);
     this._dirty = false;
     try {
@@ -910,7 +947,48 @@ class AssistRouterEditorApp extends LitElement {
             @restore=${(event) => this._restore(event.detail)}
           ></assist-router-history-dialog>`
         : nothing}
+      ${this._dialog === "lessons"
+        ? html`<assist-router-lessons
+            .language=${this.hass.language}
+            .app=${this}
+            @close=${() => (this._dialog = null)}
+            @lesson-start=${(event) => this._startLesson(lessonByKey(event.detail.key))}
+          ></assist-router-lessons>`
+        : nothing}
+      ${this._tour || this._lesson
+        ? html`<assist-router-editor-tour
+            .host=${this}
+            .t=${(key, values) => this._t(key, values)}
+            .lesson=${this._lesson}
+            @tour-close=${this._closeTour}
+          ></assist-router-editor-tour>`
+        : nothing}
     `;
+  }
+
+  _openTour() {
+    this._gear = false;
+    this._help = null;
+    this._lesson = null;
+    this._tour = true;
+  }
+
+  _startLesson(lesson) {
+    if (!lesson || !lessonReady(lesson, this)) return;
+    this._gear = false;
+    this._help = null;
+    this._tour = false;
+    // A window the lesson opens (saving, the history) is closed with it; one open before stays.
+    this._lessonDialog = this._dialog === "lessons" ? null : this._dialog;
+    this._dialog = this._lessonDialog;
+    this._lesson = lesson;
+  }
+
+  _closeTour() {
+    if (this._lesson && this._dialog !== this._lessonDialog) this._dialog = this._lessonDialog ?? null;
+    if (this._lesson) this._gear = false;
+    this._tour = false;
+    this._lesson = null;
   }
 
   /** The "?" of a part of the editor: what the part is for, and the chapter of the guide about it in a new tab. */
@@ -959,10 +1037,27 @@ class AssistRouterEditorApp extends LitElement {
           </button>
         </div>
         <p>${this._t(`help_${help.part}`)}</p>
+        ${this._renderHelpLesson(help.part)}
         <a data-help-more href=${editorDocsUrl(this.hass?.language, help.anchor)} target="_blank" rel="noopener"
           >${this._t("help_more")} <ha-icon icon="mdi:open-in-new"></ha-icon
         ></a>
       </div>`;
+  }
+
+  // The lesson of what the "?" speaks of ("Show me step by step").
+  _renderHelpLesson(part) {
+    const lesson = lessonFor(part, this._selected);
+    if (!lesson) return nothing;
+    const ready = lessonReady(lesson, this);
+    return html`<button
+      class="ghost help-lesson"
+      data-help-lesson=${lesson.key}
+      ?disabled=${!ready}
+      title=${ready ? "" : this._t(`lessons_needs_${lesson.needs}`)}
+      @click=${() => this._startLesson(lesson)}
+    >
+      <ha-icon icon="mdi:school-outline"></ha-icon>${this._t("lessons_show", { name: this._t(`lesson_${lesson.key}_name`) })}
+    </button>`;
   }
 
   _renderTop() {
@@ -1049,6 +1144,22 @@ class AssistRouterEditorApp extends LitElement {
       <span class="gear-group">${this._t("gear_language")}</span>
       ${segment("language", EDITOR_LANGUAGES, this._language, (language) => this._setLanguage(language))}
       <p class="gear-hint">${this._t("gear_hint")}</p>
+      <div class="gear-links">
+        <button type="button" class="gear-link" data-gear-tour @click=${this._openTour}>
+          <ha-icon icon="mdi:map-marker-path"></ha-icon>${this._t("tour_open")}
+        </button>
+        <button
+          type="button"
+          class="gear-link"
+          data-gear-lessons
+          @click=${() => {
+            this._gear = false;
+            this._dialog = "lessons";
+          }}
+        >
+          <ha-icon icon="mdi:school-outline"></ha-icon>${this._t("lessons_title")}
+        </button>
+      </div>
     </div>`;
   }
 
@@ -1166,8 +1277,8 @@ class AssistRouterEditorApp extends LitElement {
   }
 
   _renderMiddle() {
-    return html`<main class="middle">
-      <div class="tabs">
+    return html`<main class="middle" data-middle>
+      <div class="tabs" data-tabs>
         <div class="seg" ?hidden=${formFor(this._selected) === "sentences"}>
           <button
             class=${this._tab === "form" ? "on" : ""}
@@ -1708,6 +1819,40 @@ class AssistRouterEditorApp extends LitElement {
       background: var(--on);
       color: var(--text);
       font-weight: 600;
+    }
+    .gear-links {
+      display: grid;
+      gap: 2px;
+      padding-top: 6px;
+      border-top: 1px solid var(--line);
+    }
+    .gear-link,
+    .help-lesson {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border: 0;
+      border-radius: 8px;
+      color: var(--text);
+      background: none;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .gear-link:hover,
+    .help-lesson:hover:not([disabled]) {
+      background: var(--hover);
+    }
+    .help-lesson {
+      margin: 0 0 8px;
+      padding: 6px 10px;
+      color: var(--accent);
+      border: 1px solid var(--line);
+    }
+    .help-lesson[disabled] {
+      opacity: 0.55;
+      cursor: default;
     }
     .gear-hint {
       max-width: 300px;

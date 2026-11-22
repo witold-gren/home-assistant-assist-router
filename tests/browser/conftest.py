@@ -49,6 +49,11 @@ def page(browser, base_url: str) -> Iterator[Page]:
     page = browser.new_page(viewport=SCREEN)
     page.errors = []
     page.on("pageerror", lambda error: page.errors.append(str(error)))
+    # Questions are windows of the editor (ask.js); a dialog of the browser is a mistake.
+    page.on(
+        "dialog",
+        lambda dialog: (page.errors.append(f"browser dialog: {dialog.message}"), dialog.dismiss()),
+    )
     page.goto(f"{base_url}/tests/js/editor-harness.html")
     page.wait_for_function("window.editorReady === true")
     yield page

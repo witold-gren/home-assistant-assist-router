@@ -1,5 +1,7 @@
 // The words of the editor in English and Polish; any other language of Home Assistant gets English.
 
+import { TOUR_TEXTS } from "./tour-texts.js";
+
 const STRINGS = {
   en: {
     title: "Assist Router editor",
@@ -12,6 +14,9 @@ const STRINGS = {
     state_clean: "No changes",
     discard: "Discard draft",
     discard_confirm: "Discard the draft? The changes not saved to router.yaml will be lost.",
+    discard_title: "Discard the draft",
+    discard_ok: "Discard",
+    ask_ok: "Go on",
     docs: "Documentation: the guide to the editor (new tab)",
     help_what: "What is this?",
     fold_left: "Fold the tree (Ctrl/⌘+B)",
@@ -62,6 +67,7 @@ const STRINGS = {
     no_block: "This item is written on one line inside its parent ({ … }); edit the parent.",
     delete: "Delete",
     delete_confirm: "Delete “{name}” with the comments right above it?",
+    delete_title: "Delete a part",
     duplicate: "Duplicate",
     copy_suffix: "copy",
     lost: "This item is no longer in the file.",
@@ -116,6 +122,8 @@ const STRINGS = {
     history_pick: "Choose a version to see how it differs from the file now.",
     history_restore: "Restore as a draft",
     history_restore_confirm: "Restoring replaces the draft you have now. Go on?",
+    history_restore_title: "Restore a version",
+    history_restore_ok: "Restore",
     history_no_note: "no description",
     history_same: "This version is the same as the file now.",
     tab_form: "Form",
@@ -439,8 +447,10 @@ const STRINGS = {
     save_tests_expected: "expected: {where}",
     group_commands: "Commands of Home Assistant",
     sentences_add_file: "A new file of sentences",
-    sentences_new_name: "Name of the new file in custom_sentences (letters, digits, _ and -):",
+    sentences_new_name: "Name of the new file in custom_sentences (letters, digits, _ and -)",
     sentences_default_name: "my_commands.yaml",
+    sentences_new_title: "New file of commands",
+    sentences_create: "Create",
     sentences_exists: "{name} exists already.",
     sentences_file_error: "Home Assistant does not read this file: {error}",
     sentences_no_block: "The file has its own YAML tab in its view.",
@@ -463,6 +473,7 @@ const STRINGS = {
     sentences_discard: "Discard changes",
     sentences_delete: "Delete the file",
     sentences_delete_confirm: "Delete {name}? It is kept as {name}.bak and the sentences are reloaded without it.",
+    sentences_delete_title: "Delete the file of commands",
     sentences_save: "Save and reload",
     sentences_saving: "Saving…",
     sentences_conflict: "The file was changed outside the editor meanwhile. Save anyway to overwrite it.",
@@ -499,6 +510,9 @@ const STRINGS = {
     state_clean: "Bez zmian",
     discard: "Odrzuć szkic",
     discard_confirm: "Odrzucić szkic? Zmiany niezapisane do router.yaml znikną.",
+    discard_title: "Odrzucenie szkicu",
+    discard_ok: "Odrzuć",
+    ask_ok: "Dalej",
     docs: "Dokumentacja: przewodnik po edytorze (nowa karta)",
     help_what: "Co to jest?",
     fold_left: "Zwiń drzewo (Ctrl/⌘+B)",
@@ -549,6 +563,7 @@ const STRINGS = {
     no_block: "Ten element jest zapisany w jednej linii wewnątrz rodzica ({ … }). Edytuj rodzica.",
     delete: "Usuń",
     delete_confirm: "Usunąć „{name}” razem z komentarzami tuż nad nim?",
+    delete_title: "Usuwanie części",
     duplicate: "Duplikuj",
     copy_suffix: "kopia",
     lost: "Tego elementu nie ma już w pliku.",
@@ -603,6 +618,8 @@ const STRINGS = {
     history_pick: "Wybierz wersję, aby zobaczyć, czym różni się od obecnego pliku.",
     history_restore: "Przywróć jako szkic",
     history_restore_confirm: "Przywrócenie zastąpi obecny szkic. Kontynuować?",
+    history_restore_title: "Przywracanie wersji",
+    history_restore_ok: "Przywróć",
     history_no_note: "bez opisu",
     history_same: "Ta wersja jest taka sama jak obecny plik.",
     tab_form: "Formularz",
@@ -926,8 +943,10 @@ const STRINGS = {
     save_tests_expected: "oczekiwane: {where}",
     group_commands: "Komendy Home Assistanta",
     sentences_add_file: "Nowy plik zdań",
-    sentences_new_name: "Nazwa nowego pliku w custom_sentences (litery, cyfry, _ i -):",
+    sentences_new_name: "Nazwa nowego pliku w custom_sentences (litery, cyfry, _ i -)",
     sentences_default_name: "moje_komendy.yaml",
+    sentences_new_title: "Nowy plik komend",
+    sentences_create: "Utwórz",
     sentences_exists: "{name} już istnieje.",
     sentences_file_error: "Home Assistant nie czyta tego pliku: {error}",
     sentences_no_block: "Plik ma własną zakładkę YAML w swoim widoku.",
@@ -950,6 +969,7 @@ const STRINGS = {
     sentences_discard: "Odrzuć zmiany",
     sentences_delete: "Usuń plik",
     sentences_delete_confirm: "Usunąć {name}? Zostanie jako {name}.bak, a zdania przeładują się bez niego.",
+    sentences_delete_title: "Usuwanie pliku komend",
     sentences_save: "Zapisz i przeładuj",
     sentences_saving: "Zapisuję…",
     sentences_conflict: "W międzyczasie plik zmienił się poza edytorem. „Zapisz mimo to” go nadpisze.",
@@ -978,6 +998,9 @@ const STRINGS = {
 };
 
 /** A word in the language of Home Assistant, with `{name}` filled from values; the fallback when it is unknown. */
+// The tour and the lessons keep their many words in a file of their own.
+for (const language of Object.keys(TOUR_TEXTS)) Object.assign(STRINGS[language], TOUR_TEXTS[language]);
+
 export function translate(language, key, values = null, fallback = undefined) {
   const words = String(language ?? "").startsWith("pl") ? STRINGS.pl : STRINGS.en;
   const text = words[key] ?? STRINGS.en[key] ?? fallback ?? key;

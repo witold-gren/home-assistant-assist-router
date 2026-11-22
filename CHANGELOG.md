@@ -2,6 +2,34 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions: [SemVer](https://semver.org/).
 
+## [0.1.12] - 2026-11-22
+
+### Added
+- **Editor: tour and lessons** (standard gpu-studio §5a, like the editor of Home Dashboard). The *Tour of the editor*
+  starts by itself the first time the editor opens in a browser (remembered by the browser; without its storage it
+  counts as seen) and from ⚙: it frames the tree, the + buttons, the middle, the tabs, the right column, the tester,
+  the draft, saving and the help one at a time, with a bubble that says what each is and where it is set; the arrows,
+  Enter and Esc work. *Lessons* (⚙ → Lessons): 12 short tasks in three groups (to start with, next steps, set up
+  once) - your first topic, data of the home, try a sentence, save the changes, learn from what was said, the test
+  set, the answer, undo and history, a command of Home Assistant (it makes the file of commands when there is none, written
+  only by its Save), sentence syntax ((a|b), [a], {name}/{area}/{floor}, groups of sentences, an intent with no
+  handler, lists/expansion_rules/slots/requires_context in YAML, the values of slots), the home, look and language. Each goes where the
+  task is done (chooses a topic, scrolls the tree or the form), frames one thing at a time and waits for the framed
+  button to be clicked (Next does what the click would); a lesson that needs something (a change in the draft, a
+  file of commands with an intent, a topic) is greyed with the reason; ✓ marks the ones gone through. The small ? of each column
+  offers its lesson ("Show me step by step"). Docs: chapter *Tour and lessons* with three new screenshots, section *Sentence syntax*, FAQ.
+
+### Changed
+- **Editor: questions in its own window, not the browser's** (standard gpu-studio §5). Deleting a part, discarding the
+  draft, restoring a version over the draft, deleting a file of commands and the name of a new file of commands are
+  asked in a window of the editor (`www/editor/ask.js`) instead of `window.confirm` / `window.prompt`: it has the
+  editor's theme and language, a Cancel button and one named after the action (Delete, Discard, Restore, Create).
+  A dangerous action has a red button and starts with the focus on Cancel, so Enter alone never does it; Esc and a
+  click beside the window cancel, Tab stays in it, and the focus goes back to the button that opened it. Esc does
+  not reach Home Assistant or a lesson running behind the window, and the editor's shortcuts wait while it is open.
+  The name of a new file starts selected and Enter creates it. A test fails on any `confirm(` / `alert(` /
+  `prompt(` in `www`, and the browser tests fail on any dialog of the browser.
+
 ## [0.1.11] - 2026-11-19
 
 ### Added

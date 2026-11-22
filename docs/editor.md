@@ -45,10 +45,11 @@ The topic `daily_summary` open in its form.
 - **Right:** <b class="ui">Check</b> (whether the router reads the text and how many topics it has), <b class="ui">File</b>
   (the state of the draft), <b class="ui">Kind of topic</b> and the <b class="ui">Tester</b>.
 - **Top bar:** the state (<b class="ui">No changes</b> or <b class="ui">Draft saved</b>), undo and redo, <b class="ui">Discard draft</b>,
-  light or dark look, **⚙** (a small window: <b class="ui">Look</b> and <b class="ui">Language</b>), **?** (this guide, in a new
+  light or dark look, **⚙** (a small window: <b class="ui">Look</b>, <b class="ui">Language</b>, <b class="ui">Tour of the editor</b> and
+  <b class="ui">Lessons</b>, [chapter](#lessons)), **?** (this guide, in a new
   tab), <b class="ui">History</b> and <b class="ui">Save…</b>.
 - **Small ?** above the tree, the middle and the right column: a small window that says what that part does, without
-  leaving the editor (Esc or a click beside it closes it); *More in the guide* at its bottom opens the chapter about
+  leaving the editor (Esc or a click beside it closes it); <b class="ui">Show me step by step: {name}</b> starts the lesson of that place, *More in the guide* at its bottom opens the chapter about
   it, in the middle the one about what you chose (a topic, the tests, learning…). Only the ? of the top bar opens this
   guide at once.
 - **The address** of the page names the chosen node (`…#/topics/weather`): a copied link or a reload opens the editor
@@ -200,8 +201,8 @@ The version before the save: restoring it would remove the topic `bins` (lines i
 Not every sentence needs the router. Home Assistant recognizes simple commands by itself, faster and without a
 model, when they are added to `custom_sentences`. Those files are in <b class="ui">Commands of Home Assistant</b>.
 
-1. <b class="ui">+</b> beside <b class="ui">Commands of Home Assistant</b>. The browser asks for the name of the file ("Name of the new file
-   in custom_sentences (letters, digits, _ and -):"), e.g. `lamps.yaml`.
+1. <b class="ui">+</b> beside <b class="ui">Commands of Home Assistant</b>. The window <b class="ui">New file of commands</b> asks for its name
+   (letters, digits, _ and -), e.g. `lamps.yaml`; <b class="ui">Create</b> or <kbd>Enter</kbd> makes it, <b class="ui">Cancel</b> or <kbd>Esc</kbd> does not.
 2. Type an intent in <b class="ui">Intent, e.g. HassTurnOn</b> and click <b class="ui">Add an intent</b>. The built-in intents of Home
    Assistant (e.g. `HassTurnOn`, `HassTurnOff`) work at once.
 3. Under <b class="ui">Sentences 1</b>, type a sentence in <b class="ui">Add a sentence, e.g. wake up {name}</b> and press <kbd>Enter</kbd>,
@@ -226,6 +227,94 @@ The file `en/lamps.yaml` saved and reloaded; “light up the living room” → 
 
 A file of commands is saved on its own, not with the draft of `router.yaml`. <b class="ui">Delete the file</b>
 keeps it as `.bak`.
+
+### Sentence syntax {#syntax}
+
+One line can cover many ways of saying the same thing. The lesson <b class="ui">Sentence syntax</b> shows it in the
+editor.
+
+| Written | Meaning | Example |
+| --- | --- | --- |
+| `(a|b)` | one of the words | `(turn on|switch on) {name}` |
+| `[a]` | an optional word | `[please] turn on {name}` |
+| `{name}`, `{area}`, `{floor}` | a device (an entity exposed to Assist), an area, a floor; Home Assistant fills them by itself | `turn off the light in {area}` |
+| `{list}` | your own list from `lists:` or a list of the intent, e.g. `{brightness}` | `set {name} to {brightness}` |
+| `<rule>` | a fragment from `expansion_rules:`, written once, used in many sentences | `<turn_on> {name}` |
+
+<b class="ui">Add a group of sentences</b> starts another group. A group is sentences with the same extra settings:
+fixed `slots:` (e.g. `domain: light`) or `requires_context:` (e.g. only the area of the speaker). The form writes
+the sentences; the settings of a group, `lists:` and `expansion_rules:` are typed in the **YAML** view (the form
+shows them as "Also: …").
+
+```yaml
+language: en
+intents:
+  HassLightSet:
+    data:
+      - sentences:
+          - "<set> {name} to {colour}"
+        slots:
+          domain: light
+lists:
+  colour:
+    values:
+      - in: "(red|crimson)"
+        out: red
+      - in: "(blue|navy)"
+        out: blue
+expansion_rules:
+  set: "(set|change|make)"
+```
+
+Other kinds of lists: `range:` (numbers, e.g. `from: 0`, `to: 100`) and `wildcard: true` (any text, e.g. an item for
+the shopping list). After saving, <b class="ui">What Home Assistant recognizes</b> shows the values of the slots next
+to the intent, e.g. `{"name": "desk lamp", "colour": "red"}`, so you see whether the sentence went where it should.
+
+## Tour and lessons {#lessons}
+
+The editor shows you where things are. The **Tour of the editor** starts by itself the first time the editor opens in a
+browser: it frames the tree, the + buttons, the middle, the tabs, the right column, the tester, the draft, saving and
+the help one at a time, and a bubble says what each part is for and where it is set. <b class="ui">Next</b>,
+<b class="ui">Back</b> or the arrows move on, Esc or <b class="ui">Skip</b> ends it. **⚙** → <b class="ui">Tour of the editor</b>
+brings it back.
+
+![The tour of the editor at the tree](assets/screens/en/10-tour.png){ .shot loading=lazy }
+/// caption
+Step 2 of the tour: the tree framed, the rest dimmed, a bubble with what it is and where it is set.
+///
+
+The **Lessons** (⚙ → <b class="ui">Lessons</b>) are short tasks done step by step. Each one goes where the task is done
+(chooses a topic, opens a part of a form), frames one thing at a time, and a step with a button waits for you to
+click it, so you do the task while you learn it. <b class="ui">Next</b> on such a step does what the click would.
+Nothing is saved until you click <b class="ui">Save</b> yourself.
+
+![The list of lessons](assets/screens/en/11-lessons.png){ .shot loading=lazy }
+/// caption
+The lessons in three groups. A greyed one says what it still needs; ✓ marks the ones gone through in this browser.
+///
+
+| Group | Lesson | What it teaches |
+| --- | --- | --- |
+| <b class="ui">To start with</b> | <b class="ui">Your first topic</b> | + at the topics, name, what it answers, examples, kind ([A new topic](#topic)) |
+| | <b class="ui">Data of the home</b> | entity patterns, attributes, services ([The data of a topic](#data)) |
+| | <b class="ui">Try a sentence</b> | the tester and the way of a sentence ([The tester](#tester)) |
+| | <b class="ui">Save the changes</b> | the window of saving: changes, warnings, tests, description ([Saving](#save)); needs a change in the draft |
+| <b class="ui">Next steps</b> | <b class="ui">Learn from what was said</b> | unrecognized sentences ([Where ideas come from](#learning)) |
+| | <b class="ui">The test set</b> | a new test, running it on the draft ([The test set](#tests)) |
+| | <b class="ui">The answer</b> | hints for the answer model, length, “about who asks” |
+| | <b class="ui">Undo and history</b> | undo, discard the draft, restore a version ([History](#history)) |
+| | <b class="ui">A command of Home Assistant</b> | a file of commands (made by the lesson when there is none), intent, sentences, saving ([A command](#command)) |
+| | <b class="ui">Sentence syntax</b> | (a\|b), [a], {name}/{area}, groups of sentences, an intent with no handler, lists and expansion_rules in YAML, the values of slots ([Syntax](#syntax)); needs a file of commands with an intent |
+| <b class="ui">Set up once</b> | <b class="ui">The home</b> | household, people, personas, settings |
+| | <b class="ui">Look, language and help</b> | ⚙, the small ?, the width of the columns |
+
+![A lesson waits for a click](assets/screens/en/12-lesson.png){ .shot loading=lazy }
+/// caption
+The step waits for the framed + to be clicked: the tree scrolled to it by itself, the rest of the screen takes no clicks.
+///
+
+The small **?** above each column offers the lesson of that place (<b class="ui">Show me step by step: {name}</b>): your
+first topic at the tree, the tester at the right column, in the middle the one about the chosen part.
 
 ## All parts of the editor {#editor}
 

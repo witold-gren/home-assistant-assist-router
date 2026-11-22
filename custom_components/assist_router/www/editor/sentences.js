@@ -4,6 +4,7 @@
 
 import { LitElement, css, html, nothing } from "../vendor/lit-all.min.js";
 import { renameKey, setField } from "./fields.js";
+import { ask } from "./ask.js";
 import { translate } from "./i18n.js";
 import { keysAt, readDocument, valueAt } from "./source.js";
 import { callWS } from "./ws.js";
@@ -156,7 +157,13 @@ class AssistRouterSentences extends LitElement {
   }
 
   async _delete() {
-    if (!window.confirm(this._t("sentences_delete_confirm", { name: this.file.name }))) return;
+    const question = {
+      title: this._t("sentences_delete_title"),
+      text: this._t("sentences_delete_confirm", { name: this.file.name }),
+      ok: this._t("delete"),
+      danger: true,
+    };
+    if (!(await ask(this, question))) return;
     if (!this.file.hash) {
       this.dispatchEvent(new CustomEvent("deleted"));
       return;

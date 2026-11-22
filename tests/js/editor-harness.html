@@ -29,6 +29,12 @@
         events: [],
         // Opens the editor on a file (and a draft or a history); the server is kept for the test to look at.
         async open(options = {}) {
+          // The tour starts by itself on a first visit; the tests of other parts open the editor as seen before.
+          try {
+            if (!options.tour) localStorage.setItem("assist-router-editor-tour", "done");
+          } catch {
+            // no storage (a test of that): the tour counts as seen anyway
+          }
           const server = createEditorServer(options);
           const hass = {
             language: options.language ?? "pl",

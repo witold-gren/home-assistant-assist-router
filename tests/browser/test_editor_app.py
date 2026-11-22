@@ -58,6 +58,16 @@ def choose(page: Page, key: str, yaml: bool = True) -> None:
         page.locator("[data-tab='node']").click()
 
 
+def answer(page: Page, ok: bool = True, value: str | None = None) -> None:
+    """Answer the editor's question window (ask.js): the action button (with `value` typed first) or Cancel."""
+    window = page.locator("[data-ask]")
+    expect(window).to_be_visible()
+    if value is not None:
+        page.locator("[data-ask-input]").fill(value)
+    page.locator("[data-ask-ok]" if ok else "[data-ask-cancel]").click()
+    expect(page.locator("[data-ask]")).to_have_count(0)
+
+
 def node_keys(page: Page) -> list[str]:
     return page.locator("[data-node]").evaluate_all(
         "(nodes) => nodes.map((node) => node.dataset.node)"
@@ -208,11 +218,11 @@ def test_a_topic_is_duplicated_with_its_comments(page: Page) -> None:
 def test_deleting_asks_first_and_takes_the_comments_above(page: Page) -> None:
     open_editor(page)
     choose(page, "topics/weather")
-    page.once("dialog", lambda dialog: dialog.dismiss())
     page.locator("[data-delete]").click()
+    answer(page, ok=False)
     assert text(page) == FILE
-    page.once("dialog", lambda dialog: dialog.accept())
     page.locator("[data-delete]").click()
+    answer(page)
     expect(page.locator("[data-node='topics/weather']")).to_have_count(0)
     assert "Rain and sun" not in text(page)
     assert "topics:\n  lights:" in text(page)
@@ -339,9 +349,11 @@ def test_restoring_over_a_draft_asks_first(page: Page) -> None:
     page.locator("[data-history]").click()
     page.locator("[data-version='v1']").click()
     expect(page.locator("[data-history-dialog] [data-restore]")).to_be_enabled()
-    page.once("dialog", lambda dialog: dialog.dismiss())
     page.locator("[data-restore]").click()
+    expect(page.locator("[data-ask-ok]")).to_have_text("Przywróć")
+    answer(page, ok=False)
     assert text(page) == EDITED
+    expect(page.locator("[data-history-dialog]")).to_be_visible()
 
 
 def test_an_empty_history_says_so(page: Page) -> None:
@@ -357,8 +369,8 @@ def test_discarding_the_draft_asks_and_goes_back_to_the_file(page: Page) -> None
     choose(page, "topics/weather")
     page.locator("[data-node-yaml]").fill(WEATHER.replace("the weather", "rain, sun and wind"))
     wait_draft(page)
-    page.once("dialog", lambda dialog: dialog.accept())
     page.locator("[data-discard]").click()
+    answer(page)
     wait_draft(page, present=False)
     expect(page.locator("[data-node-yaml]")).to_have_value(WEATHER)
     assert text(page) == FILE
@@ -535,3 +547,85 @@ def test_a_folded_group_opens_for_what_is_chosen_from_elsewhere(page: Page) -> N
     page.locator("[data-group-fold='topics']").click()
     page.evaluate("() => window.editor.app._select({ path: ['topics', 'weather'] })")
     expect(page.locator("[data-node='topics/weather']")).to_have_class(SELECTED)
+
+
+def active_data(page: Page) -> list[str]:
+    """The data-* names of the element that has the focus, through the shadow roots."""
+    return page.evaluate(
+        """() => {
+          let active = document.activeElement;
+          while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+          return Object.keys(active?.dataset ?? {});
+        }"""
+    )
+
+
+def test_deleting_asks_in_a_window_of_the_editor_with_the_focus_on_cancel(page: Page) -> None:
+    open_editor(page)
+    choose(page, "topics/weather")
+    page.locator("[data-delete]").focus()
+    page.locator("[data-delete]").click()
+    window = page.locator("[data-ask]")
+    expect(window).to_have_attribute("role", "alertdialog")
+    expect(window).to_have_attribute("aria-modal", "true")
+    expect(page.locator("[data-ask-title]")).to_have_text("Usuwanie części")
+    expect(page.locator("[data-ask-text]")).to_contain_text("weather")
+    # A dangerous action: a red button named after it, and the focus starts on Cancel
+    expect(page.locator("[data-ask-ok]")).to_have_text("Usuń")
+    expect(page.locator("[data-ask-ok]")).to_have_class("danger")
+    assert active_data(page) == ["askCancel"]
+    # Enter alone cancels then; the focus goes back to the button that opened the window
+    page.keyboard.press("Enter")
+    expect(window).to_have_count(0)
+    assert text(page) == FILE
+    assert active_data(page) == ["delete"]
+
+
+def test_escape_and_a_click_beside_cancel_the_question_and_tab_stays_in_it(page: Page) -> None:
+    open_editor(page)
+    choose(page, "topics/weather")
+    # Esc is the window's only: it does not reach the editor or Home Assistant behind it
+    page.evaluate(
+        "() => { window.escapes = 0; window.addEventListener('keydown', (e) => e.key === 'Escape' && window.escapes++); }"
+    )
+    page.locator("[data-delete]").click()
+    page.keyboard.press("Tab")
+    assert active_data(page) == ["askOk"]
+    page.keyboard.press("Tab")
+    assert active_data(page) == ["askCancel"]
+    page.keyboard.press("Shift+Tab")
+    assert active_data(page) == ["askOk"]
+    page.keyboard.press("Escape")
+    expect(page.locator("[data-ask]")).to_have_count(0)
+    assert page.evaluate("window.escapes") == 0
+    assert text(page) == FILE
+    page.locator("[data-delete]").click()
+    page.locator("[data-ask-scrim]").click(position={"x": 10, "y": 10})
+    expect(page.locator("[data-ask]")).to_have_count(0)
+    assert text(page) == FILE
+    expect(page.locator("[data-node='topics/weather']")).to_be_visible()
+
+
+def test_the_editor_shortcuts_wait_while_a_question_is_open(page: Page) -> None:
+    open_editor(page)
+    choose(page, "topics/weather")
+    page.locator("[data-delete]").click()
+    page.keyboard.press("Control+s")
+    expect(page.locator("[data-save-dialog]")).to_have_count(0)
+    answer(page, ok=False)
+
+
+def test_the_question_has_the_look_of_the_editor_in_english(page: Page) -> None:
+    open_editor(page, language="en")
+    choose(page, "topics/weather")
+    page.locator("[data-delete]").click()
+    expect(page.locator("[data-ask-cancel]")).to_have_text("Cancel")
+    expect(page.locator("[data-ask-ok]")).to_have_text("Delete")
+    # inside the editor's shadow root, so it has the editor's colours
+    assert page.evaluate("() => !!window.editor.app.shadowRoot.querySelector('assist-router-ask')")
+    background = page.evaluate(
+        """() => getComputedStyle(window.editor.app.shadowRoot.querySelector('assist-router-ask')
+             .shadowRoot.querySelector('.box')).backgroundColor"""
+    )
+    assert background not in ("", "rgba(0, 0, 0, 0)")
+    answer(page, ok=False)

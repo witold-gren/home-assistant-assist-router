@@ -20,6 +20,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 I18N = ROOT / "custom_components/assist_router/www/editor/i18n.js"
+TOUR_TEXTS = ROOT / "custom_components/assist_router/www/editor/tour-texts.js"
 TRANSLATIONS = ROOT / "custom_components/assist_router/translations"
 
 _spec = importlib.util.spec_from_file_location("docs_site", ROOT / "dev/docs_site.py")
@@ -66,11 +67,14 @@ def ui_names(text: str) -> list[str]:
 
 def texts(language: str) -> list[str]:
     """The texts of the editor in a language and the strings of the integration (its options)."""
-    source = I18N.read_text(encoding="utf-8")
-    start = source.index(f"\n  {language}: {{")
-    block = source[start : source.index("\n  },", start)]
-    entry = r'^\s{4}[a-z_0-9]+: "((?:[^"\\]|\\.)*)"'
-    found = [json.loads(f'"{value}"') for value in re.findall(entry, block, re.M)]
+    entry = r'^\s{4}[a-z_0-9]+:\s+"((?:[^"\\]|\\.)*)"'
+    found = []
+    # The tour and the lessons keep their words in a file of their own, merged into i18n.js.
+    for path in (I18N, TOUR_TEXTS):
+        source = path.read_text(encoding="utf-8")
+        start = source.index(f"\n  {language}: {{")
+        block = source[start : source.index("\n  },", start)]
+        found += [json.loads(f'"{value}"') for value in re.findall(entry, block, re.M)]
 
     def strings(value: object) -> list[str]:
         if isinstance(value, dict):
